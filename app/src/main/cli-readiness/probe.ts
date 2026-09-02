@@ -28,11 +28,12 @@ import { cliCommandEnv } from "./cli-env";
 
 /**
  * Ceiling per command. Matches the CLI updater's checker (L2), and generously:
- * MEASURED on this machine 2026-08-05, `claude --version` / `claude auth status
- * --json` / `codex --version` / `codex login status` all return in well under
- * 0.5s. Five seconds is headroom for a cold binary on a slow disk; the point of
- * the bound is that a wedged CLI can never keep a probe — or the launch trigger
- * that started it — alive for long.
+ * MEASURED on this machine 2026-08-05 and again 2026-09-01 (claude 2.1.258,
+ * codex-cli 0.152.0), `claude --version` / `claude auth status --json` /
+ * `codex --version` / `codex login status` return in 8 / 115 / 8 / 13 ms — well
+ * under 0.5s on both binaries. Five seconds is headroom for a cold binary on a
+ * slow disk; the point of the bound is that a wedged CLI can never keep a probe
+ * — or the launch trigger that started it — alive for long.
  */
 export const PROBE_TIMEOUT_MS = 5_000;
 
@@ -83,16 +84,25 @@ export interface CliProbeSpec {
 }
 
 /**
- * Claude Code. MEASURED 2026-08-05 (claude 2.1.222) on this machine:
- * - `claude --version` → exit 0, stdout `2.1.222 (Claude Code)`, stderr empty.
- *   Zero file side effects.
- * - `claude auth status --json`, signed in → exit 0, stdout JSON
- *   `{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty",
- *   "email":…,"orgId":…,"orgName":…,"subscriptionType":"max"}`.
+ * Claude Code. MEASURED 2026-08-05 (claude 2.1.222) and RE-MEASURED 2026-09-01
+ * (claude **2.1.258**) on this machine — evidence
+ * `spikes/upstream-sync-2026-09/codex/q24-cli-readiness.capture.txt`, which runs
+ * these exact commands and feeds the outcomes to the readers below:
+ * - `claude --version` → exit 0, stdout `2.1.258 (Claude Code)`, stderr empty,
+ *   ~8ms. Zero file side effects.
+ * - `claude auth status --json`, signed in → exit 0, stdout JSON, ~115ms. The
+ *   document GREW two fields between 2.1.222 and 2.1.258 —
+ *   `"analyticsDisabled":false` and `"projectsDirectory":"…/.claude/projects"`
+ *   now sit alongside `loggedIn`/`authMethod`/`apiProvider`/`email`/`orgId`/
+ *   `orgName`/`subscriptionType`. Nothing here reads them; recorded because a
+ *   fixture that claims to be MEASURED has to say which shape it measured.
  * - the same command under a fresh `HOME` → **exit 1**, stdout JSON
- *   `{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty"}`. Creates
- *   the CLI's own config skeleton (`.claude.json`, `.claude/`) in that HOME —
- *   on a real user's machine it already exists, and repeat runs add nothing.
+ *   `{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty",
+ *   "analyticsDisabled":false,"projectsDirectory":…}`. A fresh `HOME` on its own
+ *   is enough — `CLAUDE_CONFIG_DIR` does not have to be redirected as well
+ *   (MEASURED both ways 2026-09-01). Creates the CLI's own config skeleton
+ *   (`.claude.json`, `.claude/`) in that HOME — on a real user's machine it
+ *   already exists, and repeat runs add nothing.
  * - an unknown `auth` subcommand → exit 1, stdout empty, stderr
  *   `error: unknown command '…'`.
  */
@@ -105,16 +115,29 @@ export const CLAUDE_PROBE: CliProbeSpec = {
 };
 
 /**
- * Codex. MEASURED 2026-08-05 (codex-cli 0.146.0) on this machine:
- * - `codex --version` → exit 0, stdout `codex-cli 0.146.0`, stderr empty.
+ * Codex. MEASURED 2026-08-05 (codex-cli 0.146.0) and RE-MEASURED 2026-09-01
+ * (codex-cli **0.152.0**) on this machine — same evidence file as CLAUDE_PROBE.
+ * Every shape below survived the 0.146→0.152 jump unchanged, the version number
+ * itself aside — which is the opposite of the claude side, whose auth document
+ * grew two fields:
+ * - `codex --version` → exit 0, stdout `codex-cli 0.152.0`, stderr empty, ~8ms.
  * - `codex login status`, signed in → exit 0, **stderr** `Logged in using
- *   ChatGPT`, stdout EMPTY.
+ *   ChatGPT`, stdout EMPTY, ~13ms.
  * - the same under a fresh `CODEX_HOME` → exit 1, **stderr** `Not logged in`.
  * - the same over a malformed `config.toml` → exit 1, stderr `Error loading
  *   configuration: …:1:6: key with no value, expected \`=\``. Recognized by
  *   neither phrase, so it reads `unknown` — a config the CLI cannot load tells
  *   us nothing about whether the user is signed in, and calling it `signedOut`
  *   would send them to a login screen for a parse error.
+ *
+ * The signed-in sentence is one of SEVEN at 0.152.0, one per auth mode
+ * (`codex-rs/cli/src/login.rs`): `Logged in using ChatGPT` /
+ * `… workload identity` / `… an API key - <masked>` / `… access token` /
+ * `… personal access token` / `… Amazon Bedrock API key` / `… Amazon Bedrock AWS
+ * access keys`. All seven begin `Logged in`, which is the prefix
+ * {@link readCodexAuth} anchors on, so the reader needs no per-mode table — and
+ * the one non-answer on that path (`Error checking login status: …`) matches
+ * neither prefix and lands on `unknown`, the permissive side.
  */
 export const CODEX_PROBE: CliProbeSpec = {
   provider: "codex",

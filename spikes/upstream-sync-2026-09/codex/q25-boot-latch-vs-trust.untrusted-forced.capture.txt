@@ -1,0 +1,68 @@
+{
+  "arm": "untrusted-forced",
+  "why": "no ledger, pump forced through the draft window — what any boot-time runtime event would do",
+  "version": "codex-cli 0.152.1",
+  "prompt": "Say hello and stop.",
+  "pretrustCwd": null,
+  "deliveryStates": [
+    {
+      "atMs": 24,
+      "bootLatched": false,
+      "deliverable": false,
+      "itemStatus": "queued",
+      "failureReason": null
+    }
+  ],
+  "frames": [
+    {
+      "atMs": 24,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": ""
+    },
+    {
+      "atMs": 229,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": true,
+      "screen": "> You are in /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced/workspace\n\n  Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt\n  injection. Trusting the directory allows project-local config, hooks, and exec policies to load.\n\n› 1. Yes, continue\n  2. No, quit\n\n  Press enter to continue"
+    }
+  ],
+  "timeline": [],
+  "screenAtDelivery": null,
+  "dialogEverOnScreen": true,
+  "dialogOnScreenAtDelivery": null,
+  "forcedPumps": 19,
+  "finalScreen": "> You are in /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced/workspace\n\n  Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt\n  injection. Trusting the directory allows project-local config, hooks, and exec policies to load.\n\n› 1. Yes, continue\n  2. No, quit\n\n  Press enter to continue",
+  "ptyExited": false,
+  "exitInfo": null,
+  "events": [
+    {
+      "atMs": 1,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 23,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 4025,
+      "type": "codex-trust-dialog:detected",
+      "payload": {}
+    },
+    {
+      "atMs": 25058,
+      "type": "pty:exit",
+      "payload": {
+        "exitCode": 0,
+        "signal": 1,
+        "sonataInitiated": true
+      }
+    }
+  ],
+  "codexConfigAfter": null,
+  "trustGrantedByThisRun": false,
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null
+}

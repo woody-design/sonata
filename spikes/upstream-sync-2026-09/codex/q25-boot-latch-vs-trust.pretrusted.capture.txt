@@ -1,0 +1,156 @@
+{
+  "arm": "pretrusted",
+  "why": "CONTROL — ledger present, no dialog; the first prompt must reach the composer",
+  "version": "codex-cli 0.152.1",
+  "prompt": "Say hello and stop.",
+  "pretrustCwd": "/private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace",
+  "deliveryStates": [
+    {
+      "atMs": 24,
+      "bootLatched": false,
+      "deliverable": false,
+      "itemStatus": "queued",
+      "failureReason": null
+    },
+    {
+      "atMs": 1030,
+      "bootLatched": true,
+      "deliverable": false,
+      "itemStatus": "queued",
+      "failureReason": null
+    },
+    {
+      "atMs": 1531,
+      "bootLatched": true,
+      "deliverable": true,
+      "itemStatus": "delivering",
+      "failureReason": null
+    },
+    {
+      "atMs": 1532,
+      "bootLatched": true,
+      "deliverable": false,
+      "itemStatus": "delivering",
+      "failureReason": null
+    }
+  ],
+  "frames": [
+    {
+      "atMs": 25,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": ""
+    },
+    {
+      "atMs": 229,
+      "acceptsPromptInput": true,
+      "isCodexTrustDialog": false,
+      "screen": "╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     loading   /model to change          │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n \n \n› Ask Codex to do anything\n \n  ? for shortcuts"
+    },
+    {
+      "atMs": 739,
+      "acceptsPromptInput": true,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n \n• Booting MCP server: codex_apps (0s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace"
+    },
+    {
+      "atMs": 1145,
+      "acceptsPromptInput": true,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n \n• Booting MCP server: codex_apps (0s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace"
+    },
+    {
+      "atMs": 1548,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n \n \n› Say hello and stop.\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace"
+    },
+    {
+      "atMs": 1752,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Say hello and stop.\n\n \n• Working (0s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace"
+    },
+    {
+      "atMs": 2766,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Say hello and stop.\n\n \n• Working (1s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace"
+    },
+    {
+      "atMs": 3782,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Say hello and stop.\n\n \n• Working (2s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace"
+    },
+    {
+      "atMs": 3986,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Say hello and stop.\n\n\n• Hello!\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace"
+    }
+  ],
+  "timeline": [],
+  "screenAtDelivery": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace",
+  "dialogEverOnScreen": false,
+  "dialogOnScreenAtDelivery": false,
+  "deliveredAtMs": 1531,
+  "forcedPumps": 0,
+  "finalScreen": "\n\n╭────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                     │\n│                                                │\n│ model:     gpt-5.6-sol   /model to change      │\n│ directory: /private/tmp/…/pretrusted/workspace │\n╰────────────────────────────────────────────────╯\n\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Say hello and stop.\n\n\n• Hello!\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/pretrusted/workspace",
+  "ptyExited": false,
+  "exitInfo": null,
+  "events": [
+    {
+      "atMs": 2,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 24,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 1532,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 1532,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 5746,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 5746,
+      "type": "task:ready",
+      "payload": {
+        "source": "terminal-idle-composer-heuristic",
+        "confidence": "medium"
+      }
+    },
+    {
+      "atMs": 25085,
+      "type": "pty:exit",
+      "payload": {
+        "exitCode": 0,
+        "signal": 1,
+        "sonataInitiated": true
+      }
+    }
+  ],
+  "codexConfigAfter": null,
+  "trustGrantedByThisRun": false,
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null
+}

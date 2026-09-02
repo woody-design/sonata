@@ -355,8 +355,17 @@ function freshLedgerEnv(name) {
   return { profilePath: codexProfilePath(), binDir: path.join(home, "bin") };
 }
 
-/** Simulate codex appending a trust grant the way it does live:
- *  `[projects."<abs>"]` newline `trust_level = "<level>"`. */
+/**
+ * Append a trust grant the way codex appends it live.
+ *
+ * MEASURED, not simulated (upstream sync 2026-09-01, SL-6; capture
+ * `spikes/upstream-sync-2026-09/codex/q22-trust-serialization.capture.txt`):
+ * answering the directory-trust dialog on codex-cli 0.152.0 appends EXACTLY
+ * `"\n[projects.\"<abs>\"]\ntrust_level = \"trusted\"\n"` — a leading newline, a
+ * TOML basic-string key, the bare two-line form, od -c verified. That is
+ * byte-for-byte what this helper writes, and byte-for-byte what
+ * `projectTrustBlock` emits, which is why the round trip below closes.
+ */
 function appendProjectEntry(profilePath, dirPath, level = "trusted") {
   fs.appendFileSync(
     profilePath,
@@ -405,6 +414,46 @@ check("ledger: a codex-written grant for an EXISTING dir survives regeneration",
   ensureCodexRuntimeSettings({ binDir: env.binDir });
   const toml = fs.readFileSync(env.profilePath, "utf8");
   assert.ok(toml.includes(`[projects.${JSON.stringify(humanDir)}]`), "human grant carried forward");
+});
+
+// The case above is not defensive courtesy toward someone else's file — under
+// Sonata's own spawn it is the ONLY thing standing between a user's answer and
+// silent erasure. MEASURED at codex-cli 0.152.0 (same capture): a bare `codex`
+// writes its grant to `$CODEX_HOME/config.toml`, but `codex -p sonata` writes NO
+// config.toml at all and appends the block to `sonata.config.toml` — the file
+// `ensureCodexRuntimeSettings` regenerates at every spawn-prep. So this case
+// pins the whole loop: grant arrives in Sonata's file → next spawn rewrites that
+// file → the grant is still there, at the SAME verbatim bytes.
+check("ledger: the grant codex writes INTO the Sonata profile survives the next spawn-prep", () => {
+  const env = freshLedgerEnv("profile-layer");
+  const grantedDir = fs.mkdtempSync(path.join(tempRoot, "codex-granted-"));
+  const spawnCwd = fs.mkdtempSync(path.join(tempRoot, "spawn-cwd-"));
+  // Spawn 1: Sonata pre-trusts its own cwd; the user then answers a dialog for a
+  // DIFFERENT directory and codex appends into this same file.
+  ensureCodexRuntimeSettings({ binDir: env.binDir, pretrustCwd: spawnCwd });
+  appendProjectEntry(env.profilePath, grantedDir);
+  const afterGrant = fs.readFileSync(env.profilePath, "utf8");
+  assert.ok(
+    afterGrant.endsWith(
+      `\n[projects.${JSON.stringify(grantedDir)}]\ntrust_level = "trusted"\n`,
+    ),
+    "the measured upstream append shape lands at the end of Sonata's own file",
+  );
+
+  // Spawn 2: a fresh prep for the same cwd. write-if-changed would happily
+  // rewrite the file; carry-forward is what keeps the answer.
+  ensureCodexRuntimeSettings({ binDir: env.binDir, pretrustCwd: spawnCwd });
+  const headers = projectHeaders(fs.readFileSync(env.profilePath, "utf8"));
+  assert.deepEqual(
+    headers.slice().sort(),
+    [grantedDir, spawnCwd].sort(),
+    "both the human grant and Sonata's own pre-trust survive the regeneration",
+  );
+
+  // …and a third prep is byte-stable, so the loop converges instead of churning.
+  const settled = sha(env.profilePath);
+  ensureCodexRuntimeSettings({ binDir: env.binDir, pretrustCwd: spawnCwd });
+  assert.equal(sha(env.profilePath), settled, "the post-grant profile is byte-stable");
 });
 
 check("ledger: an entry for a DELETED dir prunes on regeneration", () => {

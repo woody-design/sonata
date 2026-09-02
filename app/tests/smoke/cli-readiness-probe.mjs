@@ -1,11 +1,18 @@
 // CLI readiness S1 — the probe's classification, over MEASURED CLI output.
 //
-// The provenance of every fixture string below is MEASURED on this machine
-// 2026-08-05 (claude 2.1.222, codex-cli 0.146.0): each was captured by running
-// the command and dumping the raw bytes of both streams, including which stream
-// carried the answer. Nothing here is invented, because the point of this file is
-// that the classifier agrees with the CLIs as they actually behave — a COMPOSED
-// fixture would only prove the classifier agrees with itself.
+// The provenance of every fixture string below is MEASURED on this machine —
+// originally 2026-08-05 (claude 2.1.222, codex-cli 0.146.0) and RE-PINNED
+// 2026-09-01 at claude **2.1.258** / codex-cli **0.152.0** (upstream sync SL-6,
+// capture `spikes/upstream-sync-2026-09/codex/q24-cli-readiness.capture.txt`).
+// Each was captured by running the command and dumping the raw bytes of both
+// streams, including which stream carried the answer. Nothing here is invented,
+// because the point of this file is that the classifier agrees with the CLIs as
+// they actually behave — a COMPOSED fixture would only prove the classifier
+// agrees with itself.
+//
+// Where a case could NOT be measured on this machine (the six codex auth modes
+// this account does not use), the fixture says so in its own comment and is
+// labelled SOURCE-DERIVED rather than promoted to MEASURED.
 //
 // The effect seam is injected, so this file spawns nothing. Three sibling smokes
 // drive the real binaries instead, each in its own process because each needs a
@@ -35,18 +42,37 @@ const results = {};
 // ── MEASURED fixtures ────────────────────────────────────────────────────────
 
 // `claude auth status --json`, signed in → exit 0, stdout, pretty-printed.
+// MEASURED at 2.1.258; account identity replaced with placeholders, field ORDER
+// and field SET verbatim. `analyticsDisabled` and `projectsDirectory` are new
+// since the 2.1.222 pin — kept in the fixture precisely because the classifier
+// must go on ignoring everything but `loggedIn`.
 const CLAUDE_SIGNED_IN_JSON = `{
   "loggedIn": true,
   "authMethod": "claude.ai",
   "apiProvider": "firstParty",
+  "analyticsDisabled": false,
+  "projectsDirectory": "/home/someone/.claude/projects",
   "email": "someone@example.com",
   "orgId": "00000000-0000-0000-0000-000000000000",
   "orgName": "someone@example.com's Organization",
   "subscriptionType": "max"
 }
 `;
-// Same command under a fresh HOME → **exit 1**, and still a well-formed document.
+// Same command under a fresh HOME → **exit 1**, and still a well-formed
+// document. MEASURED at 2.1.258; a fresh HOME alone is enough, with or without
+// CLAUDE_CONFIG_DIR redirected alongside it.
 const CLAUDE_SIGNED_OUT_JSON = `{
+  "loggedIn": false,
+  "authMethod": "none",
+  "apiProvider": "firstParty",
+  "analyticsDisabled": false,
+  "projectsDirectory": "/tmp/fresh-home/.claude/projects"
+}
+`;
+// The 2.1.222 shape, kept as a second MEASURED fixture rather than replaced: the
+// classifier's whole claim is that it reads `loggedIn` and nothing else, and an
+// old document still parsing is what makes that claim testable across versions.
+const CLAUDE_SIGNED_OUT_JSON_2_1_222 = `{
   "loggedIn": false,
   "authMethod": "none",
   "apiProvider": "firstParty"
@@ -56,11 +82,30 @@ const CLAUDE_SIGNED_OUT_JSON = `{
 const CLAUDE_UNKNOWN_COMMAND_STDERR = "error: unknown command 'bogus-subcommand'\n";
 
 // `codex login status` — the phrase arrives on STDERR, stdout is empty.
+// MEASURED at 0.152.0, unchanged from 0.146.0.
 const CODEX_SIGNED_IN_STDERR = "Logged in using ChatGPT\n";
 const CODEX_SIGNED_OUT_STDERR = "Not logged in\n";
-// …and over a malformed config.toml, exit 1 with neither phrase.
+// …and over a malformed config.toml, exit 1 with neither phrase. MEASURED at
+// 0.152.0 (the path is this machine's scratch dir, elided).
 const CODEX_CONFIG_ERROR_STDERR =
   "Error loading configuration: /tmp/broken/config.toml:1:6: key with no value, expected `=`\n";
+// SOURCE-DERIVED, not measured: the other six sentences `run_login_status` can
+// print, read verbatim from `codex-rs/cli/src/login.rs` at tag rust-v0.152.0.
+// This account is a ChatGPT login, so only the first was observable here. They
+// are pinned because the reader's design claim is that ONE prefix covers every
+// auth mode — a claim that is worth nothing if only the mode we happen to use is
+// ever exercised.
+const CODEX_SIGNED_IN_VARIANTS_SOURCE_DERIVED = [
+  "Logged in using workload identity\n",
+  "Logged in using an API key - sk-…abcd\n",
+  "Logged in using access token\n",
+  "Logged in using personal access token\n",
+  "Logged in using Amazon Bedrock API key\n",
+  "Logged in using Amazon Bedrock AWS access keys\n",
+];
+// The non-answer on the same path (also SOURCE-DERIVED, login.rs): auth storage
+// could not be read. It names neither phrase and must land on `unknown`.
+const CODEX_STATUS_ERROR_STDERR = "Error checking login status: keyring unavailable\n";
 
 const exit = (code, stdout = "", stderr = "") => ({ kind: "exit", code, stdout, stderr });
 
@@ -80,12 +125,20 @@ assert.equal(PROBE_TIMEOUT_MS, 5_000, "5s per command");
   // Contrapositive: the same document on the other exit code reads the same way.
   assert.equal(readClaudeAuth(exit(0, CLAUDE_SIGNED_OUT_JSON)), "signedOut");
   assert.equal(readClaudeAuth(exit(1, CLAUDE_SIGNED_IN_JSON)), "signedIn");
+  // Version-spanning: the 2.1.222 document (two fields shorter) classifies
+  // identically to the 2.1.258 one. This is the "reads `loggedIn` and nothing
+  // else" claim, tested rather than asserted in a comment.
+  assert.equal(
+    readClaudeAuth(exit(1, CLAUDE_SIGNED_OUT_JSON_2_1_222)),
+    "signedOut",
+    "an older, shorter auth document still classifies — no field-set coupling",
+  );
 
   // Everything unreadable is unknown — never signedOut.
   const unreadable = [
     ["an unknown subcommand", exit(1, "", CLAUDE_UNKNOWN_COMMAND_STDERR)],
     ["empty output", exit(0, "")],
-    ["not JSON", exit(0, "2.1.222 (Claude Code)\n")],
+    ["not JSON", exit(0, "2.1.258 (Claude Code)\n")],
     ["JSON without the field", exit(0, '{"authMethod":"none"}')],
     ["JSON with a non-boolean field", exit(0, '{"loggedIn":"yes"}')],
     ["a JSON array", exit(0, "[]")],
@@ -116,14 +169,29 @@ assert.equal(PROBE_TIMEOUT_MS, 5_000, "5s per command");
   assert.equal(readCodexAuth(exit(0, CODEX_SIGNED_IN_STDERR)), "signedIn");
   assert.equal(readCodexAuth(exit(1, CODEX_SIGNED_OUT_STDERR)), "signedOut");
 
+  // Every auth mode `run_login_status` can report shares the `Logged in` prefix,
+  // which is what lets one anchor cover all seven without a per-mode table.
+  for (const variant of CODEX_SIGNED_IN_VARIANTS_SOURCE_DERIVED) {
+    assert.equal(
+      readCodexAuth(exit(0, "", variant)),
+      "signedIn",
+      `every auth mode's sentence reads signedIn: ${JSON.stringify(variant)}`,
+    );
+  }
+
   assert.equal(
     readCodexAuth(exit(1, "", CODEX_CONFIG_ERROR_STDERR)),
     "unknown",
     "a config the CLI cannot load says nothing about auth",
   );
+  assert.equal(
+    readCodexAuth(exit(1, "", CODEX_STATUS_ERROR_STDERR)),
+    "unknown",
+    "auth storage that could not be read is unknown, never signedOut",
+  );
   for (const [label, outcome] of [
     ["empty output", exit(1, "")],
-    ["a version line", exit(0, "codex-cli 0.146.0\n")],
+    ["a version line", exit(0, "codex-cli 0.152.0\n")],
     ["JSON", exit(0, '{"loggedIn":false}')],
   ]) {
     assert.equal(readCodexAuth(outcome), "unknown", `${label} → unknown`);
@@ -200,7 +268,7 @@ assert.equal(PROBE_TIMEOUT_MS, 5_000, "5s per command");
     run: async (command, args) => {
       calls.push([command, ...args].join(" "));
       return args[0] === "--version"
-        ? exit(0, "codex-cli 0.146.0\n")
+        ? exit(0, "codex-cli 0.152.0\n")
         : exit(0, "", CODEX_SIGNED_IN_STDERR);
     },
   });
@@ -232,7 +300,7 @@ assert.equal(PROBE_TIMEOUT_MS, 5_000, "5s per command");
   const facts = await probeCliReadiness({
     run: async (command, args) => {
       if (command === "claude") {
-        return args[0] === "--version" ? exit(0, "2.1.222 (Claude Code)\n") : { kind: "failed" };
+        return args[0] === "--version" ? exit(0, "2.1.258 (Claude Code)\n") : { kind: "failed" };
       }
       return args[0] === "--version" ? { kind: "absent" } : exit(0);
     },

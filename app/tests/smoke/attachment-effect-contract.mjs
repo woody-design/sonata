@@ -39,6 +39,12 @@ function fakeHost() {
     hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
+    // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than
+    // `acceptsPromptInput` for codex, identical for claude and for any host whose
+    // readiness is what the test is varying. Mirroring it here keeps this stub a
+    // faithful stand-in instead of a host that latches on rules the real one
+    // dropped.
+    acceptsFirstPrompt: () => true,
     isHumanActivelyTyping: () => false,
     nudgePromptSubmit: () => {
       host.nudges += 1;

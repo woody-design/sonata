@@ -412,7 +412,21 @@ export class DeliveryController {
     // comment above). After that the scrape never re-gates delivery
     // (send-is-send). Kept here (not in canDeliver) so canDeliver stays a
     // pure query for state()/wedge reads.
-    if (!this.bootLatched && this.terminalHost.acceptsPromptInput()) {
+    //
+    // `acceptsFirstPrompt()`, NOT `acceptsPromptInput()` (SL-6). They differ
+    // only for codex and only before the latch opens, and the difference is
+    // exactly the irreversibility of this line: latching is a one-way decision
+    // that disarms every later readiness check, so it asks the stricter
+    // question. MEASURED at codex 0.152.0 and re-measured unchanged at 0.152.1
+    // after a mid-slice auto-update — the CLI paints a composer-shaped
+    // startup draft ~120ms before its trust dialog, and a pump landing there
+    // used to latch on it, after which the first delivery's paste and Enter went
+    // into the dialog: `prompt:submitted` emitted, directory trust silently
+    // granted, prompt discarded. See TerminalHost.acceptsFirstPrompt for the
+    // measurement, the rejected alternatives, and the deliberate consequence
+    // (a codex CLI whose footer never resolves never latches, and the queue
+    // honestly reads "still starting" rather than pretending to have sent).
+    if (!this.bootLatched && this.terminalHost.acceptsFirstPrompt()) {
       this.bootLatched = true;
       this.bootLatchedAt = Date.now();
     }

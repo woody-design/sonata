@@ -371,6 +371,12 @@ await check("handleStopRequested reports a write-canceled in-flight item undeliv
     hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
+    // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than
+    // `acceptsPromptInput` for codex, identical for claude and for any host whose
+    // readiness is what the test is varying. Mirroring it here keeps this stub a
+    // faithful stand-in instead of a host that latches on rules the real one
+    // dropped.
+    acceptsFirstPrompt: () => true,
     isHumanActivelyTyping: () => false,
     nudges: 0,
     submitPrompt: (text) => ({
@@ -428,6 +434,7 @@ await check("handleStopRequested is honest about how far the aborted sequence go
         hasPendingControlSwitch: () => false,
         isRewindPanelOpen: () => false,
         acceptsPromptInput: () => true,
+        acceptsFirstPrompt: () => true,
         isHumanActivelyTyping: () => false,
         nudgePromptSubmit: () => true,
         submitPrompt: () => ({
@@ -476,6 +483,7 @@ await check("a UPS-corroborated in-flight item survives handleStopRequested inta
     hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
+    acceptsFirstPrompt: () => true,
     isHumanActivelyTyping: () => false,
     submitPrompt: (text) => ({
       taskId: "t",
@@ -524,6 +532,7 @@ await check("handleStopRequested without canceled writes only disarms the ladder
     hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
+    acceptsFirstPrompt: () => true,
     isHumanActivelyTyping: () => false,
     nudges: 0,
     submitPrompt: () => ({

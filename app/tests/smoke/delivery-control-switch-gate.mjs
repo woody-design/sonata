@@ -37,6 +37,7 @@ function makeHost(overrides = {}) {
     hasPendingControlSwitch: () => state.pendingControlSwitch,
     isRewindPanelOpen: () => state.rewindPanelOpen ?? false,
     acceptsPromptInput: () => state.accepts,
+    acceptsFirstPrompt: () => state.accepts,
     submitPrompt: (text, opts) => {
       state.submits.push({ text, opts });
       return {
@@ -295,6 +296,12 @@ await check("real parked codex consent blocks delivery AND submitPrompt (the red
       hasPendingControlSwitch: () => host.hasPendingControlSwitch(),
       isRewindPanelOpen: () => false,
       acceptsPromptInput: () => true,
+      // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than
+      // `acceptsPromptInput` for codex, identical for claude and for any host whose
+      // readiness is what the test is varying. Mirroring it here keeps this stub a
+      // faithful stand-in instead of a host that latches on rules the real one
+      // dropped.
+      acceptsFirstPrompt: () => true,
       submitPrompt: (text, opts) => {
         submits.push({ text, opts });
         return {

@@ -238,6 +238,233 @@ await check("codex composer after an answered trust dialog is ready again", asyn
   assert.equal(hint.ready, true, "composer painted after the dialog is the real idle prompt");
 });
 
+// ── codex boot screens re-walked at 0.152.0 — upstream sync 2026-09-01, SL-6 ──
+//
+// The three fixtures below are VERBATIM tails of the pty window production
+// actually scans (`cleanTerminal(rawTail).slice(-8000)`), snapshotted at the
+// instant each screen owned the display. Captures:
+//   spikes/upstream-sync-2026-09/codex/q20-boot-ceremony.fresh-untrusted.capture.txt
+//     (`rawAtDialog`, `rawAtFirstReady`)
+//   spikes/upstream-sync-2026-09/codex/q23-hooks-review.capture.txt
+//     (`productionWindow`, no-bypass arm)
+// Not paraphrased: the space-collapsed spellings ("2.No,quit",
+// "Trustallandcontinue") are the cell-diff repaint, and a tidied fixture would
+// silently test a stream codex never emits.
+
+await check("codex 0.152.0 trust dialog still holds readiness (re-pin)", async () => {
+  // Same shape as the 0.144.x fixture above — re-measured rather than assumed,
+  // and note what PRECEDES the dialog: codex's startup draft already painted a
+  // composer glyph in this same window. The guard works because the dialog's
+  // footers paint AFTER it.
+  const window =
+    "el:     loading   /model to change ││ directory: loading                    │" +
+    "╰───────────────────────────────────────╯  › Ask Codex to do anything   ? for shortcuts" +
+    "╭╭╭╭╭╭──────────────╮              │              │              │" +
+    "/private/tmp/…/fresh-untrusted/workspace │──────────────╯╭╭╭╭╭╭" +
+    ">You are in /private/tmp/sonata-sync-2026-09/codex-boot/fresh-untrusted/workspace" +
+    "Doyoutrustthecontentsofthisdirectory?Workingwithuntrustedcontentscomeswith" +
+    "higherriskofpromptinjection.Trustingthedirectoryallowsproject-localconfig,hooks," +
+    "andexecpoliciestoload.› 1. Yes, continue2.No,quitPress enter to continue";
+  const hint = detectIdlePromptForProvider(window, "codex");
+
+  assert.equal(hint.ready, false, "the 0.152.0 trust dialog must still hold readiness");
+});
+
+// The hooks-review screen (`startup_hooks_review.rs`, reworked at 0.148). Its
+// first row renders `› 1. Review hooks` — the composer glyph — and NONE of the
+// five trust-dialog needles appear anywhere in the window, so before SL-6 this
+// read `ready: true` and a delivery's Enter would have selected "Review hooks".
+// Sonata's own spawn suppresses the screen with `--dangerously-bypass-hook-trust`;
+// this is the DEGRADED path, where a profile-write failure drops that flag and a
+// user's own untrusted hooks raise it.
+await check("codex hooks-review screen is NOT an idle composer prompt", async () => {
+  const window =
+    " model:     loading   /model to change ││ directory: loading                    │" +
+    "╰───────────────────────────────────────╯  › Ask Codex to do anything   ? for shortcuts" +
+    "╭╭╭╭╭╭────────╮        │        │        │/private/tmp/…/no-bypass/workspace │────────╯" +
+    "╭╭╭╭╭╭╭╭╭Hooks need review10 hooks are new or changed." +
+    "Hooks can run outside the sandbox after you trust them." +
+    "› 1. Review hooks2.Trustallandcontinue3.Continuewithouttrusting(hookswon'trun)" +
+    "Press enter to confirm or esc to go back";
+  const hint = detectIdlePromptForProvider(window, "codex");
+
+  assert.equal(hint.ready, false, "the hooks-review screen must hold readiness");
+  // WHICH needle carries it, pinned so a future edit cannot delete the working
+  // one and leave the assertion passing on an accident. The stream collapses
+  // both rows, so it is the automatic `compactText` twins that match — the plain
+  // spellings alone appear nowhere in these bytes.
+  assert.ok(
+    !window.includes("trust all and continue") && !window.includes("continue without trusting"),
+    "the plain spellings are NOT in the stream — the compacted twins are what match",
+  );
+  assert.ok(
+    window.includes("Trustallandcontinue") && window.includes("Continuewithouttrusting"),
+    "both collapsed rows are present, so the guard has two independent needles",
+  );
+});
+
+// ── the codex boot latch (SL-6) ──────────────────────────────────────────────
+// Three VERBATIM captures at codex-cli 0.152.0, from
+// spikes/upstream-sync-2026-09/codex/q20-boot-ceremony.*.capture.txt.
+
+/** The startup draft, ~147ms in: a real composer glyph and placeholder under a
+ *  box whose model and directory rows still say `loading`. */
+const CODEX_STARTUP_DRAFT_WINDOW =
+  "──────────────────────╮│ >_ OpenAI Codex (v0.152.0)            ││                                       │" +
+  "│ model:     loading   /model to change ││ directory: loading                    │" +
+  "╰───────────────────────────────────────╯  › Ask Codex to do anything   ? for shortcuts" +
+  "╭╭╭╭╭╭──────────────╮              │              │              │" +
+  "/private/tmp/…/fresh-untrusted/workspace │──────────────╯╭╭╭";
+
+/** The same session ~850ms later: the footer has resolved to a real
+ *  `<model> <effort> · <cwd>`, which is what carries MEDIUM confidence. */
+const CODEX_RESOLVED_COMPOSER_WINDOW =
+  "╭────────────────────────────────────────────────╮\n" +
+  "│ >_ OpenAI Codex (v0.152.0)                     │\n" +
+  "│ model:     gpt-5.6-sol high   /model to change │\n" +
+  "│ directory: /private/tmp/…/production/workspace │\n" +
+  "╰────────────────────────────────────────────────╯\n\n" +
+  "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n" +
+  "• You have 1 usage limit reset available. Run /usage to use one.\n \n \n" +
+  "› Ask Codex to do anything\n \n" +
+  "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-boot/production/workspace";
+
+/** The dialog as the GRID renders it (unwrapped rows, cursor on the affirm
+ *  row) — the channel `isCodexTrustDialogOpen` reads. */
+const CODEX_TRUST_DIALOG_SCREEN =
+  "> You are in /private/tmp/sonata-sync-2026-09/codex-boot/fresh-untrusted/workspace\n\n" +
+  "  Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt\n" +
+  "  injection. Trusting the directory allows project-local config, hooks, and exec policies to load.\n\n" +
+  "› 1. Yes, continue\n  2. No, quit\n\n  Press enter to continue";
+
+// The codex startup DRAFT, and the boot latch that must NOT open on it
+// (upstream sync 2026-09-01, SL-6 — measured as a gap, then closed).
+//
+// At 0.152.0 codex paints a startup DRAFT ~120ms before any onboarding screen:
+// the welcome box with `model: loading` / `directory: loading`, then the
+// composer glyph and its placeholder. The idle-prompt SCRAPE reads ready on it
+// — that is upstream's screen and this file does not argue with it — and the
+// delivery boot latch is ONE-WAY, so a pump landing in that window used to latch
+// on it. The trust dialog replaced the draft at ~270ms and the first delivery's
+// paste and Enter went into the dialog: `prompt:submitted` emitted, directory
+// trust granted, prompt discarded.
+//
+// The reproduction is an A/B PAIR under
+// spikes/upstream-sync-2026-09/codex/, both at codex-cli 0.152.1 — read the
+// right half: `q25-boot-latch-vs-trust.untrusted-forced.PRE-FIX.capture.txt` is
+// the incident (latch 161ms, delivery 1028ms with the dialog on screen), and
+// `…untrusted-forced.capture.txt` is the SHIPPED build, which records the
+// opposite (never latches, `deliveredAtMs: null`, dialog still unanswered).
+//
+// WHY NOT A `bootDialogHints` NEEDLE, restated correctly. The first write-up
+// claimed no needle could discriminate because every post-glyph string is
+// "equally present at a real idle composer". The captures say otherwise:
+// `? for shortcuts` is draft-TRANSIENT at 0.152.0 — it appears in the ≤270ms
+// frames of all three boot arms and is absent from every resolved composer — so
+// by last-index ranking it would in fact discriminate. The real reasons it is
+// still the wrong tool are (1) it is not reliably MATCHABLE on the channel the
+// guard reads: the string reached the reconstructed grid but not the pty tail
+// contiguously in 2 of 3 arms (cell-diff repaint); and (2) it is upstream
+// trivia — a loading-footer string that moves every release — where the
+// confidence term is a semantic fact.
+//
+// THE FIX, asserted below: the latch now consults `acceptsFirstPrompt()`, which
+// for codex additionally requires MEDIUM confidence (`hasModelOrCwdHint` — the
+// footer has resolved to a real model and cwd). The scrape's own verdict is
+// unchanged; only the irreversible decision got stricter.
+await check("codex's 0.152.0 startup draft reads ready, but only at LOW confidence", async () => {
+  const draft = detectIdlePromptForProvider(CODEX_STARTUP_DRAFT_WINDOW, "codex");
+
+  assert.equal(draft.ready, true, "the scrape still reads the draft as a composer — unchanged");
+  assert.equal(
+    draft.confidence,
+    "low",
+    "…but only at LOW: the model/cwd footer has not resolved yet",
+  );
+  assert.equal(
+    draft.hasModelOrCwdHint,
+    false,
+    "which is the term the boot latch now requires",
+  );
+});
+
+// The fix itself, on the real host: same bytes, latch verdict FALSE. Verified to
+// fail against the pre-fix build (which returned true here), so this case is
+// load-bearing rather than decorative.
+await check("SL-6: the boot latch does NOT open on the codex startup draft", async () => {
+  const host = makeHost([], { provider: "codex" });
+  try {
+    host.ptyProcess = fakePty([]);
+    host.rawTail = CODEX_STARTUP_DRAFT_WINDOW;
+
+    assert.equal(
+      host.acceptsPromptInput(),
+      true,
+      "the general readiness predicate is deliberately unchanged",
+    );
+    assert.equal(
+      host.acceptsFirstPrompt(),
+      false,
+      "…but the one-way boot latch refuses the draft",
+    );
+
+    // The resolved composer — the SAME session, one footer later — latches.
+    host.rawTail = CODEX_RESOLVED_COMPOSER_WINDOW;
+    assert.equal(host.acceptsFirstPrompt(), true, "a resolved footer latches normally");
+  } finally {
+    host.dispose();
+  }
+});
+
+// The chosen consequence, pinned so it can never be mistaken for a regression:
+// a codex CLI whose footer never resolves never latches. The reachable case is a
+// session that cannot take a prompt anyway — logged out (the boot parks on the
+// login onboarding screen, MEASURED in q26-unauthenticated-latch.capture.txt) or
+// offline so the model catalog never answers. The queue then reads "still
+// starting" (`bootLatched` is surfaced on DeliveryTaskState) rather than
+// pretending to have sent into a screen that will never run it.
+await check("SL-6: a codex composer whose footer never resolves never latches", async () => {
+  const host = makeHost([], { provider: "codex" });
+  try {
+    host.ptyProcess = fakePty([]);
+    host.rawTail = CODEX_STARTUP_DRAFT_WINDOW;
+    assert.equal(host.acceptsFirstPrompt(), false, "no footer, no latch");
+
+    // …unless the CLI declares the session up itself. SessionStart is stronger
+    // evidence than any footer scrape, so the hook still short-circuits — which
+    // is what keeps a hook-live session from being held hostage to a footer.
+    host.noteHookSessionStart();
+    assert.equal(
+      host.acceptsFirstPrompt(),
+      true,
+      "the SessionStart hook outranks the footer requirement",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+// The belt (fix b): the trust dialog's own identity, read off the GRID, is a
+// second independent reason the latch stays shut — keyed on the dialog rather
+// than on a footer having resolved.
+await check("SL-6: the boot latch does NOT open while the trust dialog owns the grid", async () => {
+  const host = makeHost([], { provider: "codex" });
+  try {
+    host.ptyProcess = fakePty([]);
+    // A tail whose LAST thing is a resolved composer — so the confidence term
+    // alone would let the latch open. Only the grid can refuse this one.
+    host.rawTail = CODEX_RESOLVED_COMPOSER_WINDOW;
+    assert.equal(host.acceptsFirstPrompt(), true, "control: the tail alone would latch");
+
+    host.screenModel = stubScreenModel(CODEX_TRUST_DIALOG_SCREEN);
+    assert.equal(host.isCodexTrustDialogOpen(), true, "the dialog owns the grid");
+    assert.equal(host.acceptsPromptInput(), false, "readiness refuses it");
+    assert.equal(host.acceptsFirstPrompt(), false, "so the latch stays shut");
+  } finally {
+    host.dispose();
+  }
+});
+
 // ── codex Max/Ultra composer glyph `»` (U+00BB) — upstream sync 2026-08-03 ──
 //
 // Byte-derived from the S1 probe against a real codex 0.146.0

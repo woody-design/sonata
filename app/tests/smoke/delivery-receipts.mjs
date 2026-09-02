@@ -537,6 +537,14 @@ function fakeHost() {
     acceptsPromptInput() {
       return this.idleComposer;
     },
+    // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than
+    // `acceptsPromptInput` for codex, identical for claude and for any host whose
+    // readiness is what the test is varying. Mirroring it here keeps this stub a
+    // faithful stand-in instead of a host that latches on rules the real one
+    // dropped.
+    acceptsFirstPrompt() {
+      return this.idleComposer;
+    },
     submitPrompt(text, options = {}) {
       const runId = `run-${this.submissions.length + 1}`;
       this.submissions.push({ text, runId, attachments: options.attachments ?? [] });

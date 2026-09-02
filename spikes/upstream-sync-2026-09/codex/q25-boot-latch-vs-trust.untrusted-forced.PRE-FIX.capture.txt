@@ -1,0 +1,132 @@
+{
+  "arm": "untrusted-forced",
+  "why": "no ledger, pump forced through the draft window — what any boot-time runtime event would do",
+  "version": "codex-cli 0.152.1",
+  "prompt": "Say hello and stop.",
+  "pretrustCwd": null,
+  "deliveryStates": [
+    {
+      "atMs": 25,
+      "bootLatched": false,
+      "deliverable": false,
+      "itemStatus": "queued",
+      "failureReason": null
+    },
+    {
+      "atMs": 161,
+      "bootLatched": true,
+      "deliverable": false,
+      "itemStatus": "queued",
+      "failureReason": null
+    },
+    {
+      "atMs": 1028,
+      "bootLatched": true,
+      "deliverable": true,
+      "itemStatus": "delivering",
+      "failureReason": null
+    },
+    {
+      "atMs": 1030,
+      "bootLatched": true,
+      "deliverable": false,
+      "itemStatus": "delivering",
+      "failureReason": null
+    }
+  ],
+  "frames": [
+    {
+      "atMs": 26,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": ""
+    },
+    {
+      "atMs": 231,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": true,
+      "screen": "> You are in /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced/workspace\n\n  Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt\n  injection. Trusting the directory allows project-local config, hooks, and exec policies to load.\n\n› 1. Yes, continue\n  2. No, quit\n\n  Press enter to continue"
+    },
+    {
+      "atMs": 1248,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭──────────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                           │\n│                                                      │\n│ model:     gpt-5.6-sol   /model to change            │\n│ directory: /private/tmp/…/untrusted-forced/workspace │\n╰──────────────────────────────────────────────────────╯\n\n  Tip: Try the Desktop app. Run 'codex app' or visit https://chatgpt.com/codex?app-landing-page=true\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n \n• Booting MCP server: codex_apps (0s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced/workspace"
+    },
+    {
+      "atMs": 1755,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭──────────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                           │\n│                                                      │\n│ model:     gpt-5.6-sol   /model to change            │\n│ directory: /private/tmp/…/untrusted-forced/workspace │\n╰──────────────────────────────────────────────────────╯\n\n  Tip: Try the Desktop app. Run 'codex app' or visit https://chatgpt.com/codex?app-landing-page=true\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n \n• Booting MCP server: codex_apps (0s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced/workspace"
+    },
+    {
+      "atMs": 2159,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": "\n\n╭──────────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                           │\n│                                                      │\n│ model:     gpt-5.6-sol   /model to change            │\n│ directory: /private/tmp/…/untrusted-forced/workspace │\n╰──────────────────────────────────────────────────────╯\n\n  Tip: Try the Desktop app. Run 'codex app' or visit https://chatgpt.com/codex?app-landing-page=true\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced/workspace"
+    }
+  ],
+  "timeline": [],
+  "screenAtDelivery": "> You are in /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced/workspace\n\n  Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt\n  injection. Trusting the directory allows project-local config, hooks, and exec policies to load.\n\n› 1. Yes, continue\n  2. No, quit\n\n  Press enter to continue",
+  "dialogEverOnScreen": true,
+  "dialogOnScreenAtDelivery": true,
+  "deliveredAtMs": 1028,
+  "forcedPumps": 18,
+  "finalScreen": "\n\n╭──────────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                           │\n│                                                      │\n│ model:     gpt-5.6-sol   /model to change            │\n│ directory: /private/tmp/…/untrusted-forced/workspace │\n╰──────────────────────────────────────────────────────╯\n\n  Tip: Try the Desktop app. Run 'codex app' or visit https://chatgpt.com/codex?app-landing-page=true\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced/workspace",
+  "ptyExited": false,
+  "exitInfo": null,
+  "events": [
+    {
+      "atMs": 2,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 25,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 1029,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 1029,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 3907,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 3907,
+      "type": "task:ready",
+      "payload": {
+        "source": "terminal-idle-composer-heuristic",
+        "confidence": "medium"
+      }
+    },
+    {
+      "atMs": 25094,
+      "type": "pty:exit",
+      "payload": {
+        "exitCode": 0,
+        "signal": 1,
+        "sonataInitiated": true
+      }
+    }
+  ],
+  "codexConfigAfter": null,
+  "trustGrantedByThisRun": false,
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null
+}

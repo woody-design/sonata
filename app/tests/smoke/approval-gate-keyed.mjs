@@ -25,6 +25,12 @@ function makeHost() {
     hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => state.accepts,
+    // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than
+    // `acceptsPromptInput` for codex, identical for claude and for any host whose
+    // readiness is what the test is varying. Mirroring it here keeps this stub a
+    // faithful stand-in instead of a host that latches on rules the real one
+    // dropped.
+    acceptsFirstPrompt: () => state.accepts,
     submitPrompt: (text, opts) => {
       state.submits.push({ text, opts });
       return {

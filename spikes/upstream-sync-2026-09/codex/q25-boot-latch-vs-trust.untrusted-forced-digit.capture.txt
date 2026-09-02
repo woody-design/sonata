@@ -1,0 +1,68 @@
+{
+  "arm": "untrusted-forced-digit",
+  "why": "the forced arm with a `2` in the prompt — the widget maps SELECT_SECOND to handle_quit() with no confirmation",
+  "version": "codex-cli 0.152.1",
+  "prompt": "Summarize the 2 files here.",
+  "pretrustCwd": null,
+  "deliveryStates": [
+    {
+      "atMs": 24,
+      "bootLatched": false,
+      "deliverable": false,
+      "itemStatus": "queued",
+      "failureReason": null
+    }
+  ],
+  "frames": [
+    {
+      "atMs": 25,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": false,
+      "screen": ""
+    },
+    {
+      "atMs": 227,
+      "acceptsPromptInput": false,
+      "isCodexTrustDialog": true,
+      "screen": "> You are in /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced-digit/workspace\n\n  Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt\n  injection. Trusting the directory allows project-local config, hooks, and exec policies to load.\n\n› 1. Yes, continue\n  2. No, quit\n\n  Press enter to continue"
+    }
+  ],
+  "timeline": [],
+  "screenAtDelivery": null,
+  "dialogEverOnScreen": true,
+  "dialogOnScreenAtDelivery": null,
+  "forcedPumps": 18,
+  "finalScreen": "> You are in /private/tmp/sonata-sync-2026-09/codex-boot-latch/untrusted-forced-digit/workspace\n\n  Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt\n  injection. Trusting the directory allows project-local config, hooks, and exec policies to load.\n\n› 1. Yes, continue\n  2. No, quit\n\n  Press enter to continue",
+  "ptyExited": false,
+  "exitInfo": null,
+  "events": [
+    {
+      "atMs": 1,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 24,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 4026,
+      "type": "codex-trust-dialog:detected",
+      "payload": {}
+    },
+    {
+      "atMs": 25099,
+      "type": "pty:exit",
+      "payload": {
+        "exitCode": 0,
+        "signal": 1,
+        "sonataInitiated": true
+      }
+    }
+  ],
+  "codexConfigAfter": null,
+  "trustGrantedByThisRun": false,
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null
+}

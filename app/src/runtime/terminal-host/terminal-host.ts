@@ -930,7 +930,146 @@ export class TerminalHost extends EventEmitter {
     if (this.hookSessionStarted) {
       return true;
     }
+    // Codex's directory-trust dialog owns the screen the same way — see
+    // isCodexTrustDialogOpen for why this one is ranked BELOW the hook and the
+    // fullscreen offer is ranked above it.
+    if (this.isCodexTrustDialogOpen()) {
+      return false;
+    }
     return detectIdlePrompt(this.rawTail, this.profile).ready;
+  }
+
+  /**
+   * Codex's boot directory-trust dialog is on the SCREEN GRID (SL-6). A screen
+   * owner for READINESS, the codex sibling of `isFullscreenOfferOpen`: the boot
+   * latch must not open on a screen whose Enter answers a consent question and
+   * discards the prompt that carried it.
+   *
+   * WHY A GRID PREDICATE WHEN `bootDialogHints` ALREADY GUARDS THIS. The needle
+   * guard is an ORDERING claim over the pty tail and it holds while the dialog's
+   * footers are the most recent thing in the window — MEASURED true at 0.152.0
+   * (q20). What it cannot do is UN-latch: `DeliveryController`'s boot latch is
+   * one-way, and codex 0.152.0 paints a composer-shaped startup draft ~120ms
+   * before this dialog exists, so a pump landing in that window latches on a
+   * screen the needles cannot describe yet. The confidence gate on the latch
+   * (`acceptsFirstPrompt`) is what closes that window; this predicate is the
+   * belt — a second, independent reason the same latch stays shut, keyed on the
+   * dialog's own identity rather than on a footer having resolved.
+   *
+   * RANKED BELOW THE HOOK SHORT-CIRCUIT, and that is the one place this diverges
+   * from `isFullscreenOfferOpen`'s placement. The offer paints strictly before
+   * SessionStart could fire, so ranking it above the hook is free. This dialog's
+   * CELLS can OUTLIVE the answer: codex is spawned `--no-alt-screen`, so an
+   * answered dialog does not vanish with a buffer swap — its rows scroll up and
+   * can sit inside a tall viewport for a while (the reason
+   * `checkCodexTrustDialogCleared` was written with two legs). Ranked above the
+   * hook, that lingering grid would read NOT-READY for a session the CLI has
+   * already declared started — a false hold on a live session, which is the
+   * worse failure of the two. SessionStart cannot fire until onboarding
+   * completes, so the hook being set is itself proof the dialog was answered.
+   *
+   * Codex-only, so a claude frame can never reach a codex-shaped needle; no
+   * screen model means no PTY, and every gate here reads closed rather than
+   * holds. Sonata NEVER answers this dialog — the standing RED LINE is
+   * untouched; this only decides whether Sonata may WRITE while it is up.
+   */
+  isCodexTrustDialogOpen(): boolean {
+    if (this.profile.provider !== "codex" || !this.screenModel) {
+      return false;
+    }
+    return isCodexTrustDialog(this.screenModel.viewportText());
+  }
+
+  /**
+   * May the DELIVERY BOOT LATCH open right now? (SL-6.)
+   *
+   * A strictly stronger question than {@link acceptsPromptInput}, and the split
+   * is the point: `acceptsPromptInput()` answers "is a composer accepting input"
+   * for every caller, while this answers the one-way, irreversible question
+   * `DeliveryController.pump()` asks ONCE per session — after which delivery is
+   * send-is-send and no scrape re-gates it. An irreversible decision deserves a
+   * stricter test than a reversible one.
+   *
+   * THE EXTRA TERM, codex only: the idle-prompt read must be MEDIUM confidence,
+   * i.e. `hasModelOrCwdHint` — the composer's footer has resolved to a real
+   * `<model> <effort> · <cwd>`. MEASURED at codex 0.152.0 and re-measured
+   * byte-identical at 0.152.1 (SL-6, q20): codex
+   * paints a startup DRAFT at ~147ms whose box reads `model: loading` /
+   * `directory: loading` under a real composer glyph and placeholder. That draft
+   * reads `ready: true` at LOW confidence; the resolved composer ~850ms later
+   * reads MEDIUM. Without this term a pump landing in the draft window latches,
+   * and the trust dialog that replaces the draft at ~270ms then receives the
+   * first delivery's paste and Enter — Sonata emits `prompt:submitted`, the
+   * Enter grants directory trust, and the prompt itself is discarded.
+   *
+   * The reproduction is an A/B PAIR, and reading the right file matters:
+   *   …/q25-boot-latch-vs-trust.untrusted-forced.PRE-FIX.capture.txt
+   *       this term reverted (the grid belt below LEFT IN PLACE) — latch at
+   *       161ms, delivery at 1028ms with `dialogOnScreenAtDelivery: true`.
+   *   …/q25-boot-latch-vs-trust.untrusted-forced.capture.txt
+   *       the shipped build — never latches, `deliveredAtMs: null`, and the
+   *       dialog is still unanswered at the end of the watch.
+   * Both at codex-cli 0.152.1, same probe, same arranged race. The PRE-FIX half
+   * also settles which leg carries the fix: with ONLY the grid belt in place the
+   * incident still reproduced, because `canDeliver()` never consults
+   * `acceptsPromptInput()` — once the latch is open, nothing re-gates the write.
+   * So this term is the fix and the belt is the belt; do not relax this one on
+   * the theory that the other covers it.
+   *
+   * NOT a needle on the draft's own text. `? for shortcuts` IS draft-transient
+   * at 0.152.0 (MEASURED: present in the ≤270ms frames, absent from the resolved
+   * composer), so by last-index ranking a `bootDialogHints` entry would in fact
+   * discriminate — the first write-up of this gap was wrong to say otherwise.
+   * It is rejected on two better grounds. It is not reliably MATCHABLE: the
+   * string reached the reconstructed grid but not the pty tail contiguously in 2
+   * of the 3 measured boot arms (cell-diff repaint), and the guard reads the
+   * tail. And it is an accident where the confidence term is a fact: "which
+   * footer string does this build happen to print while loading" is upstream
+   * trivia that moves every release, while "has the CLI told us the model and
+   * cwd it is running" is the same semantic property the medium/low split
+   * already encodes everywhere else in this file.
+   *
+   * THE DELIBERATE CONSEQUENCE, chosen rather than incurred: a codex spawn whose
+   * footer NEVER resolves never latches, so a queued prompt stays queued. The
+   * reachable case is a session that cannot take prompts anyway — logged out
+   * (the boot parks on the login onboarding screen), or offline so the model
+   * catalog never answers. MEASURED for the logged-out arm in
+   * `q26-unauthenticated-latch.capture.txt`. Sending a prompt into either would
+   * paste it into a screen that will never run it; holding is the honest
+   * outcome, and it is VISIBLE rather than silent — `bootLatched` is surfaced on
+   * `DeliveryTaskState` as the "is the CLI still starting?" display bit, so the
+   * queue reads "still starting" instead of pretending to have sent. That is the
+   * opposite of the invisible hold S3 decision A warns about.
+   *
+   * The hook short-circuit is honoured — and is INERT for codex today, which is
+   * worth saying plainly so nobody reads it as load-bearing. `bootLatched` never
+   * re-arms (`noteSessionBoundary` only refreshes the grace), so this predicate
+   * is consulted ONLY during initial boot; and codex emits `SessionStart` lazily,
+   * with the first `UserPromptSubmit`, which cannot happen before the latch it
+   * gates. So for codex the term is provably false whenever it is evaluated, and
+   * for claude the provider test already returns true ahead of it. It is kept
+   * deliberately, not by accident: `SessionStart` is the CLI's own declaration
+   * that its session is up — strictly stronger evidence than any footer scrape —
+   * and if codex ever fires it eagerly, or the latch is ever made to re-arm at a
+   * session boundary, this is the term that keeps a provably-live session from
+   * hanging on a footer that never resolves. One boolean read for a guard whose
+   * absence would be a wedge.
+   *
+   * Claude is untouched: its boot interstitials have their own guard family
+   * (`isRewindPanelOpen`, `isFullscreenOfferOpen`, the workspace-trust needles),
+   * and claude's composer carries no equivalent model/cwd footer to key on.
+   *
+   * Cost: one extra `detectIdlePrompt` scan per pump, ONLY while unlatched and
+   * ONLY for codex — `pump()` stops calling this the moment the latch opens.
+   */
+  acceptsFirstPrompt(): boolean {
+    if (!this.acceptsPromptInput()) {
+      return false;
+    }
+    if (this.hookSessionStarted || this.profile.provider !== "codex") {
+      return true;
+    }
+    return detectIdlePrompt(this.rawTail, this.profile).confidence === "medium";
   }
 
   /**
@@ -1335,6 +1474,36 @@ export class TerminalHost extends EventEmitter {
    *     unanswered (`detectIdlePrompt`; pinned by tests/smoke/task-ready-
    *     detection.mjs, whose measured post-trust screen reads ready with the
    *     dialog text still in the scanned window).
+   * SL-6 NARROWED the second leg, and the narrowing goes further than it first
+   * looks. Now that `isCodexTrustDialogOpen()` is ranked inside
+   * `acceptsPromptInput()`, a SCRAPE-derived composer can no longer read ready
+   * while the dialog's cells are on the grid. The hook path cannot rescue it AT
+   * BOOT either: codex emits `SessionStart` LAZILY — with the first
+   * `UserPromptSubmit`, not at spawn (probed at 0.144.4 and 0.144.5;
+   * runtime-controller's `watchHooks` documents the same fact and declines to
+   * arm a spawn-anchored liveness window because of it) — and a first
+   * UserPromptSubmit requires a delivery, which requires the very boot latch
+   * this dialog is guarding. So during a codex boot `hookSessionStarted` is
+   * PROVABLY false, and **leg 1 (the dialog leaves the screen) is the only
+   * operative leg there**.
+   *
+   * Leg 2 is not dead — it is now a pin for sessions whose hook HAS fired: after
+   * the first submit, across `/clear`, and on resume, where an answered dialog's
+   * cells can still be scrolling up the viewport. The smoke keeps it green by
+   * calling `noteHookSessionStart()` by hand, which is honest for exactly those
+   * states and is not a boot scenario.
+   *
+   * This STRENGTHENS the ranking decision rather than complicating it: because
+   * the hook is provably unset during a codex boot, ranking the grid predicate
+   * below the hook short-circuit cannot be bypassed pre-answer — there is no
+   * pre-answer state in which the short-circuit fires. The ranking buys its
+   * false-hold protection for the post-answer case at zero cost to the case it
+   * guards. Residual, unchanged: a HOOKLESS codex spawn (profile write failed)
+   * whose answered dialog lingers on the grid keeps the banner up until the
+   * repaint clears it — MEASURED at ~220ms (q25: the dialog owned the grid at
+   * the delivery instant and was gone from the next sampled frame) — and the
+   * failure direction is a stale "go answer it" banner, never a write.
+   *
    * The second leg is not belt-and-braces — on the real spawn it is likely the
    * one that fires. Sonata launches codex with `--no-alt-screen` (see codexArgs),
    * so the answered dialog does NOT vanish with a buffer swap the way an
@@ -4546,22 +4715,73 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       workspaceTrust: [],
     },
     approvalEndMarkers: [],
-    // The 0.144.x directory-trust dialog ("Do you trust the contents of this
-    // directory? › 1. Yes, continue  2. No, quit  Press enter to continue")
-    // renders its option cursor with the composer's own `›`. These footers all
-    // sit AFTER that glyph in the paint stream, so they outrank it in the
-    // idle-prompt ordering and hold readiness until the human answers in the
-    // Terminal. Generic on purpose: any codex boot dialog with these footers
-    // (quit confirm, future onboarding) is equally not-a-composer. The
-    // comma-tight spellings cover the cursor-paint stream's collapsed form
-    // ("continue2.No,quit…"): the needle scan runs raw + fully-compacted
-    // forms, and punctuation-adjacent collapse falls between the two.
+    // Codex boot screens that render their option cursor with the composer's
+    // own `›`. Every needle here sits AFTER that glyph in the paint stream, so
+    // it outranks it in the idle-prompt ordering and holds readiness until the
+    // human answers in the Terminal. That ORDERING is the whole mechanism: a
+    // needle painting before the cursor row buys nothing (the claude
+    // fullscreen-offer lesson, SL-3 — that screen needed a grid predicate
+    // instead, because its identity paints ahead of its own `❯`).
+    //
+    // RE-WALKED LIVE at codex 0.152.0 (upstream sync 2026-09-01, SL-6) against
+    // the pty window production actually scans — `cleanTerminal(rawTail)
+    // .slice(-8000).toLowerCase()`, NOT a whitespace-stripped one — because
+    // `detectIdlePrompt` matches each hint together with its `compactText`
+    // twin against that single haystack. Evidence:
+    // spikes/upstream-sync-2026-09/codex/q20-boot-ceremony.fresh-untrusted
+    // .capture.txt (`rawAtDialog`) and q23-hooks-review.capture.txt
+    // (`productionWindow`).
+    //
+    // DIRECTORY-TRUST DIALOG ("Do you trust the contents of this directory?
+    // › 1. Yes, continue  2. No, quit  Press enter to continue"). Row order and
+    // wording are UNCHANGED at 0.152.0, and the highlighted row is still the
+    // AFFIRM one — codex did not repeat claude's 2.1.252 default-row flip. Of
+    // the five needles, three fire on the production window ("press enter to
+    // continue", "yes, continue", "no,quit") and the guard reads `ready: false`
+    // while the dialog owns the screen. The comma-tight spellings are LOAD
+    // BEARING, not belt-and-braces: `compactText` strips every non-alphanumeric,
+    // so "no, quit" yields "noquit" — and the cursor-paint stream renders the
+    // row as "no,quit", which keeps the comma and drops the space. Neither the
+    // literal nor its compact twin matches that; only the explicit spelling does.
+    // "yes,continue" fired at 0.144.x and does NOT fire here — kept, not pruned:
+    // WHICH characters a cell-diff repaint elides depends on the previous frame
+    // and the terminal width, so it is non-deterministic across widths and
+    // sessions (the 2026-08 headline). A needle that is inert in one capture is
+    // the one that carries the guard in another.
+    //
+    // HOOKS-REVIEW SCREEN (`startup_hooks_review.rs`, reworked at 0.148 — B4).
+    // Added here on MEASUREMENT, not speculation: with
+    // `--dangerously-bypass-hook-trust` removed, codex 0.152.0 paints
+    //   Hooks need review / N hooks are new or changed.
+    //   › 1. Review hooks
+    //     2. Trust all and continue
+    //     3. Continue without trusting (hooks won't run)
+    //   Press enter to confirm or esc to go back
+    // and the shipped five needles matched NONE of it, so `detectIdlePrompt`
+    // returned `ready: true` on a screen whose Enter selects "Review hooks".
+    // Rows 2 and 3 paint after row 1's cursor, so they satisfy the ordering; the
+    // stream collapses them to "Trustallandcontinue" / "Continuewithouttrusting",
+    // which is exactly what the automatic `compactText` twin of each plain
+    // spelling matches. Two independent needles for one screen, and that
+    // redundancy — not an enumeration of collapse variants — is the answer to
+    // PARTIAL collapse: spelling out every way a repaint might elide one space
+    // is combinatorial, while needing BOTH rows to be mangled in the same frame
+    // is not.
+    //
+    // Sonata's own spawn always passes `--dangerously-bypass-hook-trust`
+    // (gated on `profile` in codexArgs), so this screen is unreachable on the
+    // happy path. It is reachable on the DEGRADED one: a profile-write failure
+    // drops both flags, and a user with their own untrusted hooks then boots
+    // straight into it. The title line ("Hooks need review") is deliberately NOT
+    // a needle — it paints BEFORE the cursor row and would be inert.
     bootDialogHints: [
       "press enter to continue",
       "yes, continue",
       "yes,continue",
       "no, quit",
       "no,quit",
+      "trust all and continue",
+      "continue without trusting",
     ],
   };
 }

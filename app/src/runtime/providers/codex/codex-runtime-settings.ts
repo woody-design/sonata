@@ -286,6 +286,28 @@ function buildProfileToml(binDir: string, existingProfile: string, pretrustCwd: 
  *    same bytes.
  * Empty ledger → empty string, so a profile with nothing to trust is byte-identical
  * to the pre-ledger output.
+ *
+ * CARRY-FORWARD IS LOAD BEARING, and MEASURED to be so at codex 0.152.0
+ * (upstream sync 2026-09-01, SL-6; evidence
+ * `spikes/upstream-sync-2026-09/codex/q22-trust-serialization.capture.txt`).
+ * Where codex writes a dialog answer depends on the config LAYER it is running
+ * under, and under Sonata's spawn that layer is THIS FILE:
+ *   - bare `codex`      → the grant is appended to `$CODEX_HOME/config.toml`;
+ *   - `codex -p sonata` → **no `config.toml` is written at all**; the
+ *     `[projects."<cwd>"]` block is appended to `sonata.config.toml` — the file
+ *     Sonata regenerates on every spawn.
+ * So the "human grants are sacred" clause above is not a courtesy to a file
+ * someone else owns: without it, the very next spawn's `writeIfChanged` would
+ * erase the answer the user just gave and the dialog would return every session.
+ * The block codex emits is byte-identical to `projectTrustBlock`'s output
+ * (od -c verified in both layers), which is what makes `parseTrustedProjectPaths`
+ * able to round-trip it.
+ *
+ * KNOWN, UNFIXED: this is a read-modify-write over a file a second writer also
+ * appends to, so a grant codex writes between the read above and the rename in
+ * `writeIfChanged` is lost. The window is the width of one profile
+ * regeneration, and losing it costs one extra dialog rather than a wrong trust
+ * decision — recorded rather than papered over.
  */
 function buildTrustLedger(existingProfile: string, pretrustCwd: string | null): string {
   const paths = new Set<string>();

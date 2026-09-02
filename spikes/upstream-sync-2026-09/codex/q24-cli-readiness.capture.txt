@@ -1,0 +1,110 @@
+{
+  "probe": "q24-cli-readiness",
+  "claudeVersion": "2.1.258 (Claude Code)",
+  "codexVersion": "codex-cli 0.152.0",
+  "arms": {
+    "claude-version": {
+      "command": "claude --version",
+      "outcomeKind": "exit",
+      "exitCode": 0,
+      "elapsedMs": 8,
+      "stdout": "2.1.258 (Claude Code)\n",
+      "stderr": "",
+      "stdoutBytes": 22,
+      "stderrBytes": 0,
+      "productionVerdict": null,
+      "expected": null,
+      "agrees": null
+    },
+    "claude-auth": {
+      "command": "claude auth status --json",
+      "outcomeKind": "exit",
+      "exitCode": 0,
+      "elapsedMs": 114,
+      "stdout": "{\n  \"loggedIn\": true,\n  \"authMethod\": \"claude.ai\",\n  \"apiProvider\": \"firstParty\",\n  \"analyticsDisabled\": false,\n  \"projectsDirectory\": \"$HOME/.claude/projects\",\n  \"email\": \"[REDACTED-EMAIL]\",\n  \"orgId\": \"[REDACTED-ORGID]\",\n  \"orgName\": \"[REDACTED-ORG]\",\n  \"subscriptionType\": \"max\"\n}\n",
+      "stderr": "",
+      "stdoutBytes": 346,
+      "stderrBytes": 0,
+      "productionVerdict": "signedIn",
+      "expected": "signedIn",
+      "agrees": true
+    },
+    "claude-auth-fresh": {
+      "command": "claude auth status --json",
+      "outcomeKind": "exit",
+      "exitCode": 1,
+      "elapsedMs": 104,
+      "stdout": "{\n  \"loggedIn\": false,\n  \"authMethod\": \"none\",\n  \"apiProvider\": \"firstParty\",\n  \"analyticsDisabled\": false,\n  \"projectsDirectory\": \"/private/tmp/sonata-sync-2026-09/cli-readiness/fresh-home/.claude/projects\"\n}\n",
+      "stderr": "",
+      "stdoutBytes": 210,
+      "stderrBytes": 0,
+      "productionVerdict": "signedOut",
+      "expected": "signedOut",
+      "agrees": true
+    },
+    "codex-version": {
+      "command": "codex --version",
+      "outcomeKind": "exit",
+      "exitCode": 0,
+      "elapsedMs": 8,
+      "stdout": "codex-cli 0.152.0\n",
+      "stderr": "",
+      "stdoutBytes": 18,
+      "stderrBytes": 0,
+      "productionVerdict": null,
+      "expected": null,
+      "agrees": null
+    },
+    "codex-login": {
+      "command": "codex login status",
+      "outcomeKind": "exit",
+      "exitCode": 0,
+      "elapsedMs": 13,
+      "stdout": "",
+      "stderr": "Logged in using ChatGPT\n",
+      "stdoutBytes": 0,
+      "stderrBytes": 24,
+      "productionVerdict": "signedIn",
+      "expected": "signedIn",
+      "agrees": true
+    },
+    "codex-login-fresh": {
+      "command": "codex login status",
+      "outcomeKind": "exit",
+      "exitCode": 1,
+      "elapsedMs": 12,
+      "stdout": "",
+      "stderr": "Not logged in\n",
+      "stdoutBytes": 0,
+      "stderrBytes": 14,
+      "productionVerdict": "signedOut",
+      "expected": "signedOut",
+      "agrees": true
+    },
+    "codex-login-broken": {
+      "command": "codex login status",
+      "outcomeKind": "exit",
+      "exitCode": 1,
+      "elapsedMs": 10,
+      "stdout": "",
+      "stderr": "Error loading configuration: /private/tmp/sonata-sync-2026-09/cli-readiness/broken-codex-home/config.toml:1:6: key with no value, expected `=`\n",
+      "stdoutBytes": 0,
+      "stderrBytes": 143,
+      "productionVerdict": "unknown",
+      "expected": "unknown",
+      "agrees": true
+    }
+  },
+  "probeCliReadiness": {
+    "claude": {
+      "install": "present",
+      "auth": "signedIn"
+    },
+    "codex": {
+      "install": "present",
+      "auth": "signedIn"
+    }
+  },
+  "versionDrift": [],
+  "allArmsAgree": true
+}

@@ -396,6 +396,29 @@ await check("watchdog: a ready composer suppresses the banner even with the dial
 // The banner asserts a conjunction — no composer AND the dialog on screen — so it
 // retires as soon as EITHER conjunct fails. The two legs are exercised
 // separately, on purpose: each must be sufficient by itself.
+//
+// SL-6 NARROWED leg 2, and by more than it first looks.
+// `isCodexTrustDialogOpen()` is now ranked inside `acceptsPromptInput()` (it is
+// a screen owner: the boot latch must not open on a screen whose Enter answers a
+// consent question), so a SCRAPE-derived composer can no longer read ready while
+// the dialog's cells are on the grid. The hook path cannot rescue it AT BOOT
+// either: codex emits SessionStart LAZILY — with the first UserPromptSubmit, not
+// at spawn (probed 0.144.4/0.144.5; runtime-controller's `watchHooks` documents
+// the same fact) — and a first UserPromptSubmit needs a delivery, which needs
+// the very latch this guards. During a codex BOOT `hookSessionStarted` is
+// therefore provably false, and LEG 1 IS THE ONLY OPERATIVE LEG THERE.
+//
+// So leg 2 below is a unit-level pin for the states where the hook HAS fired —
+// after the first submit, across /clear, on resume — where an answered dialog's
+// cells can still be scrolling up the viewport. It calls `noteHookSessionStart()`
+// by hand, which is honest for exactly those states and is NOT a boot scenario;
+// the case is kept because those states are real, not because boot reaches it.
+//
+// This strengthens the ranking decision rather than complicating it: with the
+// hook provably unset during a boot, ranking the grid predicate BELOW the hook
+// short-circuit cannot be bypassed pre-answer — there is no pre-answer state in
+// which the short-circuit fires — while still avoiding a false hold on a
+// post-answer session the CLI has already declared started.
 
 await check("clearing, leg 1: the dialog leaves the SCREEN → cleared", async () => {
   const events = [];
@@ -441,11 +464,15 @@ await check("clearing, leg 2: the composer accepts input again → cleared", asy
     assert.equal(detectedCount(events), 1, "banner raised");
 
     // The MEASURED answered screen — and the dialog's cells are deliberately
-    // LEFT on the grid (no screen clear), because Sonata has not measured
-    // codex's post-answer repaint and the banner must not depend on it. The
-    // readiness fence is the signal here: the codex `bootDialogHints` guard holds
-    // shut for exactly as long as the dialog is unanswered, so a composer that
-    // reads ready IS the answer having been given.
+    // LEFT on the grid (no screen clear), because codex is spawned
+    // `--no-alt-screen`: an answered dialog does not vanish with a buffer swap,
+    // its rows scroll up, and the banner must not be hostage to how long that
+    // takes. The signal here is the CLI's OWN declaration that its session
+    // started. Codex only makes that declaration once a prompt has been
+    // submitted (lazy SessionStart — see the section header), so this is the
+    // POST-first-submit / post-/clear / resume shape, not the boot shape; a
+    // hook-live session IS the answer having been given, whatever is still on
+    // the grid.
     const answered = `${DIALOG_BYTES}\r\n${POST_TRUST_BYTES}`;
     host.rawTail = answered;
     host.screenModel = await screenModelFor(answered);
@@ -454,7 +481,16 @@ await check("clearing, leg 2: the composer accepts input again → cleared", asy
       true,
       "leg 1 is NOT what clears this case — the dialog's cells are still on the grid",
     );
-    assert.equal(host.acceptsPromptInput(), true, "the composer came back");
+    // Pre-hook, the grid predicate now holds readiness shut (SL-6) — recorded
+    // here rather than left implicit, because it is the whole reason this case
+    // needs the hook to say anything at all.
+    assert.equal(
+      host.acceptsPromptInput(),
+      false,
+      "with the dialog's cells on the grid, the SCRAPE alone no longer reads ready",
+    );
+    host.noteHookSessionStart();
+    assert.equal(host.acceptsPromptInput(), true, "the composer came back, via the hook");
     host.checkCodexTrustDialogCleared();
 
     assert.equal(
