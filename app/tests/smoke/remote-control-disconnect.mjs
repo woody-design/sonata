@@ -25,11 +25,16 @@
 //     focused row on a real grid before committing, the same discipline the
 //     trust-dialog walk uses.
 //
-// Context worth knowing while reading a failure: RC can already be CONNECTED at
-// boot without `--remote-control` — auto-start resolves from org policy / a
-// server-side default that Sonata does not control (SL-11 objective 4). Either
-// way the injection lands on the panel, so this test does not depend on which;
-// it records what it saw.
+// Context worth knowing while reading a failure, AMENDED at SL-19: this spawn
+// states no RC intent, so it now carries `remoteControlAtStartup: false` in the
+// injected `--settings` and does NOT auto-start. Before SL-19 it could already be
+// CONNECTED at boot — auto-start resolved from a server-side default Sonata did
+// not control (SL-11 F4e), and this test deliberately did not depend on which,
+// since either way the injection lands on the panel. That tolerance stays (the
+// key is a startup default, and org policy can still decide otherwise), but the
+// ordinary run of this test is now the RED LINE of the SL-19 lever exercised
+// against the real CLI: a session that did not auto-start must still connect on
+// a mid-session `/remote-control`, or nothing below can even begin.
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";

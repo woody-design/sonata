@@ -2975,3 +2975,77 @@ recorded in the table above: this findings entry is the durable citation, and th
 tracked comments in `terminal-host.ts`, `events.ts` and
 `tests/smoke/claude-boot-interstitial.mjs` quote the surviving run's figures and
 point here.
+
+---
+
+# SL-19 — the RC startup lever, WIRED and verified live (built 2026-09-02, binary 2.1.258)
+
+## F62 — rc8: the shipped lever through the production spawn (PASS ×2, 8/8 verdicts both runs)
+
+rc7 measured the lever on a hand-spawned pty with a hand-merged settings file.
+SL-19 wires it into `ensureClaudeRuntimeSettings` (OFF intent writes
+`remoteControlAtStartup: false`; ON intent omits the key and passes
+`--remote-control`), and rc8 drives the whole thing through the PRODUCTION
+`TerminalHost` — production `buildArgs`, production settings writer, production
+`remote-control:state` / `findRemoteControlUrlOnScreen` as the oracle.
+
+**THE FLAP PROBLEM, and the bracket that survives it.** Auto-start resolves to a
+server-side GrowthBook default that moved twice during SL-11 with no local action
+(F4e), so "the OFF arm did not auto-start" is worthless alone. rc8 SANDWICHES the
+suppression arm between two PRE-FIX control arms — the identical production spawn
+with the new key stripped back out of the file it just wrote — and refuses to
+claim a pass unless BOTH controls auto-started (`bracketValid`). The control's
+argv is asserted equal to the production OFF-intent argv modulo the `--settings`
+path, so "pre-fix shape" is measured, not asserted by comment.
+
+Both runs, `tengu_cobalt_harbor` **true** on all eight arms, claude 2.1.258
+pinned at start and end:
+
+| arm | shape | `connecting…` | `/rc` pill | run |
+|---|---|---|---|---|
+| c-control-pre | pre-fix (key stripped) | +0ms | +1003ms | 1 |
+| **a-off-intent** | **production, key written** | **never** | **never** | **1** |
+| b-on-intent | production + `--remote-control` | +0ms | +500ms | 1 |
+| d-control-post | pre-fix (key stripped) | +0ms | +1004ms | 1 |
+| c-control-pre | pre-fix | +0ms | +1001ms | 2 |
+| **a-off-intent** | **production** | **never** | **never** | **2** |
+| b-on-intent | production + flag | +0ms | +502ms | 2 |
+| d-control-post | pre-fix | +0ms | +502ms | 2 |
+
+Each OFF arm was watched 30s; every positive auto-start in the program has
+attempted at +0ms (rc7 4/4, rc8 6/6), so the window is far past generous.
+
+**THE `/rc` PILL IS A GENUINE TELL, not chrome** (worth recording, because F12
+established the opposite for the idle footer). It is absent for the whole 30s
+boot window of a suppressed session and appears the moment RC connects — in the
+OFF arm it showed up only AFTER the mid-session injection. rc7's needle
+(`/\/rc\b/`) was unanchored and matched its own workspace path (`…/rc-lever/…`)
+instead; rc8 anchors on the pill terminating its row, which the measured footer
+shape (`<statusline output>   /rc`, q5) puts it at.
+
+**THE RED LINE HOLDS, MEASURED not assumed.** Under the suppressed OFF-intent
+spawn the production `injectRemoteControl()` returned `ok`, and the production
+`remote-control:state` carried the session link at **+605ms (run 1) / +679ms
+(run 2)** after the injection, with the link independently on the grid and
+`acceptsPromptInput()` still true afterwards. A startup default is not a
+capability switch; the key that WOULD take the capability away
+(`disableRemoteControl`) is managed-settings-only and unreachable from a
+`--settings` file (F4e).
+
+**THE ON PATH, in the shape nobody had run.** rc4 leg 3 measured flag-over-`false`;
+SL-19 ships flag-over-NOTHING. Both runs: key absent from the written file,
+`--remote-control` last in argv, RC connected — `remote-control:state` armed at
++20ms and the link at +1917ms (run 1) / +502ms grid (run 2). The ON path
+deliberately does not write `true`: it is unmeasured in the enabling direction
+(F4i), superfluous next to a flag measured to connect at +0ms, and Sonata has no
+use for it.
+
+**BYTE-STABILITY** asserted per shape inside the probe as well as in the smoke:
+re-running the production writer with the same options reproduced identical bytes
+and did not touch the file (`writeJsonIfChanged` never churns), both shapes, both
+runs.
+
+Settings guard clean (`mutatedByProbe: false`) on both runs, self-test run first.
+Captures: `rc8-startup-lever-live.run1.capture.txt`, `…run2.capture.txt` —
+run-numbered like rc7, because the background this measures against flaps and a
+replicate is evidence in its own right.

@@ -94,6 +94,69 @@ interface ClaudeRuntimeSettings {
    *  byte-identical to each other and `writeJsonIfChanged` never churns. Fast
    *  mode UNIONs from `--settings` like the hooks do; there is no CLI flag. */
   fastMode?: true;
+  /**
+   * STARTUP-ONLY Remote Control policy (Claude 2.1.25x). Written ONLY as
+   * `false`, and only when the task's RC intent is OFF.
+   *
+   * WHY IT HAS TO BE WRITTEN AT ALL (upstream sync 2026-09, SL-11 F4e/F4i).
+   * `defaultRemoteControl: false` used to mean nothing more than "do not pass
+   * `--remote-control`", and MEASURED at 2.1.258 that is not what decides it:
+   * six of six production boots with no flag anywhere auto-started RC and went
+   * phone-reachable while Sonata's own setting said OFF. Claude's resolver reads
+   *
+   *     project/local `false` → policy | FLAG | user settings → legacy global
+   *       → default: remote env / persistent remote session / org policy
+   *         / GrowthBook `tengu_cobalt_harbor`
+   *
+   * and on this account that last term is server-side, cached in `~/.claude.json`,
+   * refreshed asynchronously — it flipped twice during SL-11 with no local action,
+   * i.e. it flaps on a timescale of MINUTES. Not passing a flag is therefore not a
+   * decision; it merely declines to override a default that may already be ON.
+   * `--settings` IS the `flagSettings` source (the one scope the resolver accepts
+   * in both directions, unlike project/local which may only disable), so this one
+   * key is what makes the setting say the truth. MEASURED (rc7, N=2, three legs,
+   * `tengu_cobalt_harbor` true throughout): with the key absent RC auto-started
+   * 2/2, with `false` it did not, 2/2 — no `connecting…`, no pill, no link, in a
+   * 45s window sitting between two legs that auto-started minutes either side.
+   *
+   * WHY THE ON PATH OMITS IT rather than writing `true`. Three reasons, in order
+   * of weight:
+   *   1. The ON intent already has claude's own channel — the `--remote-control`
+   *      flag — and it is measured to connect at +0ms (rc4 leg 3, rc5 6/6). This
+   *      key exists for the direction that has NO flag.
+   *   2. `false` must never ride alongside `--remote-control`. rc4 leg 3 measured
+   *      the flag winning over the key, but "measured winning" is a fact about one
+   *      binary at one version, not a licence to emit a file that contradicts the
+   *      argv it ships with.
+   *   3. `true` is UNMEASURED in the enabling direction and always will be
+   *      superfluous: rc4's leg 2 tried it and landed inside one of the
+   *      non-auto-starting windows, so it cannot separate "the source is not
+   *      accepted for enabling" from "nothing was auto-starting then" (F4i states
+   *      exactly this). Shipping an unmeasured assertion to buy behaviour the flag
+   *      already buys is cost without benefit. Absence is not a lie — it says
+   *      "Sonata states no startup policy here", and the argv states the policy.
+   *
+   * STARTUP-ONLY IS THE RED LINE. The key names a boot-time default; it is not a
+   * capability switch (that one is `disableRemoteControl`, a MANAGED-settings key
+   * a `--settings` file cannot reach — F4e). A mid-session `/remote-control`
+   * stays fully available under an OFF-intent spawn: MEASURED live through the
+   * production `injectRemoteControl` under this exact file (rc8 arm A), the
+   * injection connects and the session link lands on the grid. An honest default,
+   * never a weakened capability.
+   *
+   * WHAT THIS DELIBERATELY OUTRANKS, read off the resolver order above. Managed
+   * `policySettings` are consulted BEFORE `flagSettings`, so an org that mandates
+   * startup RC still wins — this key cannot be used to escape policy. A USER-scope
+   * `remoteControlAtStartup: true` (the scope claude's own `/config` steers people
+   * to) does NOT win, and that is the intended semantics rather than an oversight:
+   * inside a Sonata session, Sonata's own `defaultRemoteControl` toggle is the
+   * SSOT for what the user asked for, in both directions.
+   *
+   * Same conditional-inclusion discipline as `fastMode`, inverted: the key is
+   * present exactly when it carries information, so each spawn SHAPE has one
+   * stable byte image and `writeJsonIfChanged` never churns across repeats.
+   */
+  remoteControlAtStartup?: false;
 }
 
 function buildHooks(
@@ -136,7 +199,17 @@ export function claudeApprovalsDirectory(runtimeDir: string): string {
  */
 export function ensureClaudeRuntimeSettings(
   runtimeDir: string,
-  options: { approvalBroker?: boolean; fastMode?: boolean } = {},
+  options: {
+    approvalBroker?: boolean;
+    fastMode?: boolean;
+    /** The task's Remote Control INTENT — the same value that decides whether the
+     *  spawn carries `--remote-control`, threaded here so the file and the argv
+     *  cannot disagree. The projection onto the CLI's own key (write `false` when
+     *  OFF, omit when ON) lives on `remoteControlAtStartup` with its measured
+     *  basis; the caller states intent, this writer owns the translation.
+     *  Absent/false = OFF, matching `claudeArgs`' reading of the same field. */
+    remoteControl?: boolean | undefined;
+  } = {},
 ): string {
   const usageDirectory = claudeUsageDirectory(runtimeDir);
   const hooksDirectory = claudeHooksDirectory(runtimeDir);
@@ -172,6 +245,12 @@ export function ensureClaudeRuntimeSettings(
     // Only present when fast: a standard-speed spawn omits the key entirely, so
     // repeat spawns of the same shape are byte-stable via writeJsonIfChanged.
     ...(options.fastMode ? { fastMode: true as const } : {}),
+    // The mirror image of fastMode's rule, because the informative direction is
+    // the other one: an OFF-intent spawn STATES the suppression (nothing else
+    // does — the default this overrides is server-side and flaps), an ON-intent
+    // spawn says nothing and lets `--remote-control` speak. Full rationale and
+    // the measured legs: `remoteControlAtStartup` above.
+    ...(options.remoteControl ? {} : { remoteControlAtStartup: false as const }),
   };
 
   const settingsPath = path.join(runtimeDir, "claude-runtime-settings.json");

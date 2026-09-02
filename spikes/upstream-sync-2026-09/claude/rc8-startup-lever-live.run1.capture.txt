@@ -1,0 +1,231 @@
+# RC8 — the SL-19 startup lever through the production spawn (claude 2.1.258 (Claude Code))
+# captured 2026-09-02T18:14:47.585Z
+
+{
+  "version": "2.1.258 (Claude Code)",
+  "arms": [
+    {
+      "arm": "c-control-pre",
+      "shape": "control",
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T17:43:02.849Z",
+        "userSettingsRemoteControlAtStartup": null
+      },
+      "keyPresentBeforeStrip": true,
+      "settingsKeys": [
+        "statusLine",
+        "hooks",
+        "emojiCompletionEnabled"
+      ],
+      "remoteControlAtStartup": null,
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/startup-lever/c-control-pre-runtime/pre-fix-settings.json"
+      ],
+      "carriesRemoteControlFlag": false,
+      "reachedInput": true,
+      "acceptsInput": true,
+      "composerAtMs": 1549,
+      "trustDialogSeen": true,
+      "boot": {
+        "sawConnectingOnStream": true,
+        "connectingAtMs": 0,
+        "sawRcPillOnGrid": true,
+        "rcPillAtMs": 1003,
+        "rcPillRows": [
+          "                                                                                                                   /rc"
+        ],
+        "sessionUrlOnGrid": null,
+        "sessionUrlAtMs": null,
+        "rcStates": [],
+        "autoStarted": true
+      },
+      "autoStarted": true,
+      "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/startup-lever/c-control-pre\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "arm": "a-off-intent",
+      "shape": "off-intent",
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T18:12:36.911Z",
+        "userSettingsRemoteControlAtStartup": null
+      },
+      "settingsKeys": [
+        "statusLine",
+        "hooks",
+        "emojiCompletionEnabled",
+        "remoteControlAtStartup"
+      ],
+      "remoteControlAtStartup": false,
+      "remoteControlAtStartupKeyPresent": true,
+      "byteStableOnRepeat": true,
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/startup-lever/a-off-intent-runtime/claude-runtime-settings.json"
+      ],
+      "carriesRemoteControlFlag": false,
+      "reachedInput": true,
+      "acceptsInput": true,
+      "composerAtMs": 1537,
+      "trustDialogSeen": true,
+      "boot": {
+        "sawConnectingOnStream": false,
+        "connectingAtMs": null,
+        "sawRcPillOnGrid": false,
+        "rcPillAtMs": null,
+        "rcPillRows": [],
+        "sessionUrlOnGrid": null,
+        "sessionUrlAtMs": null,
+        "rcStates": [],
+        "autoStarted": false
+      },
+      "autoStarted": false,
+      "inject": {
+        "atMs": 31665,
+        "result": {
+          "ok": true
+        },
+        "connected": true,
+        "rcStates": [
+          {
+            "active": true,
+            "url": null,
+            "atMs": 31666
+          },
+          {
+            "active": true,
+            "url": "https://claude.ai/code/session_<REDACTED>",
+            "atMs": 32270
+          }
+        ],
+        "sessionUrlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+        "rcPillRows": [
+          "                                                                                                                   /rc"
+        ],
+        "acceptsInputAfter": true
+      },
+      "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/startup-lever/a-off-intent\n\n\n❯ /remote-control \n\n  /remote-control is active · Continue here, on your phone, or at \n  https://claude.ai/code/session_<REDACTED>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "arm": "b-on-intent",
+      "shape": "on-intent",
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T18:13:09.750Z",
+        "userSettingsRemoteControlAtStartup": null
+      },
+      "settingsKeys": [
+        "statusLine",
+        "hooks",
+        "emojiCompletionEnabled"
+      ],
+      "remoteControlAtStartup": null,
+      "remoteControlAtStartupKeyPresent": false,
+      "byteStableOnRepeat": true,
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/startup-lever/b-on-intent-runtime/claude-runtime-settings.json",
+        "--remote-control"
+      ],
+      "carriesRemoteControlFlag": true,
+      "reachedInput": true,
+      "acceptsInput": true,
+      "composerAtMs": 1540,
+      "trustDialogSeen": true,
+      "boot": {
+        "sawConnectingOnStream": true,
+        "connectingAtMs": 0,
+        "sawRcPillOnGrid": true,
+        "rcPillAtMs": 500,
+        "rcPillRows": [
+          "                                                                                                                   /rc"
+        ],
+        "sessionUrlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+        "sessionUrlAtMs": 500,
+        "rcStates": [
+          {
+            "active": true,
+            "url": null,
+            "atMs": 20
+          },
+          {
+            "active": true,
+            "url": "https://claude.ai/code/session_<REDACTED>",
+            "atMs": 1917
+          }
+        ],
+        "autoStarted": true
+      },
+      "autoStarted": true,
+      "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/startup-lever/b-on-intent\n\n\n  /remote-control is active · Continue here, on your phone, or at \n  https://claude.ai/code/session_<REDACTED>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "arm": "d-control-post",
+      "shape": "control",
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T18:13:43.192Z",
+        "userSettingsRemoteControlAtStartup": null
+      },
+      "keyPresentBeforeStrip": true,
+      "settingsKeys": [
+        "statusLine",
+        "hooks",
+        "emojiCompletionEnabled"
+      ],
+      "remoteControlAtStartup": null,
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/startup-lever/d-control-post-runtime/pre-fix-settings.json"
+      ],
+      "carriesRemoteControlFlag": false,
+      "reachedInput": true,
+      "acceptsInput": true,
+      "composerAtMs": 1385,
+      "trustDialogSeen": true,
+      "boot": {
+        "sawConnectingOnStream": true,
+        "connectingAtMs": 0,
+        "sawRcPillOnGrid": true,
+        "rcPillAtMs": 1004,
+        "rcPillRows": [
+          "                                                                                                                   /rc"
+        ],
+        "sessionUrlOnGrid": null,
+        "sessionUrlAtMs": null,
+        "rcStates": [],
+        "autoStarted": true
+      },
+      "autoStarted": true,
+      "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/startup-lever/d-control-post\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents"
+    }
+  ],
+  "verdicts": {
+    "controlIsPreFixShape": true,
+    "bracketValid": true,
+    "offIntentWritesKey": true,
+    "onIntentOmitsKey": true,
+    "offIntentSuppressedAutoStart": true,
+    "onIntentConnected": true,
+    "midSessionInjectStillConnects": true,
+    "byteStable": true
+  },
+  "success": true,
+  "settingsGuard": {
+    "checked": true,
+    "mutatedByProbe": false,
+    "restored": true
+  },
+  "versionAtEnd": "2.1.258 (Claude Code)",
+  "versionDrift": false
+}

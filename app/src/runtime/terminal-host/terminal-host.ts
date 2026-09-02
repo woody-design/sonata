@@ -457,8 +457,13 @@ export interface StartTaskOptions {
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
   speedMode?: LaunchSpeedMode | null;
-  /** Claude only: spawn with `--remote-control` so the session is phone-
-   *  reachable from the start (the "arm at session start" path). */
+  /** Claude only: the session's Remote Control intent at BIRTH. True spawns with
+   *  `--remote-control` so the session is phone-reachable from the start (the
+   *  "arm at session start" path); false/absent additionally writes
+   *  `remoteControlAtStartup: false` into the injected `--settings`, because at
+   *  2.1.25x declining to pass the flag does NOT turn RC off — the startup
+   *  default resolves server-side (SL-11 F4e/F4i). Either way it is a STARTUP
+   *  policy only: a mid-session `injectRemoteControl()` stays available. */
   remoteControl?: boolean;
   /** Claude only: set false for native-approval mode — routes PermissionRequest
    *  to the scrape/keys fallback instead of the hook-intercept broker (S2).
@@ -843,8 +848,10 @@ export class TerminalHost extends EventEmitter {
   // and the grid is text-only). `injectRemoteControl` flips us active; the
   // scraped session URL confirms and carries the phone link.
   // KNOWN BLIND SPOT, registered not fixed (SL-11 F4e): claude can auto-start RC
-  // at boot from org policy or a server-side default with no `--remote-control`
-  // flag, and "activation is OUR signal" means Sonata reports OFF for such a
+  // at boot from ORG POLICY with no `--remote-control` flag (the server-side
+  // DEFAULT half of this blind spot was CLOSED by SL-19: the injected
+  // `remoteControlAtStartup: false` suppresses it for OFF-intent spawns —
+  // see the buildArgs seam; policy still outranks the key by design), and "activation is OUR signal" means Sonata reports OFF for such a
   // session. Closing it is a product decision on `defaultRemoteControl`, not a
   // detection change.
   private remoteControlActive = false;
@@ -1784,6 +1791,17 @@ export class TerminalHost extends EventEmitter {
    * panel is closed, and switches the user to the terminal); `enableRemoteControl`
    * leaves that panel open behind Sonata's own UI — registered in SL-11's
    * findings (F4d), not fixed here.
+   *
+   * UNAFFECTED BY THE STARTUP LEVER, and MEASURED that way rather than assumed
+   * (SL-19, rc8 arm A, N=2). An OFF-intent spawn now writes
+   * `remoteControlAtStartup: false` into the injected `--settings`, and that key
+   * names a boot-time DEFAULT, not a capability — so this path stays whole: on a
+   * session that did not auto-start (no `connecting…`, no pill, sandwiched
+   * between two pre-fix control boots that did), this injection returned `ok` and
+   * the production `remote-control:state` carried the session link at +605ms /
+   * +679ms, with `acceptsPromptInput()` still true. The key that CAN take the
+   * capability away is `disableRemoteControl`, which is managed-settings-only and
+   * a `--settings` file cannot reach it (F4e). Honest default, full capability.
    */
   injectRemoteControl(): RemoteControlInjectResponse {
     if (!this.ptyProcess) {
@@ -5106,6 +5124,15 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
               // Native fast mode (2.1.205+) rides in the injected `--settings`;
               // there is no claudeArgs flag for it. Opus-gated in the launch UI.
               fastMode: options.speedMode === "fast",
+              // The SAME intent that decides `--remote-control` below, handed to
+              // the settings writer too — because the flag alone only covers the
+              // ON direction. Turning RC OFF has no flag: at 2.1.25x the startup
+              // default resolves server-side and auto-started 6/6 production
+              // boots that passed nothing (SL-11 F4e), so the OFF half of Woody's
+              // `defaultRemoteControl` setting is carried by the settings file's
+              // `remoteControlAtStartup` key (measured lever, F4i). One value,
+              // two channels, no way for them to disagree.
+              remoteControl: options.remoteControl,
             },
           ),
           resumeRef: options.resumeRef,
