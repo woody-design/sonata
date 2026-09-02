@@ -627,19 +627,59 @@ assert.equal(
 );
 
 // — The FOURTH permission mode, reachable only off the picker (#39873, MEASURED
-//   0.152.1 — SL-7 q29 arm B). The permission-CYCLE shortcut's set is not the
-//   picker's: it cycles Approve for me → Read Only → Ask for approval and prints
-//   `• Permissions updated to Read Only`, a mode with no picker row and no
-//   `CodexPermissionMode` member. Null here is the CORRECT answer, not a hole —
-//   Sonata can only ever confirm one of the three rows, so a null on someone
-//   else's native cycle is honest rather than a dropped receipt. Pinned so a
-//   future reader meeting that line in a capture finds the adjudication instead
-//   of assuming a bug. (The shortcut ships with NO default binding, so reaching
-//   this state at all takes a user-written `tui.keymap.chat.next_permission_mode`.)
+//   0.152.1 — SL-7 q29 arm B, re-measured SL-17 q35). The permission-CYCLE
+//   shortcut's set is not the picker's: it cycles Approve for me → Read Only →
+//   Ask for approval and prints `• Permissions updated to Read Only`, a mode with
+//   no picker row. It is now NAMED (`CodexPermissionMode` gained `read-only` at
+//   SL-17), so the receipt maps.
+//
+//   This pin INVERTED at SL-17 and the reason it did is the finding: null used to
+//   be the honest answer because Sonata had no word for the mode, not because the
+//   line meant nothing. What being in the table buys is one specific honesty — a
+//   native cycle landing DURING a Sonata confirm now resolves as "the CLI ended up
+//   somewhere that is not our target" (→ needs-attention) instead of being
+//   invisible. The MIRROR does not ride this parser: it is read only inside a
+//   Sonata-initiated switch window, so a native cycle at any other moment reaches
+//   the task record through `codexPermissionModeFromTurnContext` instead.
+//   (The shortcut ships with NO default binding, so reaching this state at all
+//   takes a user-written `tui.keymap.chat.next_permission_mode`.)
 assert.equal(
   parseCodexPermissionReceipt("• Permissions updated to Read Only"),
-  null,
-  "the cycle-only `Read Only` mode is deliberately unmapped — Sonata never confirms that row",
+  "read-only",
+  "the cycle-only `Read Only` receipt maps to read-only (SL-17; MEASURED verbatim at 0.152.1)",
+);
+// MOST-RECENT-WINS (SL-17), replacing a first-match-wins scan of the table. The
+// old rule answered with whichever LABEL sat higher in the table, which is not a
+// property of the screen: a redraw replaying an OLD receipt into the confirm
+// window outranked the real one. Adding a fourth label made that live — a session
+// that has ever cycled carries a receipt no confirm of ours will repeat.
+// PROVENANCE: COMPOSED — two MEASURED receipt lines (both verbatim above) placed
+// in one scan in each order, which is what a repaint produces.
+assert.equal(
+  parseCodexPermissionReceipt(
+    "• Permissions updated to Read Only  • Permissions updated to Approve for me",
+  ),
+  "approve-for-me",
+  "two receipts in one scan → the one that painted LAST wins (a stale Read Only cannot outrank it)",
+);
+assert.equal(
+  parseCodexPermissionReceipt(
+    "• Permissions updated to Approve for me  • Permissions updated to Read Only",
+  ),
+  "read-only",
+  "…and in the other order the answer flips, so it is position deciding, not table order",
+);
+// The rule change on its own terms, with no Read Only involved — the shape that
+// was already wrong before the fourth label existed. A redraw replays an old
+// `Ask for approval` above the `Full Access` confirm that just landed: the old
+// rule answered `ask-for-approval` (it sits first in the table) and reported
+// needs-attention on a switch that had succeeded.
+assert.equal(
+  parseCodexPermissionReceipt(
+    "• Permissions updated to Ask for approval  • Permissions updated to Full Access",
+  ),
+  "full-access",
+  "a replayed OLD receipt above a fresh confirm does not outrank it (the pre-existing D8 hazard)",
 );
 // …and the DRIVE survives that state: measured, the picker sitting in Read Only
 // still paints its three rows with NO `(current)` marker and the cursor on row 1,

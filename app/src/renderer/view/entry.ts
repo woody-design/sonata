@@ -14,7 +14,7 @@
 
 import type {
   ClaudeDefaultPermissionMode,
-  CodexPermissionMode,
+  CodexOfferedPermissionMode,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
@@ -188,8 +188,12 @@ function accessModeDescription(mode: ClaudeDefaultPermissionMode): string {
 }
 
 /** One-line consequence per Codex mode — the per-preset clauses of the Codex
- *  Settings footnote, so the chip menu reads the same as Settings → Codex. */
-function codexAccessModeDescription(mode: CodexPermissionMode): string {
+ *  Settings footnote, so the chip menu reads the same as Settings → Codex.
+ *
+ *  OFFERED-typed for the same reason as its Settings twin
+ *  (`codexPermissionModeDescription`): a description only renders under a draft
+ *  menu ROW, and codex's observe-only `read-only` mode is not one. */
+function codexAccessModeDescription(mode: CodexOfferedPermissionMode): string {
   if (mode === "approve-for-me") {
     return "Only ask for actions Codex flags as potentially unsafe";
   }

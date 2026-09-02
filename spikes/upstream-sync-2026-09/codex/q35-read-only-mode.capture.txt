@@ -1,0 +1,273 @@
+{
+  "probe": "q35-read-only-mode",
+  "version": "codex-cli 0.152.1",
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null,
+  "sourceFact": {
+    "file": "codex-rs/tui/src/chatwidget/permission_shortcuts.rs @ rust-v0.152.0",
+    "cycleSet": "builtin_approval_presets() filtered to {read-only, auto} × reviewer {User, AutoReview}",
+    "labelRule": "(\"auto\", User) → \"Ask for approval\"; (\"auto\", AutoReview) → \"Approve for me\"; else preset.label (= \"Read Only\")",
+    "consequence": "both modes Sonata can name ride the `auto` preset; `Read Only` is the `read-only` preset — so a read-only SANDBOX cannot be produced by any offered mode"
+  },
+  "binding": "ctrl-x",
+  "arms": [
+    {
+      "arm": "read-only",
+      "steps": [
+        {
+          "step": "turn-1-control",
+          "sentinel": "SONATA_SL17_T1",
+          "submitRetries": 1,
+          "turnContextCount": 1,
+          "turnContext": {
+            "sandbox": "workspace-write",
+            "approval": "on-request",
+            "reviewer": "user",
+            "profile": "managed",
+            "model": "gpt-5.6-sol",
+            "effort": null
+          },
+          "landed": true,
+          "repliedAtMs": 3062,
+          "screenTail": [
+            "› Reply with exactly SONATA_SL17_T1 and nothing else. Do not call any tool.",
+            "• SONATA_SL17_T1",
+            "› Ask Codex to do anything",
+            "  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+          ]
+        },
+        {
+          "step": "cycle-into-read-only",
+          "presses": [
+            {
+              "press": 1,
+              "receiptFromPressBytes": "approve-for-me",
+              "newBytesCompact": "•PermissionsupdatedtoApproveforme",
+              "containsReadOnlyLiteral": false
+            },
+            {
+              "press": 2,
+              "receiptFromPressBytes": "read-only",
+              "newBytesCompact": "•PermissionsupdatedtoReadOnly",
+              "containsReadOnlyLiteral": true
+            }
+          ],
+          "receiptOverWholeTail": "read-only",
+          "screenTail": [
+            "• SONATA_SL17_T1",
+            "• Permissions updated to Approve for me",
+            "• Permissions updated to Read Only",
+            "› Ask Codex to do anything",
+            "  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+          ]
+        },
+        {
+          "step": "picker-while-read-only",
+          "openedAtMs": 11307,
+          "headerGrid": true,
+          "footerGrid": true,
+          "cursorGrid": "ask-for-approval",
+          "currentMarkerOnScreen": false,
+          "gridLines": [
+            "╭───────────────────────────────────────────────────────╮",
+            "│ >_ OpenAI Codex (v0.152.1)                            │",
+            "│                                                       │",
+            "│ model:     gpt-5.6-sol   /model to change             │",
+            "│ directory: /private/tmp/…/codex-read-only/session/cwd │",
+            "╰───────────────────────────────────────────────────────╯",
+            "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+            "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "› Reply with exactly SONATA_SL17_T1 and nothing else. Do not call any tool.",
+            "• SONATA_SL17_T1",
+            "• Permissions updated to Approve for me",
+            "• Permissions updated to Read Only",
+            "  Update Model Permissions",
+            "› 1. Ask for approval  Codex can read and edit files in the current workspace, and run commands. Approval is required",
+            "                       to access the internet or edit other files.",
+            "  2. Approve for me    Only ask for actions detected as potentially unsafe.",
+            "  3. Full Access       Codex can edit files outside this workspace and access the internet without asking for",
+            "                       approval. Exercise caution when using.",
+            "  Press enter to confirm or esc to go back                                                                              "
+          ]
+        },
+        {
+          "step": "exit-picker-while-read-only",
+          "escs": [
+            {
+              "esc": 1,
+              "pickerHeaderGrid": false,
+              "pickerFooterGrid": false,
+              "acceptsPromptInput": true
+            }
+          ]
+        },
+        {
+          "step": "turn-2-read-only",
+          "sentinel": "SONATA_SL17_T2",
+          "submitRetries": 1,
+          "turnContextCount": 2,
+          "turnContext": {
+            "sandbox": "read-only",
+            "approval": "on-request",
+            "reviewer": "user",
+            "profile": "managed",
+            "model": "gpt-5.6-sol",
+            "effort": null
+          },
+          "landed": true,
+          "repliedAtMs": 14120,
+          "screenTail": [
+            "› Reply with exactly SONATA_SL17_T2 and nothing else. Do not call any tool.",
+            "• SONATA_SL17_T2",
+            "› Ask Codex to do anything",
+            "  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+          ]
+        },
+        {
+          "step": "drive-to-approve-for-me",
+          "target": "approve-for-me",
+          "from": "read-only",
+          "response": {
+            "ok": true
+          },
+          "settledAtMs": 19501,
+          "phases": [
+            {
+              "kind": "codex-permission",
+              "phase": "pending",
+              "value": "approve-for-me"
+            },
+            {
+              "kind": "codex-permission",
+              "phase": "settled",
+              "value": "approve-for-me"
+            }
+          ],
+          "terminalPhase": "settled",
+          "receiptOverWholeTail": "approve-for-me",
+          "screenTail": [
+            "› Reply with exactly SONATA_SL17_T2 and nothing else. Do not call any tool.",
+            "• SONATA_SL17_T2",
+            "• Permissions updated to Approve for me",
+            "› Ask Codex to do anything",
+            "  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+          ]
+        },
+        {
+          "step": "turn-3-after-drive",
+          "sentinel": "SONATA_SL17_T3",
+          "submitRetries": 1,
+          "turnContextCount": 3,
+          "turnContext": {
+            "sandbox": "workspace-write",
+            "approval": "on-request",
+            "reviewer": "auto_review",
+            "profile": "managed",
+            "model": "gpt-5.6-sol",
+            "effort": null
+          },
+          "landed": true,
+          "repliedAtMs": 21811,
+          "screenTail": [
+            "› Reply with exactly SONATA_SL17_T3 and nothing else. Do not call any tool.",
+            "• SONATA_SL17_T3",
+            "› Ask Codex to do anything",
+            "  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+          ]
+        }
+      ],
+      "configToml": "# q35: the #39873 permission cycle has NO default binding at 0.152.x.\n# Bind one so the fourth mode can be reached at all.\n[tui.keymap.chat]\nnext_permission_mode = [\"ctrl-x\"]\n",
+      "spawnedArgs": [
+        "-p",
+        "sonata",
+        "--dangerously-bypass-hook-trust",
+        "--no-alt-screen",
+        "-C",
+        "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd",
+        "-s",
+        "workspace-write",
+        "-a",
+        "on-request",
+        "-c",
+        "approvals_reviewer=\"user\""
+      ],
+      "readyAtMs": 145,
+      "handshakeAtMs": 756,
+      "idleTail": [
+        "• You have 1 usage limit reset available. Run /usage to use one.",
+        "• Booting MCP server: codex_apps (0s • esc to interrupt)",
+        "› Ask Codex to do anything",
+        "  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+      ],
+      "rollout": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/codex-home/sessions/2026/09/02/rollout-2026-09-02T12-21-52-01a062ed-484a-7dd3-a70e-1a050479712c.jsonl",
+      "turnContexts": [
+        {
+          "sandbox": "workspace-write",
+          "approval": "on-request",
+          "reviewer": "user",
+          "profile": "managed",
+          "model": "gpt-5.6-sol",
+          "effort": null
+        },
+        {
+          "sandbox": "read-only",
+          "approval": "on-request",
+          "reviewer": "user",
+          "profile": "managed",
+          "model": "gpt-5.6-sol",
+          "effort": null
+        },
+        {
+          "sandbox": "workspace-write",
+          "approval": "on-request",
+          "reviewer": "auto_review",
+          "profile": "managed",
+          "model": "gpt-5.6-sol",
+          "effort": null
+        }
+      ],
+      "reconcile": [
+        {
+          "turn": 1,
+          "projection": "(workspace-write, on-request)",
+          "reviewer": "user",
+          "profile": "managed",
+          "reconciled": null,
+          "persistedMirror": null,
+          "badgeLabel": null
+        },
+        {
+          "turn": 2,
+          "projection": "(read-only, on-request)",
+          "reviewer": "user",
+          "profile": "managed",
+          "reconciled": "read-only",
+          "persistedMirror": "read-only",
+          "badgeLabel": "Read Only"
+        },
+        {
+          "turn": 3,
+          "projection": "(workspace-write, on-request)",
+          "reviewer": "auto_review",
+          "profile": "managed",
+          "reconciled": null,
+          "persistedMirror": null,
+          "badgeLabel": null
+        }
+      ]
+    }
+  ],
+  "settingsGuard": [
+    {
+      "name": "config.toml",
+      "unchanged": true,
+      "existedBefore": true
+    },
+    {
+      "name": "sonata.config.toml",
+      "unchanged": true,
+      "existedBefore": true
+    }
+  ]
+}

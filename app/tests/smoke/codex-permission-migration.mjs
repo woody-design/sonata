@@ -19,9 +19,14 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { migrateCodexPermissionMode, codexPermissionModeFromTurnContext } = require(
-  "../../dist/shared/types/codex-settings",
-);
+const {
+  CODEX_PERMISSION_MODE_OPTIONS,
+  codexPermissionModeFromTurnContext,
+  isCodexOfferedPermissionMode,
+  isCodexPermissionMode,
+  migrateCodexPermissionMode,
+  normalizeCodexSettings,
+} = require("../../dist/shared/types/codex-settings");
 const { freshTaskManifestV1 } = require("../../dist/shared/schemas");
 
 const failures = [];
@@ -121,19 +126,78 @@ assert(
   "native downgrade from full-access keeps the stale full-access mirror (residual staleness)",
 );
 
-// A non-representable pair (e.g. a native read-only sandbox on a Sonata session)
-// also keeps the current mirror — never advertise a mode from unmapped state (F2).
+// A `read-only` SANDBOX is codex's cycle-only fourth mode, and it reconciles on
+// that axis ALONE (SL-17). This is the one pin in this block that INVERTED: it
+// used to assert null on the grounds that the pair was "non-representable", which
+// was true only while `CodexPermissionMode` could not name the mode. It can now,
+// and the projection is unique for the same reason full-access's is — no offered
+// mode produces a read-only sandbox (ask/approve are workspace-write, full access
+// is danger-full-access). MEASURED at codex 0.152.1 through one live session
+// driven into the mode via the #39873 cycle (SL-17 q35): the Read Only turn wrote
+// (read-only, on-request) between a control turn and a post-switch turn that both
+// stayed on workspace-write.
 assert(
-  codexPermissionModeFromTurnContext("read-only", "on-request") === null,
-  "turn_context (read-only, on-request) → null (non-representable)",
+  codexPermissionModeFromTurnContext("read-only", "on-request") === "read-only",
+  "turn_context (read-only, on-request) → read-only (MEASURED 0.152.1, q35)",
+);
+// The approval axis is deliberately NOT part of the test — it is the ask-frequency
+// knob, not the access level, and SL-8/r4's corpus carries read-only against BOTH
+// values (never ×186, on-request ×61). A session that cannot write is Read Only
+// either way.
+assert(
+  codexPermissionModeFromTurnContext("read-only", "never") === "read-only",
+  "…and (read-only, never) too — the sandbox decides, the approval axis does not",
 );
 assert(
-  reconcile("approve-for-me", "read-only", "on-request") === "approve-for-me",
-  "a non-representable (read-only, on-request) keeps the current mirror (F2)",
+  codexPermissionModeFromTurnContext("read-only", null) === "read-only",
+  "…and a read-only sandbox with no readable approval policy still reconciles",
+);
+assert(
+  reconcile("approve-for-me", "read-only", "on-request") === "read-only",
+  "a NATIVE cycle into Read Only moves the mirror off approve-for-me",
+);
+// …and back out again on the next turn, with no receipt involved: the cycle's
+// other stops land on workspace-write, which is the ambiguous pair, so the mirror
+// keeps whatever the drive last confirmed rather than guessing. That asymmetry is
+// deliberate and is the same residual staleness the ask↔approve case has.
+assert(
+  reconcile("read-only", "workspace-write", "on-request") === "read-only",
+  "a native cycle OUT of Read Only lands on the ambiguous pair → mirror stays (residual staleness)",
+);
+assert(
+  reconcile("read-only", "danger-full-access", "never") === "full-access",
+  "…but a native move to full-access still reconciles out of read-only (unique projection)",
 );
 assert(
   codexPermissionModeFromTurnContext(null, null) === null,
   "turn_context with no axes → null (keep current)",
+);
+// The OFFERED/NAMEABLE split: `read-only` is a mode Sonata can mirror, never one
+// it can launch into or store as a standing default.
+assert(
+  isCodexPermissionMode("read-only") && !isCodexOfferedPermissionMode("read-only"),
+  "read-only is nameable but NOT offered (the mirror/launch split)",
+);
+for (const mode of CODEX_PERMISSION_MODE_OPTIONS) {
+  assert(
+    isCodexPermissionMode(mode) && isCodexOfferedPermissionMode(mode),
+    `${mode} is both nameable and offered`,
+  );
+}
+// A persisted mirror of the fourth mode must SURVIVE a manifest read. Reading it
+// back through the offered guard would relabel a session that ran read-only as
+// "Ask for approval" — claiming more access than it had.
+assert(
+  migrateCodexPermissionMode({ provider: "codex", codexPermissionMode: "read-only" }) ===
+    "read-only",
+  "a persisted read-only mirror round-trips through the manifest read",
+);
+// …while the standing LAUNCH default refuses it and falls back to codex's own
+// default, because a default is a mode Sonata would have to spawn.
+assert(
+  normalizeCodexSettings({ defaultPermissionMode: "read-only" }).defaultPermissionMode ===
+    "ask-for-approval",
+  "read-only is refused as a standing launch default (offered guard)",
 );
 
 // ---- B. Seam: RuntimeController manifest-read migration -------------------

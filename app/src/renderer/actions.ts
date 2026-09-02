@@ -18,7 +18,7 @@
 import type {
   ClaudeDefaultPermissionMode,
   ClaudePermissionMode,
-  CodexPermissionMode,
+  CodexOfferedPermissionMode,
   LaunchSpeedMode,
   ReadingSettings,
   ReasoningEffort,
@@ -78,7 +78,7 @@ export interface Actions {
   /** Per-session access mode (the Settings triad; closes the access menu). */
   setDraftPermissionMode(mode: ClaudePermissionMode): void;
   /** Per-session Codex permission mode (the Codex twin; closes the access menu). */
-  setDraftCodexPermissionMode(mode: CodexPermissionMode): void;
+  setDraftCodexPermissionMode(mode: CodexOfferedPermissionMode): void;
   // — New Chat readiness card (view/cli-readiness-card.ts). Both run a command
   //   VISIBLY in the CLI window and hand the rest to the CLI itself (D7/D1):
   //   `installCli` runs that vendor's official installer, `startCliLogin` runs
@@ -198,7 +198,7 @@ export interface Actions {
   toggleSettingsClaudeModelMenu(overlay: SettingsOverlayState): void;
   toggleSettingsCodexModelMenu(overlay: SettingsOverlayState): void;
   persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): void;
-  persistCodexDefaultPermissionMode(mode: CodexPermissionMode): void;
+  persistCodexDefaultPermissionMode(mode: CodexOfferedPermissionMode): void;
   /** Instant-apply from the combined default model+effort popover; a model pick
    *  clamps a now-gated effort (main.ts). */
   persistDefaultModel(provider: RuntimeProvider, model: string): void;

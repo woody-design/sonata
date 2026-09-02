@@ -9,6 +9,7 @@ import type {
   ApprovalKind,
   ApprovalChoice,
   ClaudePermissionMode,
+  CodexOfferedPermissionMode,
   CodexPermissionMode,
   CreateTaskRequest,
   CreateTaskResponse,
@@ -37,7 +38,7 @@ import type {
 import { TaskNotFoundError, TaskNotLiveError } from "./errors";
 import {
   codexPermissionModeFromTurnContext,
-  isCodexPermissionMode,
+  isCodexOfferedPermissionMode,
   migrateCodexPermissionMode,
 } from "../shared/types";
 import {
@@ -3011,7 +3012,11 @@ export class RuntimeController {
    * rule as applyHookPermissionMode) so the sidebar ordering doesn't jump.
    */
   private applyCodexPermissionSwitchReceipt(active: ActiveTaskRuntime, value: string): void {
-    if (!isCodexPermissionMode(value)) {
+    // OFFERED guard: this event's value is a switch TARGET Sonata chose, and the
+    // picker can only be walked to one of the three rows. A `read-only` here
+    // would be a caller bug, not a state — the mode Sonata OBSERVES rather than
+    // drives arrives through `reconcileCodexTurnContext` instead.
+    if (!isCodexOfferedPermissionMode(value)) {
       return;
     }
     // Receipt-corroborated (the picker read its own confirm), so this write is
@@ -3065,12 +3070,20 @@ export class RuntimeController {
    * something actually changed. Every field is validated/mapped before it lands:
    * effort against REASONING_EFFORTS; the permission mode through
    * codexPermissionModeFromTurnContext, which reconciles ONLY an unambiguous
-   * projection (in practice just full-access) — the rollout can't tell ask-for-
-   * approval from approve-for-me (they share a projection; the reviewer axis that
-   * splits them isn't a trustworthy per-turn signal), so those pairs preserve the
-   * current mirror rather than corrupt a receipt-set value. Model/effort round-trip
-   * cleanly and are the axes this reconcile actually needed. Codex-only by
-   * construction (turn_context is a codex rollout record), but guarded regardless.
+   * projection — the rollout can't tell ask-for-approval from approve-for-me (they
+   * share a projection; the reviewer axis that splits them isn't a trustworthy
+   * per-turn signal), so those pairs preserve the current mirror rather than
+   * corrupt a receipt-set value. Model/effort round-trip cleanly and are the axes
+   * this reconcile actually needed. Codex-only by construction (turn_context is a
+   * codex rollout record), but guarded regardless.
+   *
+   * SINCE SL-17 this is also the channel that carries `read-only` — codex's
+   * cycle-only fourth mode. It has to be: the picker receipt, codex's other
+   * permission signal, is read ONLY inside a Sonata-initiated switch window, so it
+   * structurally cannot see a native cycle. That makes this the ONLY channel a
+   * natively-switched Read Only can arrive on, and it arrives on the same terms as
+   * every other native codex switch — at the NEXT turn's start, which is this
+   * reconcile's documented latency rather than a new one.
    */
   private reconcileCodexTurnContext(
     active: ActiveTaskRuntime,
@@ -3093,12 +3106,14 @@ export class RuntimeController {
     // The rollout carries (sandbox, approval) but NOT the reviewer axis that
     // separates ask-for-approval from approve-for-me (they share the same
     // (workspace-write, on-request) projection). So reconcile the permission mode
-    // ONLY when the pair uniquely identifies a triad member — in practice just
-    // full-access's (danger-full-access, never). An ambiguous or non-representable
-    // pair returns null and keeps the current mirror (fail-safe — never guess a
-    // mode from indistinguishable state; a mislabelled access level is worse than a
-    // stale one). See codexPermissionModeFromTurnContext for the full boundary; the
-    // S3 picker-receipt fast path still reconciles every Sonata-driven switch.
+    // ONLY when the projection uniquely identifies a mode: full-access's
+    // (danger-full-access, never), and — since SL-17 — a `read-only` SANDBOX,
+    // which no offered mode can produce and which codex itself calls "Read Only".
+    // An ambiguous pair returns null and keeps the current mirror (fail-safe —
+    // never guess a mode from indistinguishable state; a mislabelled access level
+    // is worse than a stale one). See codexPermissionModeFromTurnContext for the
+    // full boundary; the S3 picker-receipt fast path still reconciles every
+    // Sonata-driven switch.
     const reconciledMode = codexPermissionModeFromTurnContext(
       context.sandboxPolicy,
       context.approvalPolicy,
@@ -3455,7 +3470,9 @@ export class RuntimeController {
     reasoningEffort: ReasoningEffort | null;
     speedMode: LaunchSpeedMode | null;
     permissionSettings: {
-      codexPermissionMode: CodexPermissionMode | null;
+      // Already through `normalizePermissionSettings`, so this is a LAUNCHABLE
+      // mode by type, not by hope.
+      codexPermissionMode: CodexOfferedPermissionMode | null;
       permissionMode: ClaudePermissionMode | null;
     };
     remoteControl: boolean;
@@ -4008,6 +4025,30 @@ function normalizeLaunchSettings(request: {
   };
 }
 
+/**
+ * The SPAWN SEAM's permission guard: whatever a create/open request carries, what
+ * comes out is a mode the CLI can actually be launched into.
+ *
+ * The codex return is OFFERED-typed, and the case that makes it load-bearing is a
+ * REOPEN: `openTask` feeds this the persisted task's mirror, which since SL-17 can
+ * be `read-only` — codex's cycle-only fourth mode, observable but not launchable
+ * (no row in `CODEX_PERMISSION_MODE_FLAGS`). A reopen is a fresh spawn, so the
+ * mode cannot be preserved, and it falls back to `ask-for-approval`.
+ *
+ * Name that fallback accurately: read-only → ask-for-approval IS AN ACCESS
+ * ESCALATION at spawn — the new session can write where the old one could only
+ * read. `ask-for-approval` is the least-privileged mode Sonata OFFERS, which is a
+ * weaker claim than "least-privileged", and the distinction matters because
+ * nothing here can offer a genuinely read-only spawn. What makes the escalation
+ * honest is not its size but AGREEMENT: the record is rewritten in the same
+ * breath, so the badge reads "Ask for approval" from the first frame and the user
+ * is never shown a Read Only session that can write. An escalation the surface
+ * silently kept calling Read Only would be the actual defect.
+ *
+ * Same never-escalate-SILENTLY rule `migrateLegacyApprovalDefault` follows, and
+ * the same fallback a raw axis value or the retired `on-failure` has always taken
+ * here.
+ */
 function normalizePermissionSettings(
   provider: RuntimeProvider,
   request: {
@@ -4015,7 +4056,7 @@ function normalizePermissionSettings(
     permissionMode?: ClaudePermissionMode | null;
   },
 ): {
-  codexPermissionMode: CodexPermissionMode | null;
+  codexPermissionMode: CodexOfferedPermissionMode | null;
   permissionMode: ClaudePermissionMode | null;
 } {
   if (provider === "claude") {
@@ -4030,9 +4071,10 @@ function normalizePermissionSettings(
     };
   }
 
-  // The controller boundary accepts only the three new values; a raw axis value
-  // or the retired `on-failure` never survives to the spawn seam.
-  const codexPermissionMode = isCodexPermissionMode(request.codexPermissionMode)
+  // The controller boundary accepts only the three OFFERED values; a raw axis
+  // value, the retired `on-failure`, and an observed-only `read-only` mirror all
+  // land on the least-privileged offered mode (see the doc comment above).
+  const codexPermissionMode = isCodexOfferedPermissionMode(request.codexPermissionMode)
     ? request.codexPermissionMode
     : "ask-for-approval";
   return {

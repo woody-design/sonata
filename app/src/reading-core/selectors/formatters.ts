@@ -9,6 +9,7 @@
  */
 import type {
   ClaudePermissionMode,
+  CodexOfferedPermissionMode,
   CodexPermissionMode,
   ReadingModeSetting,
   ReadingThemeId,
@@ -308,23 +309,38 @@ export function permissionModeDescription(mode: ClaudePermissionMode): string {
 }
 
 /** One vocabulary for every Codex permission surface (the Settings default
- *  popup; the live-session chip in composer.ts). Codex 0.144's own
- *  `/permissions` picker labels, so Sonata's chip reads exactly as the TUI's
- *  "(current)" marker does. */
+ *  popup; the live-session chip in composer.ts). Every label is Codex's OWN
+ *  word for the mode, so Sonata's chip reads exactly as the TUI does — the
+ *  first three are the `/permissions` picker's rows and its "(current)" marker;
+ *  "Read Only" is verbatim what the cycle's receipt prints
+ *  (`• Permissions updated to Read Only`, MEASURED 0.152.1 — SL-7 q29 arm B,
+ *  re-measured SL-17 q35), so no new user-facing copy is invented here.
+ *
+ *  A TABLE, not an if-chain, and deliberately: the chain's fallthrough silently
+ *  labelled every unknown mode "Ask for approval", which is the wrong direction
+ *  to be wrong in (it claims MORE access than the session has). `satisfies
+ *  Record<CodexPermissionMode, string>` makes the next upstream mode a compile
+ *  error here instead. */
+const CODEX_PERMISSION_MODE_LABELS = {
+  "ask-for-approval": "Ask for approval",
+  "approve-for-me": "Approve for me",
+  "full-access": "Full Access",
+  "read-only": "Read Only",
+} satisfies Record<CodexPermissionMode, string>;
+
 export function codexPermissionModeLabel(mode: CodexPermissionMode): string {
-  if (mode === "approve-for-me") {
-    return "Approve for me";
-  }
-  if (mode === "full-access") {
-    return "Full Access";
-  }
-  return "Ask for approval";
+  return CODEX_PERMISSION_MODE_LABELS[mode];
 }
 
 /** One-line description shown under each Codex mode in the Settings picker menu.
  *  Semantics frozen by the Codex Permission Mode program (derived from the
- *  retired footnote). */
-export function codexPermissionModeDescription(mode: CodexPermissionMode): string {
+ *  retired footnote).
+ *
+ *  Takes the OFFERED type, not the full vocabulary: a description only ever
+ *  renders under a menu ROW, and Read Only is not one. That is the type saying
+ *  what the old fallthrough could not — there is no honest description to write
+ *  for a mode this menu cannot select. */
+export function codexPermissionModeDescription(mode: CodexOfferedPermissionMode): string {
   if (mode === "approve-for-me") {
     return "Only asks for actions Codex flags as potentially unsafe.";
   }

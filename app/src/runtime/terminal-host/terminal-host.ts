@@ -5,6 +5,7 @@ import path from "node:path";
 import { EventEmitter } from "node:events";
 import * as pty from "node-pty";
 import { IMAGE_MARKER_RE, normalizePromptForMatch } from "../../shared/prompt-markers";
+import type { CodexOfferedPermissionMode } from "../../shared/types/codex-settings";
 import type {
   ApprovalChoice,
   ApprovalDecision,
@@ -12,7 +13,6 @@ import type {
   ApprovalKind,
   ClaudePermissionMode,
   CodexApprovalMode,
-  CodexPermissionMode,
   CodexSandboxMode,
   CompletionConfidence,
   CompletionHint,
@@ -433,8 +433,10 @@ export interface StartTaskOptions {
   command?: string;
   args?: string[];
   /** Codex only: the launch permission preset. Fanned out to the legacy
-   *  (sandbox × approval × reviewer) flags at the codexArgs seam. */
-  codexPermissionMode?: CodexPermissionMode;
+   *  (sandbox × approval × reviewer) flags at the codexArgs seam — hence the
+   *  OFFERED type: only a mode with a row in `CODEX_PERMISSION_MODE_FLAGS` can
+   *  be launched into. */
+  codexPermissionMode?: CodexOfferedPermissionMode;
   permissionMode?: ClaudePermissionMode;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
@@ -4712,21 +4714,28 @@ export class TerminalHost extends EventEmitter {
 }
 
 /**
- * The ONE place Sonata's user-facing `CodexPermissionMode` fans back out to
- * Codex's legacy (sandbox × approval × reviewer) axes — verified live against
- * codex 0.144.4 (spikes/codex-perm-profile-probe, probe-modes.mjs): each row
- * shows the matching "(current)" in the TUI `/permissions` picker, full-access
- * boots straight into "YOLO mode" with no confirmation modal, and every row's
+ * The ONE place Sonata's user-facing permission mode fans back out to Codex's
+ * legacy (sandbox × approval × reviewer) axes — verified live against codex
+ * 0.144.4 (spikes/codex-perm-profile-probe, probe-modes.mjs): each row shows the
+ * matching "(current)" in the TUI `/permissions` picker, full-access boots
+ * straight into "YOLO mode" with no confirmation modal, and every row's
  * `approvals_reviewer` is accepted at spawn. The explicit `approvals_reviewer`
  * on ALL rows shields Sonata sessions from a globally-persisted `auto_review`
  * (which the Codex TUI writes into the active config layer) bleeding in.
+ *
+ * Keyed on `CodexOfferedPermissionMode`, NOT the full nameable vocabulary, and
+ * that is the point: `read-only` is a mode Sonata can OBSERVE (codex's cycle-only
+ * fourth mode, SL-17) and has deliberately not decided to OFFER, so it has no
+ * row here — and because the key type excludes it, nothing can reach this table
+ * holding one. Widening the key is the deliberate act that would make Read Only
+ * spawnable; it is not something a caller can do by accident.
  *
  * `permission_profile`/`default_permissions` (the upstream profile system) are
  * silently ignored on 0.144.4 — when they start working, this table is the one
  * function to swap.
  */
 const CODEX_PERMISSION_MODE_FLAGS: Record<
-  CodexPermissionMode,
+  CodexOfferedPermissionMode,
   { sandbox: CodexSandboxMode; approval: CodexApprovalMode; reviewer: string }
 > = {
   "ask-for-approval": { sandbox: "workspace-write", approval: "on-request", reviewer: "user" },
@@ -4736,7 +4745,7 @@ const CODEX_PERMISSION_MODE_FLAGS: Record<
 
 export function codexArgs(options: {
   cwd: string;
-  permissionMode: CodexPermissionMode;
+  permissionMode: CodexOfferedPermissionMode;
   model?: string | null | undefined;
   reasoningEffort?: ReasoningEffort | null | undefined;
   speedMode?: LaunchSpeedMode | null | undefined;

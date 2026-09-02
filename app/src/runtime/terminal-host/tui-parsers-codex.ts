@@ -1,3 +1,4 @@
+import type { CodexOfferedPermissionMode } from "../../shared/types/codex-settings";
 import type { CodexPermissionMode, ReasoningEffort } from "../../shared/types/domain";
 import { isReasoningEffort } from "../../shared/types/domain";
 import { cleanTerminal } from "./tui-parsers-common";
@@ -95,18 +96,24 @@ const CODEX_CONSENT_CURSOR_RES: ReadonlyArray<readonly [RegExp, 1 | 2]> = [
 ];
 /** Label → mode, ordered as the picker renders (ask → approve → full). The
  *  order is a stable picker property used ONLY to pick an arrow direction; the
- *  cursor's actual row is always re-read by TEXT after each press. */
-const CODEX_PICKER_ROWS: ReadonlyArray<readonly [RegExp, CodexPermissionMode]> = [
+ *  cursor's actual row is always re-read by TEXT after each press.
+ *
+ *  OFFERED-typed, like every other table in this picker block: the picker paints
+ *  exactly these three rows in every measured state — including while the CLI
+ *  sits in the cycle-only fourth mode, where it paints them with NO `(current)`
+ *  marker (MEASURED 0.152.1, SL-7 q29 arm B / SL-17 q35). There is no Read Only
+ *  ROW to add here, which is exactly why the type stops one from being added. */
+const CODEX_PICKER_ROWS: ReadonlyArray<readonly [RegExp, CodexOfferedPermissionMode]> = [
   [/Askforapproval/, "ask-for-approval"],
   [/Approveforme/, "approve-for-me"],
   [/FullAccess/, "full-access"],
 ];
-export const CODEX_ROW_ORDER: Record<CodexPermissionMode, number> = {
+export const CODEX_ROW_ORDER: Record<CodexOfferedPermissionMode, number> = {
   "ask-for-approval": 0,
   "approve-for-me": 1,
   "full-access": 2,
 };
-export const CODEX_ROW_BY_ORDER: readonly CodexPermissionMode[] = [
+export const CODEX_ROW_BY_ORDER: readonly CodexOfferedPermissionMode[] = [
   "ask-for-approval",
   "approve-for-me",
   "full-access",
@@ -114,7 +121,7 @@ export const CODEX_ROW_BY_ORDER: readonly CodexPermissionMode[] = [
 /** Cursor-row patterns: the `›` glyph + a digit + `.` + the row label. The
  *  digit/dot are the anchor that rejects the composer placeholder (`›Write…`);
  *  the LABEL identifies the mode. */
-const CODEX_PICKER_CURSOR_RES: ReadonlyArray<readonly [RegExp, CodexPermissionMode]> = [
+const CODEX_PICKER_CURSOR_RES: ReadonlyArray<readonly [RegExp, CodexOfferedPermissionMode]> = [
   [/›\d+\.Askforapproval/, "ask-for-approval"],
   [/›\d+\.Approveforme/, "approve-for-me"],
   [/›\d+\.FullAccess/, "full-access"],
@@ -126,44 +133,48 @@ const CODEX_PICKER_CURSOR_RES: ReadonlyArray<readonly [RegExp, CodexPermissionMo
  *  the live picker): `• Permissions updated to Ask for approval` /
  *  `… Approve for me` / `… Full Access`, the last one after the consent grant.
  *
- *  A FOURTH mode exists and is deliberately absent from this table. #39873 added
+ *  The FOURTH row is `Read Only`, a mode the picker has no row for. #39873 added
  *  a permission-CYCLE shortcut whose set is not the picker's: it enumerates the
  *  `read-only` and `auto` presets (`chatwidget/permission_shortcuts.rs`) and
  *  cycles Approve for me → **Read Only** → Ask for approval, printing
- *  `• Permissions updated to Read Only` — a mode `CodexPermissionMode` cannot
- *  name and the picker has no row for. Two facts bound the exposure, both
- *  measured:
- *    1. The shortcut has NO DEFAULT BINDING (`keymap.rs` @ rust-v0.152.0:
- *       `next_permission_mode: default_bindings![]`). It is unreachable unless a
- *       user writes `tui.keymap.chat.next_permission_mode` themselves.
- *    2. While the CLI sits in Read Only the picker still paints its THREE rows
- *       with NO `(current)` marker and the cursor on row 1 — so
- *       `parseCodexPermissionPickerCursor` still reads a row and a Sonata-driven
- *       switch still walks correctly. Only the MIRROR goes stale, and codex's
- *       permission mirror has no hook feed to go stale from in the first place
- *       (this receipt IS the confirmation channel).
- *  So `parseCodexPermissionReceipt` returning null for a Read Only line is
- *  CORRECT, not a hole: Sonata can only ever confirm one of the three rows, and
- *  a null on someone else's native cycle is the honest answer. Adding a
- *  `read-only` member would ripple through the settings list, `codexArgs`, the
- *  session menu and the task record — a design fork, not a table edit (the same
- *  adjudication `ultracode` got on the claude side). Registered for Woody. */
+ *  `• Permissions updated to Read Only` (MEASURED verbatim, SL-7 q29 arm B and
+ *  again SL-17 q35; the shortcut ships with NO default binding —
+ *  `next_permission_mode: default_bindings![]` — so reaching it takes a
+ *  user-written `tui.keymap.chat.next_permission_mode`).
+ *
+ *  It is in the table for VOCABULARY, not for the mirror. This parser is read
+ *  ONLY inside a Sonata-initiated switch window (`confirming`, and the parked
+ *  consent's re-check), so it never sees a native cycle at all — the mirror
+ *  follows Read Only through `codexPermissionModeFromTurnContext` instead, which
+ *  is the channel every other NATIVE codex switch already rides. What being in
+ *  the table buys is honesty in the one window this parser does see: a native
+ *  cycle landing DURING a Sonata confirm now resolves as "the CLI ended up
+ *  somewhere that is not our target" → needs-attention, instead of being invisible
+ *  and letting a later frame settle the switch on a state that no longer holds. */
 const CODEX_PICKER_RECEIPT_RES: ReadonlyArray<readonly [RegExp, CodexPermissionMode]> = [
   [/•PermissionsupdatedtoAskforapproval/, "ask-for-approval"],
   [/•PermissionsupdatedtoApproveforme/, "approve-for-me"],
   [/•PermissionsupdatedtoFullAccess/, "full-access"],
+  [/•PermissionsupdatedtoReadOnly/, "read-only"],
 ];
 
-const CODEX_PERMISSION_MODE_SET: ReadonlySet<CodexPermissionMode> = new Set<CodexPermissionMode>([
-  "ask-for-approval",
-  "approve-for-me",
-  "full-access",
-]);
+const CODEX_OFFERED_PERMISSION_MODE_SET: ReadonlySet<CodexOfferedPermissionMode> =
+  new Set<CodexOfferedPermissionMode>(["ask-for-approval", "approve-for-me", "full-access"]);
 
-/** Narrow an untrusted string (the IPC `value`/`from`) to a CodexPermissionMode. */
-export function asCodexPermissionMode(value: string | undefined): CodexPermissionMode | null {
-  return value && CODEX_PERMISSION_MODE_SET.has(value as CodexPermissionMode)
-    ? (value as CodexPermissionMode)
+/**
+ * Narrow an untrusted string (the IPC `value`/`from`) to a mode the choreography
+ * can DRIVE. Offered-only on both axes, and correct on both: `value` is a switch
+ * TARGET, and the picker has no Read Only row to walk to; `from` only ever
+ * short-circuits a no-op switch to the mode we are already in, and since a target
+ * is always offered, a `read-only` origin can never be that mode — declining to
+ * name it there is the same answer as naming it would give. (MEASURED, SL-17 q35:
+ * a production switch driven with `from: "read-only"` settles.)
+ */
+export function asCodexPermissionMode(
+  value: string | undefined,
+): CodexOfferedPermissionMode | null {
+  return value && CODEX_OFFERED_PERMISSION_MODE_SET.has(value as CodexOfferedPermissionMode)
+    ? (value as CodexOfferedPermissionMode)
     : null;
 }
 
@@ -198,15 +209,27 @@ export function codexPermissionConsentDialogOpen(screenText: string): boolean {
   return CODEX_FULL_ACCESS_CONSENT_RE.test(codexPickerCompact(screenText));
 }
 
-/** Which consent row the `›` cursor currently highlights (1 = Yes, continue
- *  anyway; 2 = Cancel), or null if none is recognized yet. Label-anchored, so an
- *  unrecognized screen is null rather than a guess. Most-recent-wins.
- *  Grid-fed, exactly like `codexPermissionConsentDialogOpen`. */
-export function parseCodexConsentCursor(screenText: string): 1 | 2 | null {
-  const compact = codexPickerCompact(screenText);
-  let best: 1 | 2 | null = null;
+/**
+ * MOST-RECENT-WINS over a label table: the value whose pattern matches LATEST in
+ * the compacted scan, or null when none does. The three codex picker parsers all
+ * want this and each used to carry its own copy of the loop; SL-17 made that a
+ * defect rather than a duplication, because the receipt parser was the one copy
+ * that had been left first-match-wins (SL-7/D8) and a FOURTH receipt label makes
+ * that difference bite — see `parseCodexPermissionReceipt`.
+ *
+ * Why "latest" is the right rule on every one of them: a codex frame is a
+ * REPAINT, so a scan can hold both a stale row/receipt and the current one, and
+ * position is the only ordering the stream gives. Ties go to the earlier table
+ * entry, which is unreachable in practice (two labels cannot match at the same
+ * index) and deterministic if it ever were.
+ */
+function lastMatchingLabel<T>(
+  compact: string,
+  table: ReadonlyArray<readonly [RegExp, T]>,
+): T | null {
+  let best: T | null = null;
   let bestIndex = -1;
-  for (const [re, row] of CODEX_CONSENT_CURSOR_RES) {
+  for (const [re, value] of table) {
     const globalRe = new RegExp(re.source, "g");
     let match: RegExpExecArray | null;
     let lastIndex = -1;
@@ -216,46 +239,49 @@ export function parseCodexConsentCursor(screenText: string): 1 | 2 | null {
     }
     if (lastIndex > bestIndex) {
       bestIndex = lastIndex;
-      best = row;
+      best = value;
     }
   }
   return best;
+}
+
+/** Which consent row the `›` cursor currently highlights (1 = Yes, continue
+ *  anyway; 2 = Cancel), or null if none is recognized yet. Label-anchored, so an
+ *  unrecognized screen is null rather than a guess. Most-recent-wins.
+ *  Grid-fed, exactly like `codexPermissionConsentDialogOpen`. */
+export function parseCodexConsentCursor(screenText: string): 1 | 2 | null {
+  return lastMatchingLabel(codexPickerCompact(screenText), CODEX_CONSENT_CURSOR_RES);
 }
 
 /** The mode whose row currently holds the `›` cursor, or null if no cursor row is
  *  recognized yet. "Most recent wins" (greatest match index) so a stale repaint
  *  of the pre-move cursor can't outvote the row the latest frame highlights —
  *  exactly like parseClaudePermissionModeLine. */
-export function parseCodexPermissionPickerCursor(rawScan: string): CodexPermissionMode | null {
-  const compact = codexPickerCompact(rawScan);
-  let best: CodexPermissionMode | null = null;
-  let bestIndex = -1;
-  for (const [re, mode] of CODEX_PICKER_CURSOR_RES) {
-    const globalRe = new RegExp(re.source, "g");
-    let match: RegExpExecArray | null;
-    let lastIndex = -1;
-    while ((match = globalRe.exec(compact)) !== null) {
-      lastIndex = match.index;
-      globalRe.lastIndex = match.index + 1;
-    }
-    if (lastIndex > bestIndex) {
-      bestIndex = lastIndex;
-      best = mode;
-    }
-  }
-  return best;
+export function parseCodexPermissionPickerCursor(
+  rawScan: string,
+): CodexOfferedPermissionMode | null {
+  return lastMatchingLabel(codexPickerCompact(rawScan), CODEX_PICKER_CURSOR_RES);
 }
 
-/** The mode a `• Permissions updated to <label>` receipt confirms, or null if no
- *  receipt is on the scan yet (keep waiting until the confirm timeout). */
+/**
+ * The mode the LATEST `• Permissions updated to <label>` receipt on the scan
+ * confirms, or null if no receipt is there yet (keep waiting until the confirm
+ * timeout).
+ *
+ * Most-recent-wins since SL-17, replacing a first-match-wins scan of the table.
+ * The old rule read "whichever LABEL happens to come first in the table", which
+ * is not a property of the screen at all: a scan holding two receipts answered
+ * with the one whose row sits higher in `CODEX_PICKER_RECEIPT_RES`, so a
+ * full-transcript redraw replaying an OLD receipt into the confirm window could
+ * outrank the real one and report needs-attention on a switch that succeeded.
+ * The scan reset at confirm made that rare (SL-7/D8 registered it as safe-for-now
+ * on exactly that ground), and adding `Read Only` to the table made it live —
+ * a session that has ever cycled carries a receipt no confirm of ours will
+ * repeat. Now the answer is the receipt that painted LAST, which is the same
+ * discipline the cursor parsers use and the same claim the screen actually makes.
+ */
 export function parseCodexPermissionReceipt(rawScan: string): CodexPermissionMode | null {
-  const compact = codexPickerCompact(rawScan);
-  for (const [re, mode] of CODEX_PICKER_RECEIPT_RES) {
-    if (re.test(compact)) {
-      return mode;
-    }
-  }
-  return null;
+  return lastMatchingLabel(codexPickerCompact(rawScan), CODEX_PICKER_RECEIPT_RES);
 }
 
 // ── Codex `/model` two-level picker choreography (S4) ───────────────────────

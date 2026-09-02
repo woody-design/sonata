@@ -18,7 +18,7 @@ import type {
   ClaudeDefaultPermissionMode,
   ClaudePermissionMode,
   ClaudeSettings,
-  CodexPermissionMode,
+  CodexOfferedPermissionMode,
   CodexSettings,
   DeliveryAttachment,
   DeliveryTaskState,
@@ -528,7 +528,7 @@ export interface RendererState {
    *  on Settings save — the Codex twin of `claudeDefaultPermissionMode`. The
    *  New Chat access chip shows this until the user picks a per-session mode
    *  (taskDraft.codexPermissionMode) while the draft provider is Codex. */
-  codexDefaultPermissionMode: CodexPermissionMode;
+  codexDefaultPermissionMode: CodexOfferedPermissionMode;
   /** The provider the last session actually STARTED on (`sonata-settings.json`),
    *  mirrored at boot; null until a session has ever started on this machine.
    *  Not a Settings value — nothing in the UI writes it (S3/L3), so it moves
@@ -766,7 +766,7 @@ export interface TaskLaunchDraft {
    *  default (state.codexDefaultPermissionMode), so an untouched draft tracks
    *  a Settings change live. Sent with createTask only when set (Codex twin of
    *  `permissionMode`). */
-  codexPermissionMode: CodexPermissionMode | null;
+  codexPermissionMode: CodexOfferedPermissionMode | null;
   /** New chat: arm Remote Control so the session spawns with `--remote-control`
    *  (Claude only). The "arm at session start" entry point. */
   remoteControl: boolean;

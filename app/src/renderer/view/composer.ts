@@ -12,7 +12,7 @@ import { ChevronDown, File as FileIcon, Folder, Image as ImageIcon, X } from "lu
 import type {
   AttachmentKind,
   ClaudePermissionMode,
-  CodexPermissionMode,
+  CodexOfferedPermissionMode,
   RuntimeProvider,
   Task,
   UsageSnapshot,
@@ -449,7 +449,7 @@ function renderSessionAccessChip(view: TaskViewState, provider: RuntimeProvider)
   }
   const providerName = codex ? "Codex" : "Claude";
   const switchingLabel = codex
-    ? codexPermissionModeLabel(view.controlSwitch?.value as CodexPermissionMode)
+    ? codexPermissionModeLabel(view.controlSwitch?.value as CodexOfferedPermissionMode)
     : permissionModeLabel(view.controlSwitch?.value as ClaudePermissionMode);
   element.classList.add("interactive");
   element.classList.toggle("active", open);
@@ -500,7 +500,17 @@ function renderSessionAccessMenu(view: TaskViewState): HTMLElement {
  *  exactly these rows). The CLI-default caption was REMOVED (S6, field revision 5,
  *  2026-07-18): the `/permissions` switch does persist globally into
  *  ~/.codex/config.toml, but that disclosure now lives in docs, not menu chrome
- *  (Sonata sessions are immune anyway — spawn flags override). */
+ *  (Sonata sessions are immune anyway — spawn flags override).
+ *
+ *  A session sitting in codex's cycle-only `read-only` mode (SL-17) marks NO row
+ *  here, and that is the honest reading rather than a gap: the mode is real, the
+ *  chip above names it ("Read Only"), and none of the three rows is what the
+ *  session is currently in. It is also exactly what the CLI's own picker paints in
+ *  that state — three rows, no `(current)` marker (MEASURED 0.152.1, SL-7 q29 arm
+ *  B / SL-17 q35). Every row stays LIVE: a switch driven out of Read Only walks
+ *  and settles normally, because navigation reads the cursor by TEXT and never
+ *  needs a current-mode anchor (MEASURED end-to-end through this very entry point,
+ *  SL-17 q35 — `settled` off the target's own receipt). */
 function renderSessionCodexAccessMenu(view: TaskViewState): HTMLElement {
   const menu = document.createElement("div");
   menu.className = "task-settings-popover composer-session-menu";

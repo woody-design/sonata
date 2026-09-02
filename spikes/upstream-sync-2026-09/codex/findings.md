@@ -1932,3 +1932,180 @@ Decisions the brief did not specify.
   depends on it — the run pointer short-circuits it — but it is the same coin-flip
   class F12 registered on claude, now measured on codex, and any future
   screen-derived liveness claim should start from that number.
+
+---
+
+# SL-17 — Read Only, the fourth codex permission mode (probed 2026-09-02, binary 0.152.1)
+
+Binary pinned `codex-cli 0.152.1` at probe start AND end, both runs. Probe
+`q35-read-only-mode.mjs` (production `TerminalHost` through `CodexBoot`, isolated
+`CODEX_HOME` under `/private/tmp` with only `auth.json` seeded, pre-trusted via
+Sonata's own ledger, `tui.keymap.chat.next_permission_mode = ["ctrl-x"]` written
+into the isolated config so the #39873 cycle is reachable at all). Two captures,
+one per side of the fix: `q35-read-only-mode.PRE-FIX.capture.txt` and
+`q35-read-only-mode.capture.txt`. Settings guard (F41 pattern) byte-verified the
+real `~/.codex/config.toml` and `~/.codex/sonata.config.toml` on both runs: CLEAN.
+
+## E1 — the projection is UNIQUE, and on the sandbox axis alone
+
+The question SL-7/D6 left open was which channel could carry a native switch into
+Read Only. Answer: the rollout, because the other candidate structurally cannot.
+
+**The receipt channel is not a candidate.** `parseCodexPermissionReceipt` is read
+ONLY inside a Sonata-initiated switch window (`confirming`, plus the parked
+consent's re-check). Nothing reads the codex stream for permission receipts at any
+other moment, so a native cycle is invisible to it by construction — a passive
+receipt watcher would be a NEW channel, and one with the F19/F22 repaint-replay
+hazard baked in (a redraw replays old receipts with no recency anchor).
+
+**The rollout channel is decisive.** One live session, three consecutive
+`turn_context` records, MEASURED:
+
+| turn | state | sandbox_policy.type | approval_policy | approvals_reviewer | active_permission_profile |
+|---|---|---|---|---|---|
+| 1 | spawned ask-for-approval | `workspace-write` | `on-request` | `user` | `null` |
+| 2 | **Read Only** (2 cycle presses) | **`read-only`** | `on-request` | `user` | `{"id":":read-only"}` |
+| 3 | after a production drive to approve-for-me | `workspace-write` | `on-request` | `auto_review` | `{"id":":workspace"}` |
+
+`sandbox_policy.type === "read-only"` uniquely identifies the mode, and admitting
+it does NOT weaken the never-guess rule — it applies the rule to an axis that
+happens to be decisive. Every OFFERED mode rides one of two sandboxes
+(`workspace-write` for ask/approve, `danger-full-access` for full access), so no
+mode Sonata can spawn produces a read-only sandbox. Corroborated at source
+(`chatwidget/permission_shortcuts.rs` @ rust-v0.152.0): the cycle enumerates the
+`read-only` and `auto` presets × reviewer, and the label match is
+`("auto", User)` → "Ask for approval", `("auto", AutoReview)` → "Approve for me",
+else `preset.label` — so BOTH nameable-and-offered labels ride `auto`, and
+"Read Only" is the `read-only` preset.
+
+The APPROVAL axis is deliberately excluded from the test. SL-8/r4's corpus carries
+`read-only` against BOTH `never` (×186) and `on-request` (×61); it is the
+ask-frequency knob, not the access level. A session that cannot write is Read Only
+either way, and pinning the pair would decline the half this probe never saw.
+
+## E2 — `active_permission_profile` is new, corroborating, and NOT consumable
+
+Measured for the first time here (absent from r4's field list). It names the
+PRESET, not the mode: `:read-only` and `:workspace`, so ask-for-approval and
+approve-for-me land on the SAME id — the same limitation `permission_profile.type`
+has, and no resolution on the axis that needs one. It is also **null on turn 1**,
+an unswitched session, so it could not carry read-only on its own. `sandbox_policy`
+is on every turn. Deliberately not wired; registered as a feed for the
+permission-mirror redesign alongside `thread_settings_applied` / `world_state`.
+
+## E3 — the drive from a no-`(current)` picker LANDS (not just parses)
+
+D6 measured that `parseCodexPermissionPickerCursor` resolves while the CLI sits in
+Read Only. That is a weaker claim than the one the design rests on. Measured here
+through the production entry point — `TerminalHost.injectClaudeControlSwitch(
+"codex-permission", "approve-for-me", "read-only")`, the same call the session
+access menu makes, with `from` carrying the read-only mirror the fix introduces:
+
+- `{ok:true}` → terminal phase **`settled`** (18957ms pre-fix / 19501ms post-fix);
+- turn 3's rollout is the INDEPENDENT witness: `approvals_reviewer` moved to
+  `auto_review`, so the CLI genuinely changed mode rather than the receipt merely
+  appearing;
+- the picker painted three rows with **NO `(current)` marker** and the cursor on
+  row 1, both runs.
+
+The `from: "read-only"` origin does not break the no-op guard: `asCodexPermissionMode`
+declines to name it, which is the same answer naming it would give (a target is
+always offered, so a read-only origin can never equal one).
+
+## E4 — the fix's A/B, on the same live probe
+
+| | PRE-FIX | POST-FIX |
+|---|---|---|
+| cycle press 2 receipt (live bytes) | `null` | `"read-only"` |
+| turn 2 reconcile | `null` | `"read-only"` |
+| turn 2 badge label | `(none)` | **`Read Only`** |
+| drive from Read Only | `settled` | `settled` |
+| turns 1 & 3 reconcile | `null` | `null` (unchanged) |
+
+Both runs 0.152.1 start and end; settings guard CLEAN on both.
+
+## E5 — the first-match-wins receipt rule had to go (D12.2, forced)
+
+D12.2 registered `parseCodexPermissionReceipt`'s first-match-wins scan as
+"safe today only because the confirm resets the scan; no observed defect justifies
+value-anchoring inside that slice". Adding a FOURTH label made it live: the old
+rule answered with whichever LABEL sits higher in the table, which is not a
+property of the screen at all, and a session that has ever cycled carries a
+`Read Only` receipt no confirm of ours will ever repeat — a redraw replaying it
+into the confirm window would have turned a SUCCEEDED switch into needs-attention.
+
+Changed to MOST-RECENT-WINS, which is the discipline the two sibling parsers in the
+same file already use, and the three copies of that loop are now one helper.
+A/B'd on a shape with no Read Only in it at all, so the rule change is proven on
+its own terms: `"• …Ask for approval  • …Full Access"` reads `ask-for-approval`
+pre-fix (wrong — the table's first row) and `full-access` post-fix.
+
+## E7 — the stuck-badge residual: ORCHESTRATOR-ACCEPTED 2026-09-02
+
+A native cycle OUT of Read Only is not reconciled: the cycle's other stops land on
+`(workspace-write, on-request)`, the ambiguous ask/approve pair, so the mirror
+keeps saying `Read Only` until the next Sonata-driven switch. Measured, not
+inferred — q35 turn 3 shows the exit projecting exactly that pair.
+
+**Accepted by the ORCHESTRATOR on 2026-09-02**, after independent review. Recorded
+here because the first write-up had this residual documented only by the engineer
+who introduced it, which is not the same thing as an adjudication:
+
+1. **DIRECTION.** The stale badge claims LESS access than the session has. That is
+   this codebase's safe direction wherever the choice appears — the same reason
+   the label table replaced an if-chain whose fallthrough erred the other way
+   ("Ask for approval" for anything unrecognised).
+2. **SYMMETRY.** It is the trade already accepted for a native downgrade out of
+   full-access (plan S5(ii)): a native move out of a distinctly-projected mode
+   cannot be seen, because the mode it moves TO is the one the rollout cannot
+   name. Refusing it here while keeping it there would be incoherent, and closing
+   it means guessing on precisely the axis where a wrong answer mislabels access.
+3. **REMEDY.** Any menu switch corrects it immediately — the drive works from Read
+   Only, measured end-to-end (E3). The user is never stuck.
+
+The honest eventual fix is NOT a better heuristic on this projection: it is the
+registered permission-mirror redesign on `thread_settings_applied` (SL-8 r4/r5),
+which carries live permission state directly rather than inferring it. Until then
+the residual is a decision with a date on it, pinned in
+`codexPermissionModeFromTurnContext`'s doc and in `codex-read-only-mode.mjs` so it
+does not get "fixed" by someone widening the reconcile.
+
+**Related framing correction (same review):** the REOPEN fallback
+read-only → ask-for-approval is an access **ESCALATION** at spawn — the new
+session can write where the old could only read. "Least-privileged **offered**
+mode" is the accurate phrase; nothing here can offer a genuinely read-only spawn.
+What makes it honest is not its size but AGREEMENT: the task record is rewritten
+in the same breath, so the badge reads "Ask for approval" from the first frame.
+An escalation the surface kept calling Read Only would be the actual defect.
+
+## E6 — out of scope, noticed
+
+- **`CODEX_PICKER_ROWS` (tui-parsers-codex.ts) is DEAD** — declared, never read;
+  the arrow-direction fact its comment claims moved to `CODEX_ROW_ORDER` long ago.
+  Retyped with the rest of the family rather than deleted (deleting is a judgement
+  about someone else's code, not this slice's), but it is a trap: it sits inside
+  the block a reader is told to "change all together", so the next upstream mode
+  invites a row nothing consumes.
+- **The coupling inventory's `CodexApprovalMode` row is STALE in two ways** —
+  it says "labels in `formatters.ts` AND `renderer/view/settings.ts`. Four places",
+  but the private `codexApprovalMenuLabel` no longer exists (settings.ts imports
+  the shared `codexPermissionModeLabel`), and the family now also spans
+  `tui-parsers-codex.ts`'s tables and the OFFERED/NAMEABLE split. → SL-13's
+  inventory re-stamp.
+- **The `provider-transcript.mjs` Read Only fixture is ADAPTED, not verbatim** —
+  relabelled in review. It is trimmed to the consumed axes plus the evidence
+  fields, and its sibling case is a complete record for its mode, so an eye
+  scanning the two would have read the difference as 0.152.1 LOSING fields. The
+  full-shape records for all three q35 turns now live at
+  `q35-read-only-mode.turn-contexts.capture.txt`, written by the probe on every
+  run — the gap the complaint exposed was that the only full record lived in an
+  ephemeral `/private/tmp` rollout, so nothing durable could be shape-diffed.
+- **`approvals_reviewer` DID follow a mid-session picker switch** (turn 3 read
+  `auto_review` after a Sonata-driven switch from an `ask-for-approval` spawn),
+  which reads against r4's "it echoes the SPAWN value". Almost certainly because
+  the `/permissions` confirm PERSISTS into the active config layer rather than
+  because turn_context tracks live reviewer state — and n=1 against r4's 1,966
+  records is not evidence to act on, least of all for the ask↔approve axis where a
+  wrong answer mislabels access. NOT acted on. If the mirror redesign wants that
+  axis, this is the shape to probe deliberately: a NATIVE ask↔approve switch, not
+  a driven one.

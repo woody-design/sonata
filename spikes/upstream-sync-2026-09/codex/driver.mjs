@@ -284,6 +284,12 @@ function compactPayload(event) {
     "statusReason",
     "completionSource",
     "completionConfidence",
+    // Control-switch identity + outcome (added for SL-17's q35, which asserts a
+    // production `codex-permission` switch SETTLES when the CLI sits in the
+    // fourth mode). Additive for the same reason as the block above: every
+    // earlier probe reads named keys off this projection.
+    "phase",
+    "value",
   ]) {
     if (payload[key] !== undefined) keep[key] = payload[key];
   }

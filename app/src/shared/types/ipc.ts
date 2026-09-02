@@ -1,7 +1,6 @@
 import type {
   ApprovalDecision,
   ClaudePermissionMode,
-  CodexPermissionMode,
   DeliveryAttachment,
   ReferenceResult,
   LaunchSpeedMode,
@@ -10,6 +9,7 @@ import type {
   Task,
   TaskId,
 } from "./domain";
+import type { CodexOfferedPermissionMode } from "./codex-settings";
 import type { TagDefinition, TagGroup } from "./tags";
 import type { RuntimeEvent } from "./events";
 import type { ReadingSettings, ResolvedReadingMode } from "./reading-settings";
@@ -185,8 +185,9 @@ export interface CreateTaskRequest {
   reasoningEffort?: ReasoningEffort | null;
   speedMode?: LaunchSpeedMode | null;
   /** Codex only: the launch permission preset. Absent → the main process fills
-   *  it from the Codex default (Settings → Codex). */
-  codexPermissionMode?: CodexPermissionMode;
+   *  it from the Codex default (Settings → Codex). OFFERED-typed: a spawn can
+   *  only be asked for a mode `CODEX_PERMISSION_MODE_FLAGS` can fan out. */
+  codexPermissionMode?: CodexOfferedPermissionMode;
   permissionMode?: ClaudePermissionMode;
   /** Claude only: start the session with Remote Control on (spawn `--remote-control`). */
   remoteControl?: boolean;
@@ -214,8 +215,10 @@ export interface OpenTaskRequest {
   taskId?: TaskId;
   cwd?: string;
   /** Codex only: override the launch permission preset for this reopen. Absent
-   *  → the persisted task's mode carries over. */
-  codexPermissionMode?: CodexPermissionMode;
+   *  → the persisted task's mode carries over, EXCEPT when that mode is one
+   *  Sonata cannot spawn (`read-only`), which the spawn seam's guard lands on
+   *  the least-privileged offered mode — see `normalizePermissionSettings`. */
+  codexPermissionMode?: CodexOfferedPermissionMode;
   permissionMode?: ClaudePermissionMode;
   /** Claude only: resume the session with Remote Control on (spawn `--remote-control`). */
   remoteControl?: boolean;
@@ -408,7 +411,7 @@ export interface ClaudeControlSwitchRequest {
   kind: ClaudeControlSwitchKind;
   /** model/effort: the `/model` alias (e.g. `sonnet`) or `/effort` level (e.g.
    *  `high`) to inject. permission: the TARGET `ClaudePermissionMode` id (e.g.
-   *  `plan`). codex-permission: the TARGET `CodexPermissionMode` id (e.g.
+   *  `plan`). codex-permission: the TARGET `CodexOfferedPermissionMode` id (e.g.
    *  `approve-for-me`). codex-model: the TARGET curated model slug (e.g.
    *  `gpt-5.6-luna`) — the picker's level-1 target. codex-effort: the TARGET
    *  reasoning id (`low|medium|high|xhigh`) — the picker's level-2 target.

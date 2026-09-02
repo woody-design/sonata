@@ -1,0 +1,403 @@
+# q35 — the three turn_context records VERBATIM (codex-cli 0.152.1)
+#
+# Written from the POST-FIX q35 run's own rollout so the fixture in
+# tests/smoke/provider-transcript.mjs has a durable full-shape record to point
+# at. Nothing is trimmed here; only driver.mjs sanitize() has been applied.
+#
+# The shape fact the fixture trims around: read-only's sandbox_policy is a BARE
+# {type}, while workspace-write carries network_access / exclude_tmpdir_env_var /
+# exclude_slash_tmp. permission_profile.file_system also differs per mode.
+## turn 1 — CONTROL: spawned ask-for-approval, the #39873 cycle not yet pressed
+{
+  "timestamp": "2026-09-02T16:21:55.215Z",
+  "ordinal": 7,
+  "type": "turn_context",
+  "payload": {
+    "turn_id": "01a062ed-4c6c-7403-ba95-bb32997634d7",
+    "cwd": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd",
+    "workspace_roots": [
+      "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+    ],
+    "current_date": "2026-09-02",
+    "timezone": "America/New_York",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "user",
+    "sandbox_policy": {
+      "type": "workspace-write",
+      "network_access": false,
+      "exclude_tmpdir_env_var": false,
+      "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+      "type": "managed",
+      "file_system": {
+        "type": "restricted",
+        "entries": [
+          {
+            "path": {
+              "type": "special",
+              "value": {
+                "kind": "root"
+              }
+            },
+            "access": "read"
+          },
+          {
+            "path": {
+              "type": "path",
+              "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+            },
+            "access": "write"
+          },
+          {
+            "path": {
+              "type": "special",
+              "value": {
+                "kind": "slash_tmp"
+              }
+            },
+            "access": "write"
+          },
+          {
+            "path": {
+              "type": "special",
+              "value": {
+                "kind": "tmpdir"
+              }
+            },
+            "access": "write"
+          },
+          {
+            "path": {
+              "type": "path",
+              "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.git"
+            },
+            "access": "read",
+            "missing_path_behavior": "skip"
+          },
+          {
+            "path": {
+              "type": "path",
+              "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.agents"
+            },
+            "access": "read",
+            "missing_path_behavior": "skip"
+          },
+          {
+            "path": {
+              "type": "path",
+              "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.codex"
+            },
+            "access": "read",
+            "missing_path_behavior": "skip"
+          }
+        ]
+      },
+      "network": "restricted"
+    },
+    "file_system_sandbox_policy": {
+      "kind": "restricted",
+      "entries": [
+        {
+          "path": {
+            "type": "special",
+            "value": {
+              "kind": "root"
+            }
+          },
+          "access": "read"
+        },
+        {
+          "path": {
+            "type": "path",
+            "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+          },
+          "access": "write"
+        },
+        {
+          "path": {
+            "type": "special",
+            "value": {
+              "kind": "slash_tmp"
+            }
+          },
+          "access": "write"
+        },
+        {
+          "path": {
+            "type": "special",
+            "value": {
+              "kind": "tmpdir"
+            }
+          },
+          "access": "write"
+        },
+        {
+          "path": {
+            "type": "path",
+            "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.git"
+          },
+          "access": "read",
+          "missing_path_behavior": "skip"
+        },
+        {
+          "path": {
+            "type": "path",
+            "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.agents"
+          },
+          "access": "read",
+          "missing_path_behavior": "skip"
+        },
+        {
+          "path": {
+            "type": "path",
+            "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.codex"
+          },
+          "access": "read",
+          "missing_path_behavior": "skip"
+        }
+      ]
+    },
+    "model": "gpt-5.6-sol",
+    "comp_hash": "3000",
+    "personality": "pragmatic",
+    "collaboration_mode": {
+      "mode": "default",
+      "settings": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": null,
+        "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+      }
+    },
+    "multi_agent_version": "v2",
+    "realtime_active": false,
+    "summary": "auto"
+  }
+}
+
+## turn 2 — READ ONLY: two cycle presses (Approve for me -> Read Only)
+{
+  "timestamp": "2026-09-02T16:22:05.000Z",
+  "ordinal": 21,
+  "type": "turn_context",
+  "payload": {
+    "turn_id": "01a062ed-77a1-7162-b674-481ce664ddd5",
+    "cwd": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd",
+    "workspace_roots": [
+      "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+    ],
+    "current_date": "2026-09-02",
+    "timezone": "America/New_York",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "user",
+    "sandbox_policy": {
+      "type": "read-only"
+    },
+    "permission_profile": {
+      "type": "managed",
+      "file_system": {
+        "type": "restricted",
+        "entries": [
+          {
+            "path": {
+              "type": "special",
+              "value": {
+                "kind": "root"
+              }
+            },
+            "access": "read"
+          }
+        ]
+      },
+      "network": "restricted"
+    },
+    "active_permission_profile": {
+      "id": ":read-only"
+    },
+    "model": "gpt-5.6-sol",
+    "comp_hash": "3000",
+    "personality": "pragmatic",
+    "collaboration_mode": {
+      "mode": "default",
+      "settings": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": null,
+        "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+      }
+    },
+    "multi_agent_version": "v2",
+    "realtime_active": false,
+    "summary": "auto"
+  }
+}
+
+## turn 3 — AFTER a production injectClaudeControlSwitch drove it to approve-for-me
+{
+  "timestamp": "2026-09-02T16:22:12.686Z",
+  "ordinal": 34,
+  "type": "turn_context",
+  "payload": {
+    "turn_id": "01a062ed-95ab-7e21-8ac4-634c2c5fb765",
+    "cwd": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd",
+    "workspace_roots": [
+      "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+    ],
+    "current_date": "2026-09-02",
+    "timezone": "America/New_York",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "auto_review",
+    "sandbox_policy": {
+      "type": "workspace-write",
+      "network_access": false,
+      "exclude_tmpdir_env_var": false,
+      "exclude_slash_tmp": false
+    },
+    "permission_profile": {
+      "type": "managed",
+      "file_system": {
+        "type": "restricted",
+        "entries": [
+          {
+            "path": {
+              "type": "special",
+              "value": {
+                "kind": "root"
+              }
+            },
+            "access": "read"
+          },
+          {
+            "path": {
+              "type": "path",
+              "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+            },
+            "access": "write"
+          },
+          {
+            "path": {
+              "type": "special",
+              "value": {
+                "kind": "slash_tmp"
+              }
+            },
+            "access": "write"
+          },
+          {
+            "path": {
+              "type": "special",
+              "value": {
+                "kind": "tmpdir"
+              }
+            },
+            "access": "write"
+          },
+          {
+            "path": {
+              "type": "path",
+              "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.git"
+            },
+            "access": "read",
+            "missing_path_behavior": "skip"
+          },
+          {
+            "path": {
+              "type": "path",
+              "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.agents"
+            },
+            "access": "read",
+            "missing_path_behavior": "skip"
+          },
+          {
+            "path": {
+              "type": "path",
+              "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.codex"
+            },
+            "access": "read",
+            "missing_path_behavior": "skip"
+          }
+        ]
+      },
+      "network": "restricted"
+    },
+    "active_permission_profile": {
+      "id": ":workspace"
+    },
+    "file_system_sandbox_policy": {
+      "kind": "restricted",
+      "entries": [
+        {
+          "path": {
+            "type": "special",
+            "value": {
+              "kind": "root"
+            }
+          },
+          "access": "read"
+        },
+        {
+          "path": {
+            "type": "path",
+            "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd"
+          },
+          "access": "write"
+        },
+        {
+          "path": {
+            "type": "special",
+            "value": {
+              "kind": "slash_tmp"
+            }
+          },
+          "access": "write"
+        },
+        {
+          "path": {
+            "type": "special",
+            "value": {
+              "kind": "tmpdir"
+            }
+          },
+          "access": "write"
+        },
+        {
+          "path": {
+            "type": "path",
+            "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.git"
+          },
+          "access": "read",
+          "missing_path_behavior": "skip"
+        },
+        {
+          "path": {
+            "type": "path",
+            "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.agents"
+          },
+          "access": "read",
+          "missing_path_behavior": "skip"
+        },
+        {
+          "path": {
+            "type": "path",
+            "path": "/private/tmp/sonata-sync-2026-09/codex-read-only/session/cwd/.codex"
+          },
+          "access": "read",
+          "missing_path_behavior": "skip"
+        }
+      ]
+    },
+    "model": "gpt-5.6-sol",
+    "comp_hash": "3000",
+    "personality": "pragmatic",
+    "collaboration_mode": {
+      "mode": "default",
+      "settings": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": null,
+        "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+      }
+    },
+    "multi_agent_version": "v2",
+    "realtime_active": false,
+    "summary": "auto"
+  }
+}

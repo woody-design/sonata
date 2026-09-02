@@ -1,6 +1,6 @@
+import type { CodexOfferedPermissionMode } from "../../shared/types/codex-settings";
 import type {
   ClaudePermissionMode,
-  CodexPermissionMode,
   ReasoningEffort,
   RuntimeProvider,
   TaskId,
@@ -295,13 +295,17 @@ type PendingControlSwitch =
       // next typed char, so an EXTERNAL clear (run start / PTY teardown) mid-picker
       // must Esc once before releasing (measured — an open picker eats input).
       axis: "codex-permission";
-      target: CodexPermissionMode;
+      /** OFFERED-typed on every axis below: a target is a picker ROW to walk to,
+       *  and the cursor rows are the three the picker paints. Codex's cycle-only
+       *  `read-only` mode is nameable but has neither, so the type keeps it out
+       *  of the choreography rather than a convention doing it (SL-17). */
+      target: CodexOfferedPermissionMode;
       phase: "opening" | "navigating" | "confirming" | "closing";
       pickerOpen: boolean;
       /** The cursor row we last acted from (to recognize a pre-move repaint). */
-      lastCursor: CodexPermissionMode | null;
+      lastCursor: CodexOfferedPermissionMode | null;
       /** The row the last arrow press is expected to move the cursor to. */
-      awaitingCursor: CodexPermissionMode | null;
+      awaitingCursor: CodexOfferedPermissionMode | null;
       navSteps: number;
       /** Set once a KNOWN needs-attention cause is recognized mid-flow, so the
        *  eventual (async, post-rollback) `finishCodexPicker` can name it. `consent`
@@ -452,7 +456,7 @@ type PendingControlSwitch =
        *  second axis, Part 1). Run only after a Yes settles; dropped on a No. */
       next: { kind: "effort"; value: string } | null;
       /** codex-consent ONLY: the mode the grant receipt confirms (full-access). */
-      codexTarget: CodexPermissionMode | null;
+      codexTarget: CodexOfferedPermissionMode | null;
       phase: "waiting-user" | "navigating" | "confirming" | "cancel-exit" | "closing";
       /** The CLI row (1-based) the user chose / we're driving the cursor toward. */
       targetRow: number | null;
@@ -1098,7 +1102,7 @@ export class ControlSwitchEngine {
    * is validated against the actual post-press cursor (`awaitingCursor`), so an
    * assumed index never drives blind. Bounded by the nav cap → Esc-rollback.
    */
-  private decideCodexNav(cursor: CodexPermissionMode): void {
+  private decideCodexNav(cursor: CodexOfferedPermissionMode): void {
     const pending = this.pendingControlSwitch;
     if (!pending || pending.axis !== "codex-permission" || !this.host.hasPty()) {
       return;

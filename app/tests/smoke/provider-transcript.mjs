@@ -15,6 +15,7 @@ const {
   locateSessionFile,
 } = require("../../dist/runtime/provider-transcript/index");
 const { userPromptDisplay } = require("../../dist/reading-core/selectors/turns");
+const { codexPermissionModeFromTurnContext } = require("../../dist/shared/types/codex-settings");
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-provider-transcript-"));
 const failures = [];
@@ -1986,6 +1987,74 @@ check("codex 0.152.0: a full-access turn_context still projects the unique recon
   );
   assert.equal(contexts[0].sandboxPolicy, "danger-full-access");
   assert.equal(contexts[0].approvalPolicy, "never");
+});
+
+check("codex 0.152.1: a Read Only turn_context reaches the reader as a read-only sandbox", () => {
+  // PROVENANCE: ADAPTED, not verbatim — say so, because the sibling case 60 lines
+  // up IS a complete record for its mode and an eye scanning the two would read
+  // the difference as 0.152.1 having LOST fields. It has not: this payload is
+  // TRIMMED to the two consumed axes plus the evidence fields the comments below
+  // discuss, dropping the turn's situational keys (`cwd`, `workspace_roots`,
+  // `current_date`, `timezone`, `comp_hash`, `personality`, `collaboration_mode`)
+  // which no reader here touches. Everything present is byte-for-byte from a live
+  // 0.152.1 turn taken while the CLI sat in codex's cycle-only fourth mode, and
+  // the FULL record — all three of q35's turns, nothing trimmed — is kept at
+  // `spikes/upstream-sync-2026-09/codex/q35-read-only-mode.turn-contexts.capture.txt`
+  // for exactly the shape-diffing this fixture must not be used for.
+  //
+  // This is the ONLY channel that can carry a NATIVE switch into Read Only — the
+  // `/permissions` receipt is read solely inside a Sonata-initiated switch window
+  // — so what matters here is that the reader gets the sandbox out of a payload
+  // whose shape differs from every other mode's: `sandbox_policy` for read-only
+  // is a BARE `{type}` with none of the workspace-write siblings
+  // (`network_access`, `exclude_tmpdir_env_var`, `exclude_slash_tmp`), and
+  // `permission_profile.file_system` narrows to a single root/read entry. The
+  // extractor reads `sandbox_policy.type` and nothing else, so both differences
+  // are inert — pinned because "inert" is a claim about a shape nobody had seen
+  // until this slice.
+  //
+  // NOTE the new `active_permission_profile` sibling, deliberately NOT consumed.
+  // Measured across q35's three turns it reads null (spawned, before any switch),
+  // `{"id": ":read-only"}` (this turn), and `{"id": ":workspace"}` (after a switch
+  // to approve-for-me) — so it names the PRESET, not the reviewer, and lands
+  // ask-for-approval and approve-for-me on the SAME id. It buys no resolution on
+  // the axis that needs one, and being absent on an unswitched turn it could not
+  // carry read-only on its own either. The sandbox axis is on every turn.
+  const contexts = [];
+  const normalizer = new CodexRolloutNormalizer({
+    taskId: "task-1",
+    sourceId: "codex:s1",
+    onTurnContext: (context) => contexts.push(context),
+  });
+  normalizer.consumeLine(
+    JSON.stringify({
+      timestamp: "2026-09-02T16:07:11.137Z",
+      type: "turn_context",
+      payload: {
+        turn_id: "01a062df-d40d-7871-ba52-624052c26cbe",
+        approval_policy: "on-request",
+        approvals_reviewer: "user",
+        sandbox_policy: { type: "read-only" },
+        permission_profile: {
+          type: "managed",
+          file_system: {
+            type: "restricted",
+            entries: [{ path: { type: "special", value: { kind: "root" } }, access: "read" }],
+          },
+          network: "restricted",
+        },
+        active_permission_profile: { id: ":read-only" },
+        model: "gpt-5.6-sol",
+      },
+    }),
+  );
+  assert.equal(contexts[0].sandboxPolicy, "read-only");
+  assert.equal(contexts[0].approvalPolicy, "on-request");
+  assert.equal(
+    codexPermissionModeFromTurnContext(contexts[0].sandboxPolicy, contexts[0].approvalPolicy),
+    "read-only",
+    "the extracted axes reconcile to the fourth mode",
+  );
 });
 
 check("codex 0.152.0: an object-valued approval_policy degrades to null, never a wrong mode", () => {

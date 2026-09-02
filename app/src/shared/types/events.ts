@@ -760,11 +760,14 @@ export type CodexTurnContextObservedEvent = BaseRuntimeEvent<
     effort: string | null;
     /** The turn's approval policy (`turn_context.payload.approval_policy`, e.g.
      *  `on-request` / `never`) — mapped to CodexPermissionMode by the controller
-     *  via `migrateCodexPermissionMode` (the same reverse-map manifests use). */
+     *  via `codexPermissionModeFromTurnContext`, which is NOT
+     *  `migrateCodexPermissionMode` (that one reverse-maps a legacy MANIFEST and
+     *  reads `never` as approve-for-me, which is wrong for a live turn). */
     approvalPolicy: string | null;
     /** The turn's sandbox policy type (`turn_context.payload.sandbox_policy.type`,
      *  e.g. `read-only` / `workspace-write` / `danger-full-access`) — the other
-     *  input to `migrateCodexPermissionMode`. */
+     *  input to `codexPermissionModeFromTurnContext`, and on its own decisive for
+     *  `read-only` (no offered mode projects that sandbox). */
     sandboxPolicy: string | null;
   }
 >;

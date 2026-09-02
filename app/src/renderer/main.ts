@@ -22,7 +22,7 @@ import {
   isQuitConfirmRequest,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
-  type CodexPermissionMode,
+  type CodexOfferedPermissionMode,
   type CodexSettings,
   type ReadingSettings,
   type ReasoningEffort,
@@ -1619,7 +1619,9 @@ async function persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): 
   render();
 }
 
-async function persistCodexDefaultPermissionMode(mode: CodexPermissionMode): Promise<void> {
+async function persistCodexDefaultPermissionMode(
+  mode: CodexOfferedPermissionMode,
+): Promise<void> {
   const overlay = state.settingsOverlay;
   if (!overlay?.codex) {
     return;

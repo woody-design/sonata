@@ -18,6 +18,7 @@ const paths = {
   runtime: "src/reading-core/runtime-reducer.ts",
   builtins: "src/shared/slash/builtins.ts",
   runs: "src/reading-core/selectors/runs.ts",
+  formatters: "src/reading-core/selectors/formatters.ts",
   settings: "src/renderer/view/settings.ts",
   main: "src/main/main.ts",
   updateButton: "src/renderer/view/update-button.ts",
@@ -63,6 +64,19 @@ assert.match(source.updateButton, /"Installing…"/, "update pill updating label
 // "this run is still owed something", which is precisely what the state means
 // now that it is scoped to the turn that started the work.
 assert.match(source.runs, /"Waiting on background work\u2026"/, "pending-wake run outcome label");
+
+// Codex permission-mode labels (SL-17, 2026-09-02). Pinned as LITERALS because
+// every one of them is codex's OWN word for the mode — Sonata invents no copy on
+// this surface, which is exactly the property worth fencing: a softened or
+// "friendlier" relabel here would silently stop matching what the user reads in
+// the co-visible Terminal. The first three are the `/permissions` picker's rows;
+// "Read Only" is verbatim what the #39873 cycle's receipt prints
+// (`• Permissions updated to Read Only`, MEASURED at codex 0.152.1 — SL-7 q29
+// arm B, re-measured SL-17 q35), which is why it needed no new copy decision.
+assert.match(source.formatters, /"ask-for-approval": "Ask for approval"/, "codex ask label");
+assert.match(source.formatters, /"approve-for-me": "Approve for me"/, "codex approve label");
+assert.match(source.formatters, /"full-access": "Full Access"/, "codex full-access label");
+assert.match(source.formatters, /"read-only": "Read Only"/, "codex read-only label (the CLI's own phrase)");
 
 // Auto-update menu + dialog vocabulary (S3). The manual affordance's label and
 // the eight result-dialog title/body strings are the agreed, Woody-approved
