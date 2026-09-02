@@ -274,6 +274,16 @@ function compactPayload(event) {
     "sonataInitiated",
     "source",
     "confidence",
+    // Run-lifecycle identity + outcome (added for SL-15's q33, which asserts on
+    // the completion SOURCE of a live interrupt). Additive: every earlier probe
+    // reads named keys off this projection, so widening it cannot change what
+    // any of them see.
+    "id",
+    "runId",
+    "status",
+    "statusReason",
+    "completionSource",
+    "completionConfidence",
   ]) {
     if (payload[key] !== undefined) keep[key] = payload[key];
   }

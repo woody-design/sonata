@@ -1,0 +1,250 @@
+# z4 — SL-16 revival modeling, verified LIVE through the production chain
+
+Binary pinned `2.1.258 (Claude Code)` at start and `2.1.258 (Claude Code)` at end (drifted: false).
+Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
+
+## Verdict
+
+```json
+{
+  "verdict": "PASS — all five claims hold live",
+  "checks": {
+    "C1 live closing Stop reads `pending`": true,
+    "C2 run closes completed/hook-stop/high WITH pendingWake": true,
+    "C3 no complete notification at the pause": true,
+    "C4 the wake's run names the paused run": true,
+    "C5 exactly ONE complete, after the pause": true
+  }
+}
+```
+
+## Full record
+
+```json
+{
+  "scenario": "z4-revival-live",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@1556",
+    "UserPromptSubmit@4409",
+    "PreToolUse@6644",
+    "PostToolUse@6747",
+    "Stop@7863",
+    "SubagentStop@9488",
+    "Notification@68015",
+    "UserPromptSubmit@76829",
+    "Stop@78557",
+    "SubagentStop@80088"
+  ],
+  "backgroundWorkClaims": [
+    {
+      "atMs": 7864,
+      "event": "Stop",
+      "claim": {
+        "kind": "pending",
+        "wake": {
+          "taskCount": 1,
+          "kinds": [
+            "shell"
+          ]
+        }
+      }
+    },
+    {
+      "atMs": 78557,
+      "event": "Stop",
+      "claim": {
+        "kind": "none"
+      }
+    }
+  ],
+  "cliStates": [
+    {
+      "atMs": 4410,
+      "activity": "busy",
+      "source": "hook:UserPromptSubmit",
+      "pendingWake": null
+    },
+    {
+      "atMs": 6644,
+      "activity": "busy",
+      "source": "hook:PreToolUse",
+      "pendingWake": null
+    },
+    {
+      "atMs": 6747,
+      "activity": "busy",
+      "source": "hook:PostToolUse",
+      "pendingWake": null
+    },
+    {
+      "atMs": 7864,
+      "activity": "turn-ended",
+      "source": "hook:Stop(background work pending)",
+      "pendingWake": {
+        "taskCount": 1,
+        "kinds": [
+          "shell"
+        ]
+      }
+    },
+    {
+      "atMs": 76829,
+      "activity": "busy",
+      "source": "hook:UserPromptSubmit",
+      "pendingWake": null
+    },
+    {
+      "atMs": 78557,
+      "activity": "turn-ended",
+      "source": "hook:Stop",
+      "pendingWake": null
+    }
+  ],
+  "notifications": [
+    {
+      "atMs": 78557,
+      "kind": "complete",
+      "taskId": "task-z4-z4-revival-live",
+      "reason": "turn-ended"
+    }
+  ],
+  "runEvents": [
+    {
+      "atMs": 4148,
+      "type": "run:started",
+      "payload": {
+        "id": "run-1788361266475-1",
+        "kind": "prompt",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f",
+        "status": "active",
+        "completionSource": null,
+        "completionConfidence": null
+      }
+    },
+    {
+      "atMs": 4410,
+      "type": "run:updated",
+      "payload": {
+        "id": "run-1788361266475-1",
+        "kind": "prompt",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f",
+        "status": "active",
+        "completionSource": null,
+        "completionConfidence": null
+      }
+    },
+    {
+      "atMs": 7864,
+      "type": "run:updated",
+      "payload": {
+        "id": "run-1788361266475-1",
+        "kind": "prompt",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f",
+        "status": "completed",
+        "statusReason": "stop hook (turn ended, background work pending)",
+        "completionSource": "hook-stop",
+        "completionConfidence": "high",
+        "pendingWake": {
+          "taskCount": 1,
+          "kinds": [
+            "shell"
+          ]
+        }
+      }
+    },
+    {
+      "atMs": 76829,
+      "type": "run:started",
+      "payload": {
+        "id": "run-1788361339156-2",
+        "kind": "prompt",
+        "title": "(background task returned)",
+        "status": "active",
+        "completionSource": null,
+        "completionConfidence": null,
+        "revivalOf": "run-1788361266475-1"
+      }
+    },
+    {
+      "atMs": 78557,
+      "type": "run:updated",
+      "payload": {
+        "id": "run-1788361339156-2",
+        "kind": "prompt",
+        "title": "(background task returned)",
+        "status": "completed",
+        "statusReason": "stop hook (turn ended)",
+        "completionSource": "hook-stop",
+        "completionConfidence": "high",
+        "revivalOf": "run-1788361266475-1"
+      }
+    }
+  ],
+  "notes": [
+    "trust dialog answered via sendApprove at 331ms",
+    "ready=true at 1645ms"
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n\n\n                                                                                                    \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ show me the output\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "turnOver": true,
+  "woke": true,
+  "stopAtMs": 7863,
+  "closingStopBackgroundTasks": [
+    {
+      "id": "bsd9ozeo7",
+      "type": "shell",
+      "status": "running",
+      "description": "Sleep 70 seconds then echo",
+      "command": "sleep 70; echo BGDONE"
+    }
+  ],
+  "closingStopSessionCrons": [],
+  "wakeStopBackgroundTasks": [],
+  "wakeStopDelayMs": 70694,
+  "pausedRun": {
+    "id": "run-1788361266475-1",
+    "kind": "prompt",
+    "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f",
+    "status": "completed",
+    "statusReason": "stop hook (turn ended, background work pending)",
+    "completionSource": "hook-stop",
+    "completionConfidence": "high",
+    "pendingWake": {
+      "taskCount": 1,
+      "kinds": [
+        "shell"
+      ]
+    }
+  },
+  "revivalRun": {
+    "id": "run-1788361339156-2",
+    "kind": "prompt",
+    "title": "(background task returned)",
+    "status": "active",
+    "completionSource": null,
+    "completionConfidence": null,
+    "revivalOf": "run-1788361266475-1"
+  },
+  "notificationsAtPause": 0,
+  "checks": {
+    "C1 live closing Stop reads `pending`": true,
+    "C2 run closes completed/hook-stop/high WITH pendingWake": true,
+    "C3 no complete notification at the pause": true,
+    "C4 the wake's run names the paused run": true,
+    "C5 exactly ONE complete, after the pause": true
+  },
+  "verdict": "PASS — all five claims hold live"
+}
+```
