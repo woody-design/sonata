@@ -1453,6 +1453,10 @@ app.whenReady().then(() => {
     // `CliReadinessSource` surface — the controller never schedules, gates, or
     // broadcasts facts.
     cliReadiness: readiness,
+    // …and the one operational fact the same probe already fetches: where Claude
+    // keeps transcripts (D2 U2 / F2). A getter, not a value: nothing has probed
+    // yet at this point, and the answer can change under a re-probe.
+    claudeProjectsDirectory: () => readiness.claudeProjectsDirectory(),
     ...(perfLog ? { onFlushMetrics: (metric) => perfLog.recordFlush(metric) } : {}),
     sendEvent: (event) => {
       recordRuntimeEvent(event);

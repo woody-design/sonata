@@ -11,7 +11,6 @@ const {
   JsonlTailer,
   ProviderTranscript,
   assessCodexCompactionIntegrity,
-  claudeProjectSlug,
   locateSessionFile,
 } = require("../../dist/runtime/provider-transcript/index");
 const { userPromptDisplay } = require("../../dist/reading-core/selectors/turns");
@@ -2391,11 +2390,14 @@ check("codex subagent: the REAL captured 0.144.4 SubagentStart/Stop drive the ro
 
 // --- Locator ------------------------------------------------------------------
 
-check("locator: finds claude session by cwd slug and not-before time", () => {
+check("locator: finds claude session in an arbitrarily-named project dir, honoring not-before", () => {
   const projectsDir = path.join(tempRoot, "claude-projects");
   const cwd = path.join(tempRoot, "workspace-a");
   fs.mkdirSync(cwd, { recursive: true });
-  const slugDir = path.join(projectsDir, claudeProjectSlug(cwd));
+  // NOT the cwd slug. Sonata stopped modelling upstream's directory rule (D2
+  // U2); the id-less path proves its cwd from the file's own head record, so the
+  // directory may be called anything at all.
+  const slugDir = path.join(projectsDir, "whatever-upstream-calls-it");
   fs.mkdirSync(slugDir, { recursive: true });
 
   const sessionPath = path.join(slugDir, "11111111-2222-3333-4444-555555555555.jsonl");
@@ -2519,7 +2521,7 @@ check("locator: identity wins over recency — resume never rebinds to a sibling
   const projectsDir = path.join(tempRoot, "claude-projects-rebind");
   const cwd = path.join(tempRoot, "workspace-rebind");
   fs.mkdirSync(cwd, { recursive: true });
-  const slugDir = path.join(projectsDir, claudeProjectSlug(cwd));
+  const slugDir = path.join(projectsDir, "rebind-project-dir");
   fs.mkdirSync(slugDir, { recursive: true });
 
   const ourId = "f70912a7-aaaa-bbbb-cccc-000000000001";
@@ -2564,6 +2566,148 @@ check("locator: identity wins over recency — resume never rebinds to a sibling
   assert.equal(pinned?.providerSessionId, ourId);
 });
 
+// --- Locator: identity, and the upstream rule that no longer matters ----------
+//
+// D2 U2. `claudeProjectSlug` used to re-implement upstream's cwd → directory
+// rule. Upstream changed it, and the new rule cannot be re-implemented: a slug
+// longer than 200 characters is truncated to 200 and suffixed with a hash the
+// binary computes internally. The locator now finds the file by session id,
+// whatever the directory is called; the path MEMORY for a reopen is
+// `transcript-sources.json`, which `openTask` re-attaches from directly.
+//
+// FIXTURE PROVENANCE — MEASURED, claude 2.1.258, 2026-09-02:
+//   spikes/upstream-sync-2026-09/claude/p1-project-dir-name.capture.txt, arm2c.
+//   cwd (300 chars):
+//     /private/tmp/sonata-sync-2026-09/project-dir/arm2c/<120×x>/<120×x>/yyyyyyy
+//   directory the CLI actually created:
+//     -private-tmp-sonata-sync-2026-09-project-dir-arm2c-<…truncated at 200…>-v5abde
+//   The same capture's arm2a (200 chars → no suffix) and arm2b (201 chars →
+//   `-ykvb5a`) pin the threshold at "more than 200".
+// The directory name below is that measured name, byte for byte. Nothing in the
+// product derives it — this fixture exists to prove the locator does not care.
+const MEASURED_LONG_CWD_PROJECT_DIR =
+  "-private-tmp-sonata-sync-2026-09-project-dir-arm2c-" +
+  "x".repeat(120) +
+  "-" +
+  "x".repeat(28) +
+  "-v5abde";
+// The fixture states the measured rule as well as the measured name, so a typo
+// in the reconstruction above fails here rather than silently weakening the test.
+assert.equal(MEASURED_LONG_CWD_PROJECT_DIR.length, 207, "measured name: 200 + '-' + 6-char hash");
+assert.equal(MEASURED_LONG_CWD_PROJECT_DIR.slice(200), "-v5abde", "measured hash suffix");
+
+check("locator: a session under the MEASURED long-cwd directory name is found by id", () => {
+  const projectsDir = path.join(tempRoot, "claude-projects-longcwd");
+  const cwd = path.join(tempRoot, "workspace-longcwd");
+  fs.mkdirSync(cwd, { recursive: true });
+  // The truncated+hashed directory upstream would create, alongside a decoy that
+  // the OLD rule would have produced for this cwd — so a locator that still
+  // modelled the rule would fail this test by finding nothing (the id is not in
+  // the decoy) rather than by accident.
+  const upstreamDir = path.join(projectsDir, MEASURED_LONG_CWD_PROJECT_DIR);
+  fs.mkdirSync(upstreamDir, { recursive: true });
+  fs.mkdirSync(path.join(projectsDir, cwd.replace(/[^a-zA-Z0-9]/g, "-")), { recursive: true });
+
+  const ourId = "9d3f0b2a-1111-4222-8333-444444444444";
+  const sessionPath = path.join(upstreamDir, `${ourId}.jsonl`);
+  fs.writeFileSync(
+    sessionPath,
+    `${JSON.stringify({ type: "user", cwd, sessionId: ourId, message: { role: "user", content: "hi" } })}\n`,
+  );
+
+  const found = locateSessionFile({
+    provider: "claude",
+    providerCwd: cwd,
+    notBefore: new Date(Date.now() - 60_000).toISOString(),
+    claudeProjectsDir: projectsDir,
+    expectedSessionId: ourId,
+    // Production's shape: no recency guessing. The id scan is the only thing
+    // that can answer, and it must.
+    allowMtimeFallback: false,
+  });
+  assert.equal(found?.path, sessionPath, "id scan finds the file whatever the directory is called");
+  assert.equal(found?.providerSessionId, ourId);
+});
+
+check("locator: a session whose directory was RENAMED under it is still found by id", () => {
+  // The failure mode the decoupling exists for, in its general form: the
+  // directory the transcript lives in is not the one any rule would predict —
+  // upstream renamed it, or the projects root moved, or the cwd grew past 200
+  // characters between sessions. The id is the only thing that did not change.
+  const projectsDir = path.join(tempRoot, "claude-projects-renamed");
+  const cwd = path.join(tempRoot, "workspace-renamed");
+  fs.mkdirSync(cwd, { recursive: true });
+  const upstreamDir = path.join(projectsDir, "renamed-by-upstream");
+  fs.mkdirSync(upstreamDir, { recursive: true });
+  // The directory Sonata's deleted rule would have produced — present, and
+  // empty, so a rule-based locator would have found nothing rather than erred.
+  fs.mkdirSync(path.join(projectsDir, cwd.replace(/[^a-zA-Z0-9]/g, "-")), { recursive: true });
+
+  const ourId = "7a2b91cc-3333-4444-8555-666666666666";
+  const realPath = path.join(upstreamDir, `${ourId}.jsonl`);
+  fs.writeFileSync(
+    realPath,
+    `${JSON.stringify({ type: "user", cwd, sessionId: ourId, message: { role: "user", content: "hi" } })}\n`,
+  );
+  // A sibling session in the same directory, FRESHER, to prove identity still
+  // beats recency now that recency has the whole root to range over.
+  const foreignId = "0000ffff-7777-4888-8999-aaaaaaaaaaaa";
+  fs.writeFileSync(
+    path.join(upstreamDir, `${foreignId}.jsonl`),
+    `${JSON.stringify({ type: "user", cwd, sessionId: foreignId, message: { role: "user", content: "not ours" } })}\n`,
+  );
+  const older = new Date(Date.now() - 30_000);
+  fs.utimesSync(realPath, older, older);
+
+  const base = {
+    provider: "claude",
+    providerCwd: cwd,
+    notBefore: new Date(Date.now() - 60_000).toISOString(),
+    claudeProjectsDir: projectsDir,
+    expectedSessionId: ourId,
+    allowMtimeFallback: false,
+  };
+
+  assert.equal(locateSessionFile(base)?.path, realPath, "found by id in the renamed directory");
+  // Already attached (the reopen shape: `transcript-sources.json` re-attached it
+  // before discovery started, so discovery sees it as claimed) → null, never the
+  // fresher sibling.
+  assert.equal(
+    locateSessionFile({ ...base, excludePaths: new Set([realPath]) }),
+    null,
+    "a claimed file is not re-adopted, and no sibling is substituted for it",
+  );
+});
+
+check("locator: the id scan never reads a file that is not the expected session", () => {
+  // The scan's safety property, stated as a test because it is what lets the
+  // slug go: it addresses ONE exact path per project directory, so no amount of
+  // sibling traffic in any directory can produce a wrong bind.
+  const projectsDir = path.join(tempRoot, "claude-projects-exact");
+  const cwd = path.join(tempRoot, "workspace-exact");
+  fs.mkdirSync(cwd, { recursive: true });
+  for (const dir of ["dir-one", "dir-two", "dir-three"]) {
+    const full = path.join(projectsDir, dir);
+    fs.mkdirSync(full, { recursive: true });
+    fs.writeFileSync(
+      path.join(full, `${dir}-sibling.jsonl`),
+      `${JSON.stringify({ type: "user", cwd, sessionId: `${dir}-sibling`, message: { role: "user", content: "x" } })}\n`,
+    );
+  }
+  assert.equal(
+    locateSessionFile({
+      provider: "claude",
+      providerCwd: cwd,
+      notBefore: new Date(Date.now() - 60_000).toISOString(),
+      claudeProjectsDir: projectsDir,
+      expectedSessionId: "not-on-disk",
+      allowMtimeFallback: false,
+    }),
+    null,
+    "three directories full of siblings resolve to nothing",
+  );
+});
+
 // --- Tailer -------------------------------------------------------------------
 
 check("tailer: drains appended lines and carries partial lines", () => {
@@ -2588,7 +2732,7 @@ await (async () => {
     const projectsDir = path.join(tempRoot, "claude-projects-e2e");
     const cwd = path.join(tempRoot, "workspace-e2e");
     fs.mkdirSync(cwd, { recursive: true });
-    const slugDir = path.join(projectsDir, claudeProjectSlug(cwd));
+    const slugDir = path.join(projectsDir, "e2e-project-dir");
     fs.mkdirSync(slugDir, { recursive: true });
 
     const events = [];

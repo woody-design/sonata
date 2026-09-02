@@ -66,6 +66,32 @@ export type RunCliCommand = (
 export interface ProbeOptions {
   readonly run?: RunCliCommand;
   readonly timeoutMs?: number;
+  /**
+   * Main-process-only side channel for what a probe pass saw that is NOT a
+   * readiness fact (D2 U2 / F2).
+   *
+   * A separate channel rather than another field on `CliProviderReadiness`,
+   * because that shape is the renderer's IPC payload and is deliberately closed:
+   * it is validated key-for-key (`isCliProviderReadiness`), compared field-wise
+   * to gate the change broadcast, and mapped over every provider — so a
+   * Claude-only operational path on it would be three kinds of wrong at once.
+   * Absent for every caller that does not want it, which is all of them but the
+   * readiness controller.
+   */
+  readonly observe?: (details: CliProbeDetails) => void;
+}
+
+/** What a probe pass learned beyond readiness. Claude-shaped today; a second
+ *  provider's detail would be a second field, not a mapped type — these are
+ *  facts about one CLI's own layout, not an axis every provider has. */
+export interface CliProbeDetails {
+  /**
+   * Claude's transcript root, as `claude auth status --json` reports it
+   * (`projectsDirectory`). Null when the command did not run or did not answer
+   * in a shape we recognize — the consumer then derives the path itself, which
+   * is correct today and is exactly the derivation this field exists to retire.
+   */
+  readonly claudeProjectsDirectory: string | null;
 }
 
 /**
@@ -81,6 +107,17 @@ export interface CliProbeSpec {
   readonly versionArgs: readonly string[];
   readonly authArgs: readonly string[];
   readonly readAuth: (exit: CliCommandExit) => CliAuthState;
+  /**
+   * Optional second reading of the SAME auth output, for facts that are not
+   * readiness (see {@link ProbeOptions.observe}). Declared only by the provider
+   * that has such a fact; a spec without it never observes anything, so the
+   * other provider costs nothing and says nothing.
+   *
+   * Called on every probe of this provider — including the passes where the auth
+   * command never ran, with `exit === null` — so the consumer's cache always
+   * reflects the LAST probe rather than the last successful one.
+   */
+  readonly readDetails?: (exit: CliCommandExit | null) => CliProbeDetails;
 }
 
 /**
@@ -112,6 +149,9 @@ export const CLAUDE_PROBE: CliProbeSpec = {
   versionArgs: ["--version"],
   authArgs: ["auth", "status", "--json"],
   readAuth: readClaudeAuth,
+  readDetails: (exit) => ({
+    claudeProjectsDirectory: exit === null ? null : readClaudeProjectsDirectory(exit),
+  }),
 };
 
 /**
@@ -181,14 +221,32 @@ export async function probeProvider(
 
   const install = readInstall(await runSafely(run, spec.command, spec.versionArgs, timeoutMs));
   if (install !== "present") {
+    // The auth command never ran, so there is no output to read details from —
+    // say so rather than leave a consumer holding a value from a machine that has
+    // since lost the binary.
+    observe(spec, options, null);
     return { install, auth: "unknown" };
   }
 
   const outcome = await runSafely(run, spec.command, spec.authArgs, timeoutMs);
+  observe(spec, options, outcome.kind === "exit" ? outcome : null);
   return {
     install,
     auth: outcome.kind === "exit" ? spec.readAuth(outcome) : "unknown",
   };
+}
+
+/** Deliver this provider's non-readiness details, when it has any and someone
+ *  asked. Never throws into the probe: an observer is a listener, not a step. */
+function observe(spec: CliProbeSpec, options: ProbeOptions, exit: CliCommandExit | null): void {
+  if (!spec.readDetails || !options.observe) {
+    return;
+  }
+  try {
+    options.observe(spec.readDetails(exit));
+  } catch {
+    // A broken observer must not turn a completed probe into a failed one.
+  }
 }
 
 /**
@@ -225,6 +283,34 @@ export function readClaudeAuth(exit: CliCommandExit): CliAuthState {
     return "unknown";
   }
   return loggedIn ? "signedIn" : "signedOut";
+}
+
+/**
+ * Claude's own transcript root, off the same document `readClaudeAuth` reads
+ * (`projectsDirectory`, present since 2.1.258 — MEASURED, see CLAUDE_PROBE's
+ * note, which recorded the field appearing before anything consumed it).
+ *
+ * Read on BOTH exit codes and both streams for the same reasons the auth read
+ * is: a signed-OUT answer is a well-formed document delivered on exit 1, and it
+ * carries this field too. Anything else — no JSON, no string, an empty string —
+ * is null, and null means "derive it", never "there is none".
+ */
+export function readClaudeProjectsDirectory(exit: CliCommandExit): string | null {
+  return readProjectsDirectory(exit.stdout) ?? readProjectsDirectory(exit.stderr);
+}
+
+function readProjectsDirectory(output: string): string | null {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(output);
+  } catch {
+    return null;
+  }
+  if (typeof payload !== "object" || payload === null) {
+    return null;
+  }
+  const directory = (payload as Record<string, unknown>).projectsDirectory;
+  return typeof directory === "string" && directory.trim() ? directory : null;
 }
 
 function readLoggedInFlag(output: string): boolean | null {

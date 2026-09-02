@@ -1,0 +1,43 @@
+# p1 scan cost — the shipped locator over the real projects root (D2 U2)
+
+Produced by `p1-scan-cost.mjs`, which imports `locateSessionFile` from
+`app/dist/runtime/provider-transcript/index` and calls it. Every performance
+number in `session-locator.ts`, in finding F76, and in the coupling-inventory
+row for "Transcript / rollout file paths" cites THIS file.
+
+- projects root: `$HOME/.claude/projects` — **859 entries**
+- timed session: `<redacted>.jsonl` in one of them (a real conversation; the
+  id is not evidence and is not printed)
+- **12 timed runs per case**, one discarded warm-up before each; median
+  reported, min/max alongside
+- machine: darwin, APFS, warm page cache (the numbers a running app sees)
+
+| case | median | min | max | found | reached by |
+|---|---|---|---|---|---|
+| id scan — HIT | **0.83 ms** | 0.75 ms | 0.90 ms | yes | discovery, once the session's first turn has written the file |
+| id scan — MISS (no early exit) | **3.46 ms** | 3.26 ms | 3.81 ms | no | every discovery poll before the first turn (F74) — the common case |
+| id-less mtime fallback, 60s window | **10.14 ms** | 9.68 ms | 10.79 ms | no | nothing in production (allowMtimeFallback:false at both call sites) |
+| id-less mtime fallback, 7-day window | **36.44 ms** | 34.99 ms | 38.06 ms | no | nothing in production; the widest a caller could plausibly ask for |
+
+## Reading these numbers
+
+What this replaced was a `readdir` of ONE slug-named directory — well under
+a millisecond, never measured, and not measurable now that the code is gone.
+So the comparison is stated as a shape rather than a ratio: a bounded
+per-directory `stat` sweep where there used to be a single directory read.
+The MISS row is the number that matters, because per F74 it is the common
+case: discovery polls every 1.5 s for up to 120 s while the transcript does
+not yet exist, so a task that never reaches its first turn spends roughly
+277 ms of `stat` across those two minutes — on the order of 0.3% of
+one core. That is the registered cost (F76/F79); the saving is in discovery's
+lifecycle, not in this function.
+
+The directory count moves on its own — this root held 915 entries earlier the
+same day and 859 at the time of this run — so treat the absolute
+medians as "this machine, this many directories", and the SHAPE (linear in
+directory count, one `stat` each) as the durable claim.
+
+The id-less rows are stated for completeness. Production cannot reach them:
+`assembleTaskRuntime` passes `allowMtimeFallback:false` on both entry
+points, and it is the only construction site of a transcript that discovers.
+

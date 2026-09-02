@@ -22,7 +22,6 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const {
   ProviderTranscript,
-  claudeProjectSlug,
   locateSessionFile,
 } = require("../../dist/runtime/provider-transcript/index");
 
@@ -51,11 +50,16 @@ async function checkAsync(name, fn) {
   }
 }
 
+// The project directory's NAME is deliberately not derived from the cwd here
+// (D2 U2). Sonata no longer models upstream's cwd → directory rule, so these
+// fixtures name the directory something the rule could never have produced —
+// which is the point: the locator finds these files by session id, and a rule
+// change upstream cannot break them.
 function makeCwdWithSibling(label) {
   const projectsDir = path.join(tempRoot, `projects-${label}`);
   const cwd = path.join(tempRoot, `workspace-${label}`);
   fs.mkdirSync(cwd, { recursive: true });
-  const slugDir = path.join(projectsDir, claudeProjectSlug(cwd));
+  const slugDir = path.join(projectsDir, `upstream-named-this-${label}`);
   fs.mkdirSync(slugDir, { recursive: true });
   const siblingId = "aaaaaaaa-1111-2222-3333-444444444444";
   const siblingPath = path.join(slugDir, `${siblingId}.jsonl`);

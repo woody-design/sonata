@@ -8,12 +8,55 @@ import type { TranscriptSourceRef } from "../../shared/types/transcript";
  * Locates the provider-owned session file backing a Sonata Task.
  *
  * Claude Code writes one JSONL per session under
- *   ~/.claude/projects/<cwd-slug>/<session-id>.jsonl
+ *   <projectsDir>/<some directory>/<session-id>.jsonl
  * Codex writes one rollout JSONL per session under
  *   ~/.codex/sessions/<YYYY>/<MM>/<DD>/rollout-<local-time>-<id>.jsonl
  *
- * Both are matched by provider cwd plus a not-before timestamp, so a Task
- * only claims sessions started for it.
+ * **The Claude directory name is deliberately NOT modelled here** (D2 U2,
+ * 2026-09-02). It used to be: `claudeProjectSlug` re-implemented upstream's
+ * cwd → directory rule (`cwd.replace(/[^a-zA-Z0-9]/g,"-")`) and a realpath
+ * variant chased the macOS `/tmp` → `/private/tmp` split. Upstream then changed
+ * the rule, and the new one cannot be re-implemented at all — MEASURED at
+ * 2.1.258 (`spikes/upstream-sync-2026-09/claude/p1-project-dir-name.capture.txt`,
+ * arms 2a/2b/2c): a slug of 200 characters or fewer is used as-is, and a longer
+ * one is truncated to 200 and suffixed with `-<hash>` where the hash is computed
+ * INSIDE the binary over the original cwd (`v5abde` for the 300-character arm).
+ * A Sonata task in a long working directory therefore looked for its transcript
+ * in a directory the CLI never wrote.
+ *
+ * What replaced the rule is identity. Sonata knows a Claude session's id before
+ * the file exists (every fresh spawn pins `--session-id`, every resume knows its
+ * `resumeRef`), and the filename IS that id. So the contract this module now
+ * depends on is exactly two facts, both stable across the naming change:
+ *
+ *   1. the file is named `<session-id>.jsonl`;
+ *   2. it lives one level below the projects root.
+ *
+ * The directory in between is whatever upstream wants it to be.
+ *
+ * **Where this module sits in the whole memory.** It is the SECOND half of a
+ * two-part design, and the first half is not here: `transcript-sources.json`
+ * already persists every adopted `TranscriptSourceRef` — path included — and
+ * `openTask` re-attaches those directly, before discovery ever starts. That file
+ * IS the path memory an offline reopen uses; a reopened session opens its
+ * transcript without consulting this module at all. (A manifest-level copy of the
+ * same path was built during D2 U2 and removed in review: `openTask` puts every
+ * re-attached path into `excludePaths`, so the copy was shadowed by the original
+ * on every reachable path — see finding F81.)
+ *
+ * So the locator answers the cases the sources file cannot: a session whose file
+ * did not exist when it was last persisted, one whose id the CLI changed under a
+ * live PTY, and a first spawn. Two layers, in order: an id-anchored scan (one
+ * exact-path `stat` per project directory) and, only for a caller that opts in,
+ * the newest-by-mtime fallback below. Cost MEASURED through this module —
+ * 0.83 ms hit / 3.46 ms full miss / 10–36 ms for the id-less path over an
+ * 859-directory root; the count moves, the shape (linear, one `stat` per
+ * directory) does not. Source of truth for every number quoted here:
+ * `spikes/upstream-sync-2026-09/claude/p1-scan-cost.capture.txt`, produced by
+ * its sibling `.mjs`, which calls this module from `dist/`.
+ *
+ * Codex is untouched by all of this: its rollout path carries a date tree and its
+ * own `session_meta` record names the cwd, so it needs no directory rule.
  */
 
 const LOCATE_SLACK_MS = 20_000;
@@ -38,6 +81,11 @@ export interface LocateSessionOptions {
    * Defaults to true (fresh spawns still discover their id by recency).
    */
   allowMtimeFallback?: boolean;
+  /**
+   * Claude's transcript root. Threaded from the CLI's own
+   * `claude auth status --json` → `projectsDirectory` when the readiness probe
+   * has read one; {@link claudeProjectsRoot} derives it otherwise.
+   */
   claudeProjectsDir?: string;
   codexSessionsDir?: string;
 }
@@ -61,43 +109,99 @@ export function locateSessionFile(options: LocateSessionOptions): TranscriptSour
   return locateCodexSession(options);
 }
 
-export function claudeProjectSlug(cwd: string): string {
-  return cwd.replace(/[^a-zA-Z0-9]/g, "-");
+/**
+ * Where Claude keeps transcripts, in the order of decreasing authority:
+ *
+ *   1. what the CLI itself said (`claude auth status --json` →
+ *      `projectsDirectory`, threaded in by the caller);
+ *   2. `$CLAUDE_CONFIG_DIR/projects` — the CLI's own composition for a user who
+ *      redirected their config directory;
+ *   3. `~/.claude/projects`.
+ *
+ * (2) and (3) are a DERIVATION, and deriving is the habit this slice exists to
+ * break — so they are the fallback, not the rule. They are also currently
+ * correct: at 2.1.258 the binary composes the root as `join(configDir,
+ * "projects")` with `configDir = $CLAUDE_CONFIG_DIR ?? ~/.claude` (STATIC, read
+ * off the 2.1.258 binary). Taking (1) when it is available means the day that
+ * composition changes, Sonata follows for free instead of shipping a fix.
+ */
+function claudeProjectsRoot(explicit?: string): string {
+  if (explicit) {
+    return explicit;
+  }
+  const configDir = process.env.CLAUDE_CONFIG_DIR?.trim();
+  return configDir
+    ? path.join(configDir, "projects")
+    : path.join(os.homedir(), ".claude", "projects");
 }
 
-function claudeCwdVariants(cwd: string): string[] {
-  const resolved = path.resolve(cwd);
-  const variants = new Set<string>([resolved]);
+/** The project directories under the root. One `readdir`; no naming assumption
+ *  beyond "a project directory is a directory". */
+function claudeProjectDirectories(projectsDir: string): string[] {
   try {
-    // Claude Code keys its project directories by the realpath of the cwd
-    // (macOS: /var/... becomes /private/var/...).
-    variants.add(
-      fs.realpathSync.native ? fs.realpathSync.native(resolved) : fs.realpathSync(resolved),
-    );
+    return fs
+      .readdirSync(projectsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(projectsDir, entry.name));
   } catch {
-    // Keep the resolved path only.
+    return [];
   }
-  return [...variants];
+}
+
+/**
+ * The id-anchored scan: `<projectsDir>/<any directory>/<session-id>.jsonl`, by
+ * exact-path `stat` per project directory. No recursion, no directory listing per project,
+ * no content read, and — the point — no model of how the directory is named.
+ *
+ * Cost, MEASURED through this function over a real 859-directory projects root
+ * by `spikes/upstream-sync-2026-09/claude/p1-scan-cost.mjs` (which imports this
+ * module from `dist/`; capture committed alongside it): **0.83 ms when it hits,
+ * 3.46 ms for a full miss**, medians of 12 warm runs. It replaces a
+ * single-directory read, so this is the price of the decoupling and it is stated
+ * rather than assumed — including the fact that the MISS is the common case
+ * before a session's first turn, because the transcript is written lazily
+ * (findings F74/F76).
+ *
+ * First hit wins. Two project directories holding the SAME session id would need
+ * a file to have been copied by hand — upstream renames move a directory, they
+ * do not duplicate ids — and either copy names the same conversation, so paying
+ * for a newest-wins tiebreak would buy nothing.
+ */
+function findClaudeSessionById(
+  projectsDir: string,
+  sessionId: string,
+  excludePaths?: ReadonlySet<string>,
+): string | null {
+  for (const directory of claudeProjectDirectories(projectsDir)) {
+    const candidate = path.join(directory, `${sessionId}.jsonl`);
+    if (excludePaths?.has(candidate)) {
+      continue;
+    }
+    try {
+      if (fs.statSync(candidate).isFile()) {
+        return candidate;
+      }
+    } catch {
+      // Not this project directory.
+    }
+  }
+  return null;
 }
 
 function locateClaudeSession(options: LocateSessionOptions): TranscriptSourceRef | null {
-  const projectsDir = options.claudeProjectsDir ?? path.join(os.homedir(), ".claude", "projects");
+  const projectsDir = claudeProjectsRoot(options.claudeProjectsDir);
   const notBeforeMs = Date.parse(options.notBefore) - LOCATE_SLACK_MS;
   const allowFallback = options.allowMtimeFallback ?? true;
+  const expectedSessionId = options.expectedSessionId ?? null;
 
-  const present = claudeCwdVariants(options.providerCwd)
-    .flatMap((variant) => listFiles(path.join(projectsDir, claudeProjectSlug(variant)), ".jsonl"))
-    .filter((candidate) => !options.excludePaths?.has(candidate.path));
-
-  // Identity over recency: when the Task knows which session it owns, only
-  // that exact file may be adopted. The slug dir already encodes the cwd, so
-  // an id match there is authoritative — no mtime, no cwd re-scan.
-  if (options.expectedSessionId) {
-    const exact = present.find(
-      (candidate) => path.basename(candidate.path, ".jsonl") === options.expectedSessionId,
-    );
-    if (exact) {
-      return claudeRef(exact.path);
+  // Identity over recency. When the Task knows which session it owns, only the
+  // file with that exact id may be adopted — a sibling session in the same
+  // folder (a different conversation the user resumed by hand) can never be
+  // mistaken for ours, because the id is the filename.
+  if (expectedSessionId) {
+    const found = findClaudeSessionById(projectsDir, expectedSessionId, options.excludePaths);
+    if (found) {
+      return claudeRef(found);
     }
   }
   // The mtime fallback is authoritative whether or not an id was expected:
@@ -105,14 +209,26 @@ function locateClaudeSession(options: LocateSessionOptions): TranscriptSourceRef
   // handshake) to land. Checked HERE, not only inside the id branch, so a
   // NULL expected id (a provider that cannot pin one up front — Codex) also
   // honors it instead of silently cross-binding by recency.
+  //
+  // Every production Claude spawn passes fallback OFF (runtime-controller's
+  // `assembleTaskRuntime`, both entry points), so what follows is reachable only
+  // from a caller that opts in — which today is the smoke suite.
   if (!allowFallback) {
     return null;
   }
 
-  const match = present
+  // The id-less path. With no directory rule to narrow it, this reads every
+  // project directory, so it is ordered to do the expensive part last: mtime
+  // filter (cheap, and by far the most selective — a not-before window of
+  // seconds), then newest-first, then the head read that confirms the cwd,
+  // stopping at the FIRST confirmation. Same answer as filtering-then-sorting,
+  // one head read instead of one per candidate.
+  const match = claudeProjectDirectories(projectsDir)
+    .flatMap((directory) => listFiles(directory, ".jsonl"))
+    .filter((candidate) => !options.excludePaths?.has(candidate.path))
     .filter((candidate) => candidate.mtimeMs >= notBeforeMs)
-    .filter((candidate) => claudeSessionMatchesCwd(candidate.path, options.providerCwd))
-    .sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .find((candidate) => claudeSessionMatchesCwd(candidate.path, options.providerCwd));
 
   return match ? claudeRef(match.path) : null;
 }
@@ -184,6 +300,18 @@ function codexDayDirectories(sessionsDir: string, notBeforeMs: number): string[]
   return directories;
 }
 
+/**
+ * Does this session file's own head declare our cwd?
+ *
+ * This used to end with `return !head.includes('"cwd"')` — accept a file that
+ * names no cwd at all, "because the directory slug already encodes the cwd".
+ * That clause WAS the slug coupling, in its most load-bearing form: it was only
+ * ever safe because the caller had already narrowed the search to one directory
+ * whose name meant the cwd. The caller now searches every project directory, so
+ * the same clause would make any cwd-less session file in any folder a match for
+ * any Task — a cross-bind, not a convenience. A file that does not say where it
+ * ran no longer qualifies.
+ */
 function claudeSessionMatchesCwd(filePath: string, providerCwd: string): boolean {
   const head = readHead(filePath);
   if (head === null) {
@@ -196,9 +324,7 @@ function claudeSessionMatchesCwd(filePath: string, providerCwd: string): boolean
       return true;
     }
   }
-  // Session files start with housekeeping records that carry no cwd; the
-  // directory slug already encodes the cwd, so accept slug-only matches.
-  return !head.includes('"cwd"');
+  return false;
 }
 
 function codexSessionMeta(

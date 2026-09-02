@@ -63,13 +63,31 @@ export class CliReadiness {
   private readonly log: (message: string) => void;
 
   private facts: CliReadinessFacts = UNKNOWN_CLI_READINESS_FACTS;
+  /**
+   * Claude's transcript root, as the CLI reported it on the last probe (D2 U2 /
+   * F2). Held here rather than in `facts` because it is not a readiness fact: it
+   * never crosses IPC, no renderer reads it, and it must not participate in the
+   * change compare that gates the broadcast. Null until a probe has read one —
+   * and null is a legitimate steady state (see the getter).
+   */
+  private claudeProjectsDir: string | null = null;
   private inFlight: Promise<void> | null = null;
   private pending = 0;
   private disposed = false;
 
   constructor(options: CliReadinessOptions) {
     this.broadcast = options.broadcast;
-    this.probeFacts = options.probe ?? (() => probeCliReadiness());
+    // The details channel rides the DEFAULT probe only. An injected probe (the
+    // smokes) observes nothing and the cache stays null, which is the same
+    // correct degradation as a machine whose CLI never answered.
+    this.probeFacts =
+      options.probe ??
+      (() =>
+        probeCliReadiness({
+          observe: (details) => {
+            this.claudeProjectsDir = details.claudeProjectsDirectory;
+          },
+        }));
     this.bustPathCache = options.bustPathCache ?? bustLoginShellPathCache;
     this.log = options.log ?? ((message) => console.log(`[cli-readiness] ${message}`));
   }
@@ -80,6 +98,21 @@ export class CliReadiness {
    *  the first probe lands shows nothing rather than guessing. */
   read(): CliReadinessFacts {
     return this.facts;
+  }
+
+  /**
+   * Where Claude keeps its transcripts, straight from `claude auth status
+   * --json` — the one operational fact this controller's probe already fetches
+   * and nothing used to read (D2 U2 / F2). Null before the first probe lands,
+   * and on any machine whose CLI did not answer; the caller then derives the
+   * path, which is what Sonata did unconditionally until now.
+   *
+   * Pull-only and deliberately silent: no event, no broadcast, no place in the
+   * change compare. A path that moves is not news to anyone — the next locate
+   * simply uses the current answer.
+   */
+  claudeProjectsDirectory(): string | null {
+    return this.claudeProjectsDir;
   }
 
   /**

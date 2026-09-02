@@ -216,6 +216,21 @@ interface RuntimeControllerOptions {
    */
   cliReadiness: CliReadinessSource;
   /**
+   * Claude's transcript root as the CLI itself reports it — `claude auth status
+   * --json` → `projectsDirectory`, read by the readiness probe and cached there
+   * (`CliReadiness.claudeProjectsDirectory`). Threaded into every Claude Task's
+   * transcript discovery.
+   *
+   * OPTIONAL, unlike the ports above, and deliberately so: they gate features
+   * that would be invisibly dead without them, whereas this is a value with a
+   * correct default. Omitting it leaves the locator on its documented fallback
+   * chain (`$CLAUDE_CONFIG_DIR/projects` → `~/.claude/projects`), which at
+   * 2.1.258 derives the very path the CLI would have reported. What passing it
+   * buys is that the day upstream composes that path differently, Sonata follows
+   * without a code change (D2 U2 / F2).
+   */
+  claudeProjectsDirectory?: () => string | null;
+  /**
    * Dev-gated per-flush instrumentation sink (OBS S9 / P6), threaded into every
    * live RunIndex so a build-storm's flush duration + serialized size land in the
    * AD-2 tripwire evidence stream. Absent in normal use (the perf log is off).
@@ -266,6 +281,10 @@ export class RuntimeController {
   private readonly sonataSettingsStore: SonataSettingsStore;
   private readonly cliUpdater: CodexSpawnGate;
   private readonly cliReadiness: CliReadinessSource;
+  /** See {@link RuntimeControllerOptions.claudeProjectsDirectory}. Null-safe by
+   *  construction: an unwired controller answers null, which is the locator's
+   *  "derive it yourself" signal, not an error. */
+  private readonly claudeProjectsDirectory: () => string | null;
   /**
    * The boot observation window (S4 / L5), one one-shot timer per live spawn.
    *
@@ -342,6 +361,7 @@ export class RuntimeController {
     this.sonataSettingsStore = options.sonataSettingsStore;
     this.cliUpdater = options.cliUpdater;
     this.cliReadiness = options.cliReadiness;
+    this.claudeProjectsDirectory = options.claudeProjectsDirectory ?? (() => null);
     if (options.onFlushMetrics) {
       this.onFlushMetrics = options.onFlushMetrics;
     }
@@ -2934,6 +2954,12 @@ export class RuntimeController {
     // CAS sees current === latest, and everything keyed by providerSessionRef
     // (statusline usage flush, session-name adoption) follows the live
     // session instead of splitting from the transcript.
+    //
+    // The manifest records the ID and not the PATH, deliberately (D2 U2 review):
+    // `transcript-sources.json` already persists the adopted ref including its
+    // path, `openTask` re-attaches from it before discovery runs, and a second
+    // copy of the same path in the manifest was measured to be shadowed on every
+    // reachable path — see finding F81 and the session-locator module header.
     if (active.task.providerSessionRef !== sessionId) {
       active.task = {
         ...active.task,
@@ -3375,6 +3401,7 @@ export class RuntimeController {
       providerCwd,
       expectedSessionId: discovery.expectedSessionId ?? null,
       allowMtimeFallback: discovery.allowMtimeFallback ?? true,
+      claudeProjectsDir: () => this.claudeProjectsDirectory(),
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
       resolveRunId: (input) => resolveRunForTurn(runIndex, input),
       externallyClaimedPaths: () => {

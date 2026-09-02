@@ -34,6 +34,7 @@ const {
   probeCliReadiness,
   probeProvider,
   readClaudeAuth,
+  readClaudeProjectsDirectory,
   readCodexAuth,
 } = require(path.join(distRoot, "main/cli-readiness/probe"));
 
@@ -326,6 +327,65 @@ assert.equal(PROBE_TIMEOUT_MS, 5_000, "5s per command");
     codex: { install: "unknown", auth: "unknown" },
   });
   results.totality = "a throwing seam degrades to unknown";
+}
+
+// 9) The details side channel (D2 U2 / F2): `projectsDirectory` off the SAME
+//    document, delivered out of band so the readiness facts stay the renderer's
+//    closed payload.
+{
+  assert.equal(
+    readClaudeProjectsDirectory(exit(0, CLAUDE_SIGNED_IN_JSON)),
+    "/home/someone/.claude/projects",
+  );
+  // Read on exit 1 too — the signed-out document carries the field, and a
+  // machine whose CLI is signed out still has a transcript root.
+  assert.equal(
+    readClaudeProjectsDirectory(exit(1, CLAUDE_SIGNED_OUT_JSON)),
+    "/tmp/fresh-home/.claude/projects",
+  );
+  // The 2.1.222 document predates the field entirely: null, which means "derive
+  // it", not "there is none".
+  assert.equal(readClaudeProjectsDirectory(exit(1, CLAUDE_SIGNED_OUT_JSON_2_1_222)), null);
+  assert.equal(readClaudeProjectsDirectory(exit(1, "", CLAUDE_UNKNOWN_COMMAND_STDERR)), null);
+  assert.equal(readClaudeProjectsDirectory(exit(0, '{"projectsDirectory":"   "}')), null, "blank is null");
+  assert.equal(readClaudeProjectsDirectory(exit(0, '{"projectsDirectory":42}')), null, "non-string is null");
+
+  // …and end to end through the probe, which must observe on EVERY pass — the
+  // successful one, and the one where the auth command never ran, so a consumer
+  // can never keep a value from a machine that has since lost the binary.
+  const seen = [];
+  const facts = await probeCliReadiness({
+    observe: (details) => seen.push(details.claudeProjectsDirectory),
+    run: async (command, args) => {
+      if (command === "claude") {
+        return args[0] === "--version"
+          ? exit(0, "2.1.258 (Claude Code)\n")
+          : exit(0, CLAUDE_SIGNED_IN_JSON);
+      }
+      return args[0] === "--version" ? { kind: "absent" } : exit(0);
+    },
+  });
+  assert.equal(facts.claude.auth, "signedIn");
+  assert.deepEqual(seen, ["/home/someone/.claude/projects"], "claude observes once; codex never");
+
+  const afterUninstall = [];
+  await probeCliReadiness({
+    observe: (details) => afterUninstall.push(details.claudeProjectsDirectory),
+    run: async () => ({ kind: "absent" }),
+  });
+  assert.deepEqual(afterUninstall, [null], "an absent binary observes null, not silence");
+
+  // An observer that throws is a listener misbehaving, not a probe failing.
+  const stillFacts = await probeCliReadiness({
+    observe: () => {
+      throw new Error("hostile observer");
+    },
+    run: async (command, args) =>
+      args[0] === "--version" ? exit(0, "x") : exit(0, CLAUDE_SIGNED_IN_JSON),
+  });
+  assert.equal(stillFacts.claude.install, "present", "a throwing observer cannot break the probe");
+
+  results.details = "projectsDirectory observed out of band, on every pass";
 }
 
 console.log(JSON.stringify({ success: true, results }, null, 2));

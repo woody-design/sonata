@@ -3397,3 +3397,326 @@ the harm today is stale entries in a map, not changed behaviour.
   `/model` picker reads, post-switch frames). Sanitized for `$HOME`, the munged
   `-Users-…-` slug form, and `claude.ai` session ids.
 - `settings-guard.mjs` — the shared bracket (F70), self-testable.
+
+# D2 U2 — session-locator decoupling (probed 2026-09-02, binary 2.1.258)
+
+Probe `p1-project-dir-name.mjs` → `p1-project-dir-name.capture.txt`. **Five arms,
+five live spawns, all reproduced in ONE pass** through the production
+`TerminalHost` from `dist/` (production argv with `--session-id`, production
+`--settings` file, production `HookWatcher` on the production hook sink). Version
+pinned `2.1.258` at start and at end, no drift. Settings guard on and byte-clean
+(five brackets, none found the file moved — no arm here types a slash).
+
+Every directory name on record is read TWICE and independently: off the CLI's own
+`SessionStart` hook payload (`transcript_path`) and off a scan of
+`~/.claude/projects/*/<session-id>.jsonl`. Sonata's deleted rule is computed too,
+but only so the capture can say what it WOULD have looked for — never to produce a
+reading.
+
+**VERDICT: PATCHED.** `claudeProjectSlug` and `claudeCwdVariants` are gone; the
+locator finds the file by session id, whatever the directory is called, and the
+path memory a reopen uses is `transcript-sources.json` — which already held it
+(F81, review round: the manifest-level copy this slice first built was shadowed
+on every reachable path and was removed).
+
+## F72 — the naming rule at 2.1.258, MEASURED, and why it cannot be re-implemented
+
+STATIC first (`grep -a` over the binary), because it is what the arms went to
+confirm:
+
+```js
+var IL = 200;
+function be(e){ return Math.abs(zq(e)).toString(36) }      // hash of the ORIGINAL cwd
+function k(e) { return e.replace(/[^a-zA-Z0-9]/g,"-") }    // Sonata's claudeProjectSlug
+function KA(e){ let n=k(e); if(n.length<=IL) return n; return `${n.slice(0,IL)}-${be(e)}` }
+function ia(){ return join(Se(), "projects") }             // Se() = the config dir
+function Em(e){ return Apr() ?? KA(e) }                    // name = env ?? rule
+function Bu(e){ return join(ia(), Em(e)) }                 // the project directory
+```
+
+MEASURED (p1, one spawn per row; `cwd chars` is the length of the cwd the CLI ran
+in, and the slug is a 1:1 character mapping so slug length == cwd length):
+
+| arm | cwd chars | directory the CLI created | Sonata's old rule agreed? |
+|---|---|---|---|
+| arm2a | **200** | `…-arm2a-<120×x>-<28×y>` (200 chars, no suffix) | yes |
+| arm2b | **201** | `…-arm2b-<120×x>-<28×y>-ykvb5a` (200 + `-` + hash) | **NO** |
+| arm2c | **300** | `…-arm2c-<120×x>-<28×x>-v5abde` (200 + `-` + hash) | **NO** |
+
+So the threshold is exactly "**more than 200 characters**", inclusive side
+confirmed, and it is not a guess bracketed by bisection — arm2a and arm2b are
+adjacent by one character.
+
+**The suffix is the part that closes the question.** It is `be(cwd)` — a hash
+computed inside the binary over the original cwd, base-36 encoded. It is not
+derivable from the path by any rule Sonata could hold; it is a function of a hash
+implementation that ships inside `claude.exe` and can change with any release. So
+this is not "Sonata's copy of the rule is out of date, update it": there is no
+version of the copy that can be right. Re-implementation as a strategy is dead,
+and the only stable contract left is the one the slice now depends on — the file
+is named `<session-id>.jsonl` and sits one level under the projects root.
+
+The concrete break this fixes: a Sonata task whose working directory is longer
+than 200 characters (a deep monorepo path, a nested worktree) had its transcript
+looked for in a directory the CLI never created. arm2c's own capture shows both
+strings side by side — a 307-character name Sonata would have opened, against the
+207-character name upstream actually wrote.
+
+## F73 — S1 CONFIRMED: `CLAUDE_CODE_PROJECT_DIR_NAME` is inert for Sonata's spawn shape (MEASURED)
+
+arm1: `CLAUDE_CODE_PROJECT_DIR_NAME=sonata-p1-armone` (valid per the binary's own
+`^[A-Za-z0-9_-]{1,64}$`), NO `CLAUDE_CONFIG_DIR`, otherwise a production spawn
+with `--session-id`. The transcript landed in
+`-private-tmp-sonata-sync-2026-09-project-dir-arm1-ws` — the cwd slug. The
+variable did nothing.
+
+That is exactly what the static read predicted: `Apr = Zo(() => s() ? sLn(_()) :
+void 0, …)` consults the name ONLY when `s()` — `process.env.CLAUDE_CONFIG_DIR` —
+is set, and Sonata never sets it (SL-3: an isolated config dir is logged out). The
+2.1.234 changelog says the same in words: "hosts that give each session its own
+config directory can choose a short name".
+
+Option (A) of the U2 plan is therefore **closed by measurement**, not by reading.
+arm3 (a throwaway `CLAUDE_CONFIG_DIR` + the variable) was NOT run: the plan gates
+it on arm1 surprising, and arm1 did not. The arm remains in the harness
+(`node p1-project-dir-name.mjs arm3`) for whoever needs the other half of the
+cell — with the standing caveat that a throwaway config dir is logged out, so an
+inconclusive result there is the likely one.
+
+Also worth pinning for anyone who reaches for this variable later: it sits in the
+binary's list of env keys that repo-committed settings may not set, alongside the
+TLS/proxy and session-token keys. It is a host-integration lever, not a
+configuration knob.
+
+## F74 — `SessionStart` carries `transcript_path`, and the FILE IS NOT THERE YET (MEASURED, 5/5)
+
+The design question the plan asked the engineer to settle first — "does
+`SessionStart` carry `transcript_path`, so the scan is bootstrap-only?" — has a
+two-part answer, and the second part is the one that matters.
+
+**Yes, the path is carried.** All five arms: `SessionStart` at ~2.0–2.6 s after
+spawn, keys `{session_id, transcript_path, cwd, scratchpad_dir, hook_event_name,
+source, model}` (matching F34's census).
+
+**No, the file does not exist when the hook fires.** MEASURED 5/5:
+`transcriptExistedAtHook: false` in every arm, sampled the instant the payload
+landed. A full id scan taken right after boot found nothing in all five arms too.
+The transcript is written LAZILY, at the first turn: arm1 and arm2c each sent one
+trivial prompt, and only then did `<session-id>.jsonl` appear — under exactly the
+directory the hook had named minutes earlier.
+
+Two consequences, both already reflected in the shipped code:
+
+1. `adoptTranscriptFromHook`'s existing `!fs.existsSync(transcriptPath)` branch is
+   not defensive coding for a rare race — it is the **normal** boot path at
+   2.1.258. Every fresh Claude session takes it. Good thing it was there.
+2. The id scan is not merely "bootstrap-only for one hook's latency"; it is what
+   covers the entire window between spawn and the first turn, during which no
+   mechanism at all can name a file that does not exist. Nothing can shorten that
+   window, so the scan's cost (F76) is a real running cost and not a
+   one-off.
+
+## F75 — the realpath premise was REAL, and is now irrelevant (MEASURED)
+
+arm4 handed the spawn `/tmp/sonata-sync-2026-09/project-dir/arm4/ws` — the macOS
+symlink form — while its realpath is `/private/tmp/…`. The CLI keyed the project
+directory by the **realpath**: `-private-tmp-sonata-sync-2026-09-project-dir-arm4-ws`.
+
+So `claudeCwdVariants` was not superstition; it was compensating for a real
+behaviour, and a locator that used only the cwd Sonata holds would have missed
+this session entirely (the capture's `== old rule(cwd)?` column reads **NO** for
+this arm and `yes` for the realpath column).
+
+It is deleted anyway, and that is the point of the slice: the id scan never asks
+what the directory is called, so the realpath question — like the truncation
+question, like the hash question — stops being Sonata's to answer. One class of
+bug retired rather than one instance fixed.
+
+## F76 — what the decoupling COSTS, measured through the shipped code
+
+Not a replica — the shipped `locateSessionFile` imported from `dist/` and called
+by `p1-scan-cost.mjs`, whose capture (`p1-scan-cost.capture.txt`) is the SINGLE
+source of truth for every performance number in this slice: the source comments
+in `session-locator.ts`, this finding, and the coupling-inventory row all cite
+it. Medians of 12 warm runs, one discarded warm-up each, over this machine's real
+projects root (**859 directories at the time of the run**):
+
+| layer | shape | median | what reaches it |
+|---|---|---|---|
+| id scan, HIT | `readdir` + `stat` until found | **0.83 ms** | discovery once the first turn has written the file |
+| id scan, MISS | `readdir` + one `stat` per directory, no early exit | **3.46 ms** | every discovery poll before the file exists (F74) — the common case |
+| id-less mtime fallback, 60 s window | every dir listed, mtime filter, head read | **10.14 ms** | nothing in production |
+| id-less mtime fallback, 7-day window | as above, ~2 orders more candidates | **36.44 ms** | nothing in production |
+
+**The directory count moves on its own.** The same root held 915 entries when p1
+ran that morning and 859 a few hours later (the CLI prunes). So the absolute
+medians are "this machine, this many directories"; the durable claim is the
+SHAPE — linear in directory count, one `stat` each, no content read.
+
+**What this replaced** was a `readdir` of ONE slug-named directory: well under a
+millisecond, never measured, and not measurable now that the code is deleted. So
+the cost is stated as a shape rather than a ratio. The MISS row is the one that
+matters, because F74 makes it the common case: discovery polls every 1.5 s for up
+to 120 s while the transcript does not yet exist, so a task that never reaches a
+first turn spends ~277 ms of `stat` across those two minutes — on the order of
+0.3% of one core. Registered rather than optimized (F79.1): the saving is in
+discovery's lifecycle, which this slice was scoped out of.
+
+**The id-less rows are unreachable in production**, and that is a fact about the
+call sites rather than a hope: `assembleTaskRuntime` passes
+`allowMtimeFallback: false` on both entry points, and it is the only construction
+site of a transcript that ever discovers. The remaining callers are the smokes.
+It was kept (slug-free) rather than deleted because deleting a documented option
+is a bigger change than the slice asked for.
+
+## F77 — the one behaviour the slug was silently holding up
+
+`claudeSessionMatchesCwd` used to end:
+
+```ts
+// Session files start with housekeeping records that carry no cwd; the
+// directory slug already encodes the cwd, so accept slug-only matches.
+return !head.includes('"cwd"');
+```
+
+That clause is the slug coupling in its most load-bearing form — a file that says
+nothing about where it ran was accepted *because the caller had already narrowed
+the search to a directory whose NAME meant the cwd*. With the search widened to
+every project directory, the same clause would make any cwd-less session file, in
+any folder, a match for any Task. It is removed, and a file that does not declare
+its cwd no longer qualifies.
+
+This is a genuine behaviour change and is called out rather than folded into "no
+functional change": it tightens the id-LESS mtime fallback, which is the
+production-unreachable path above. Every fixture in the smoke suite carries a cwd
+record, so nothing measured changed.
+
+## F78 — F2 consumed: `projectsDirectory` now has a reader
+
+`claude auth status --json` has carried `projectsDirectory` since 2.1.258 (SL-6
+recorded the field appearing; nothing read it). It is now threaded
+`probe.ts` → `CliReadiness` → `RuntimeController` → `ProviderTranscript` → the
+locator, as the first entry in a three-step chain
+(`projectsDirectory → $CLAUDE_CONFIG_DIR/projects → ~/.claude/projects`).
+
+**Sized honestly**: STATIC, the binary composes the root as `join(Se(),
+"projects")` with `Se()` = `$CLAUDE_CONFIG_DIR ?? ~/.claude`, so at 2.1.258 the
+value it reports is byte-identical to what the fallback chain derives. This buys
+no user-visible fix today. What it buys is the same thing the rest of the slice
+buys: the day upstream composes that path differently, Sonata follows without a
+release, because it stopped deriving what the CLI is willing to say.
+
+The value does NOT ride `CliReadinessFacts`. That shape is the renderer's IPC
+payload — validated key-for-key, compared field-wise to gate the change
+broadcast, and mapped over every provider — so a Claude-only operational path on
+it would be wrong three ways at once. It rides an optional `observe` callback on
+the probe options instead, delivered on every probe pass including the ones where
+the auth command never ran (so a consumer can never hold a value from a machine
+that has since lost the binary).
+
+## F79 — register items
+
+1. **Discovery polls the id scan for up to 120 s after a resume, finding nothing
+   by construction.** On a resume the transcript is attached from
+   `transcript-sources.json` before discovery starts, so it is in `excludePaths`
+   and every subsequent poll is a guaranteed full-miss sweep (F76: 4.33 ms × ~80
+   polls). The saving is to stop discovery once the EXPECTED id is attached and
+   let `ensureDiscovery` re-arm on an id change (`/clear`) — a change to
+   `ProviderTranscript`'s lifecycle, which this slice was scoped out of. Cost
+   today is ~0.3% of a core per reopened task for two minutes.
+2. **RESOLVED IN REVIEW, see F81** — the manifest path cache this slice first
+   built was a second copy of what `transcript-sources.json` already holds, and
+   was removed. The register item it would have been is now a finding.
+3. **A reopen whose sources tip is MISSING on disk starts a fresh session
+   rather than recovering the old one.** `readTranscriptSources` filters entries
+   whose file no longer exists, so a moved `CLAUDE_CONFIG_DIR` (or any relocation
+   of the transcript) empties the chain, `resumeRef` becomes null, and `openTask`
+   spawns a NEW session — the locator is never consulted with the
+   `providerSessionRef` the manifest still holds, even though the id scan could
+   find the file at its new location. Recovering there is a change in what a
+   reopen DOES (resume vs fresh start), which is a product decision for Woody and
+   not a locator fix. Pre-existing; registered, not built.
+4. **`e2e:codex-hooks-identity` is RED and has been since 2026-07-18** — not this
+   slice. Its liveness arm creates a codex task and waits for the
+   `codex-hooks-liveness` banner without ever submitting a prompt, but
+   `armCodexHooksLiveness` moved to fire on the session's FIRST
+   `prompt:submitted` in a16b055 (2026-07-18, the 0.144.5 sync, because
+   SessionStart proved lazy). The test was last touched 2026-07-23 for an
+   unrelated reason and never updated. Its first two contracts — spawn wiring and
+   same-cwd identity isolation — run BEFORE the failure and did pass under this
+   slice's build (the 30 s `waitFor` on both tasks' `transcript-sources.json`
+   returned). Fixing the test is a codex-side change and was left alone.
+5. **PRE-EXISTING, carried from U1 F70**: every probe arm answers a workspace-trust
+   dialog for a fresh `/private/tmp/...` cwd and the CLI records that answer
+   permanently in `~/.claude.json`'s project map. p1 re-used the same five cwds
+   across both of its runs, so it added five entries, not ten. The guard brackets
+   `~/.claude/settings.json` only; widening it is a program decision (see F70 for
+   why a byte-restore of `~/.claude.json` would be worse than the leak).
+
+## F81 — REVIEW ROUND: the manifest path cache was removed, because `transcript-sources.json` already IS the memory
+
+The slice as planned had three layers, the middle one a `transcript_path` cached
+in the task manifest (`Task.providerTranscriptPath`) so an offline reopen could
+open the file directly. Independent review traced it and found it
+**unreachable-with-effect**. The trace, verified against the code before acting:
+
+1. the field is non-null only on a RESUME reopen — a no-resume reopen nulls it
+   alongside `providerSessionRef` (`runtime-controller.ts`, the dead-binding
+   void), and a fresh task has never had one;
+2. on a resume, `openTask` attaches EVERY entry of `transcript-sources.json` —
+   which carries the same path, written at the same `transcript:located` moment —
+   *before* it calls `startDiscovery`;
+3. `tryDiscover` puts every attached source's path into `excludePaths`;
+4. so the cache's first test, `excludePaths.has(remembered)`, rejected it on
+   every reachable path. The only shape that could have reached it is the same
+   session file present in two project directories, which needs a hand copy.
+
+The plan's layer 2 therefore already existed — it just lived in
+`transcript-sources.json` rather than in the manifest — and the field was a
+second copy of a fact the first copy shadowed. That is the same defect class U1
+found in its own findings (two tables of the same counts, deleted rather than
+reconciled, so they could not drift apart). Orchestrator's decision, recorded as
+a two-way door: **delete the field and its whole pipeline.**
+
+Removed: `Task.providerTranscriptPath`; the writes in `adoptTranscriptFromHook`
+and in discovery's first-establish; the clear on a no-resume reopen;
+`claudeKnownTranscriptPath` on `LocateSessionOptions` and
+`ProviderTranscriptOptions`; `rememberedClaudeTranscript` and its branch; the
+layer-1 and stale-cache smoke cases; the two `cross-session-isolation`
+assertions about the field. The locator is now **two layers** — id scan, then the
+opt-in mtime fallback — and its module header names `transcript-sources.json` as
+the memory so the next reader does not re-derive the same idea.
+
+What was NOT lost: the reopen still opens its transcript without searching, and
+the long-cwd fixture, the renamed-directory case and the exact-path safety case
+all still fence the thing the slice exists for. What the removal cost: nothing
+measurable — layer 1 never answered.
+
+The e2e assertions were re-pointed rather than dropped: `cross-session-isolation`
+now fences that the persisted source paths are real files, are named by the id the
+manifest binds, and that the chain tip FOLLOWS a `/clear` rebind — i.e. it fences
+the memory that actually exists.
+
+## F80 — evidence files
+
+- `p1-project-dir-name.mjs` — the probe: five arms, batch-runnable
+  (`node p1-project-dir-name.mjs [arm…]`, `--capture-only` to re-render). Every
+  arm on record was produced by ONE run of the committed file (the U1 review's
+  reproducibility rule), and the settings-guard bracket is persisted per arm to
+  `.p1-results/guard-history.jsonl` so a capture assembled from several batches
+  reports every bracket rather than the last batch's. `.p1-results/` is scratch —
+  regenerable, unsanitized, and not evidence; the capture is the artifact.
+- `p1-project-dir-name.capture.txt` — per-arm records (both independent reads of
+  the directory name, the old rule's prediction for comparison, the hook payload,
+  the scan timings) plus every boot and trust frame. Sanitized for `$HOME`, the
+  munged `-Users-…-` form and `claude.ai` session ids; directory names derived
+  from `/private/tmp/...` are left intact, because they are the evidence.
+- `p1-scan-cost.mjs` / `p1-scan-cost.capture.txt` — the dist-based micro-benchmark
+  and its capture: the SINGLE committed source for every performance number this
+  slice quotes, in source comments, in F76 and in the inventory. It imports
+  `locateSessionFile` from `dist/` rather than re-implementing the scan, which is
+  the whole reason it exists as a separate file from p1 (p1 timed a replica —
+  adequate as a sanity check, not as the origin of a number pinned in shipped
+  source). Read-only: no spawn, no writes outside its own capture, hence the one
+  probe in this program that legitimately needs no settings guard.
+- `settings-guard.mjs` — the shared bracket, reused unchanged from U1 (F70).

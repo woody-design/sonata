@@ -50,6 +50,14 @@ export interface ProviderTranscriptOptions {
   expectedSessionId?: string | null;
   /** Resume passes false so discovery can never rebind to a sibling session. */
   allowMtimeFallback?: boolean;
+  /**
+   * Claude's transcript root as the CLI itself reports it (`claude auth status
+   * --json` → `projectsDirectory`). A FUNCTION, not a value, because the
+   * readiness probe that learns it runs on its own schedule — a Task assembled
+   * before the first probe lands would otherwise capture a null forever. Null at
+   * call time simply leaves the locator on its documented fallback chain.
+   */
+  claudeProjectsDir?: () => string | null;
   locate?: typeof locateSessionFile;
   pollMs?: number;
 }
@@ -511,6 +519,7 @@ export class ProviderTranscript {
       claimed.add(source.ref.path);
     }
 
+    const projectsDir = this.options.claudeProjectsDir?.() ?? null;
     const ref = this.locate({
       provider: this.options.provider,
       providerCwd: this.options.providerCwd,
@@ -518,6 +527,7 @@ export class ProviderTranscript {
       excludePaths: claimed,
       expectedSessionId: this.expectedSessionId,
       allowMtimeFallback: this.options.allowMtimeFallback ?? true,
+      ...(projectsDir ? { claudeProjectsDir: projectsDir } : {}),
     });
     if (!ref) {
       return;

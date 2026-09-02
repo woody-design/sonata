@@ -123,6 +123,17 @@ try {
     Boolean(betaRef) &&
     alphaRef !== betaRef;
 
+  // 2b. `transcript-sources.json` IS the path memory a reopen uses (D2 U2): it
+  // carries the adopted path, `openTask` re-attaches from it before discovery
+  // runs, and the locator is never consulted for it. So the property worth
+  // fencing is that the persisted paths are real files, distinct per task, and
+  // named by the id the manifest binds — a reopen reads them verbatim.
+  const pathMemoryCoherent =
+    alphaSources.every((source) => fs.existsSync(source.path)) &&
+    betaSources.every((source) => fs.existsSync(source.path)) &&
+    (alphaSources.at(-1)?.path ?? "").endsWith(`${alphaRef}.jsonl`) &&
+    (betaSources.at(-1)?.path ?? "").endsWith(`${betaRef}.jsonl`);
+
   // 3. Composer drafts are per-session (beta is active here).
   await page.locator("#prompt-input").fill("DRAFT-BETA unsent");
   await selectSidebarSession(page, alpha.task.id);
@@ -183,12 +194,27 @@ try {
     clearTip.providerSessionId === alphaRefAfterClear &&
     alphaRefAfterClear !== alphaRef;
 
+  // …and the path memory FOLLOWS the rebind. A /clear moves the session under a
+  // live PTY: the new id is appended to the source chain with its own path, so a
+  // later reopen resumes the post-/clear session and not the one before it.
+  const pathMemoryFollowsRebind =
+    Boolean(clearTip?.path) &&
+    clearTip.path.endsWith(`${alphaRefAfterClear}.jsonl`) &&
+    clearTip.path !== (alphaSources.at(-1)?.path ?? null) &&
+    fs.existsSync(clearTip.path);
+
   const filesOnDisk =
     fs.existsSync(path.join(sharedFolder, "alpha_only.md")) &&
     fs.existsSync(path.join(sharedFolder, "beta_only.md")) &&
     fs.existsSync(path.join(sharedFolder, "gamma_only.md"));
 
-  const success = bindingsDistinct && composerIsolated && rebindCoherent && filesOnDisk;
+  const success =
+    bindingsDistinct &&
+    pathMemoryCoherent &&
+    composerIsolated &&
+    rebindCoherent &&
+    pathMemoryFollowsRebind &&
+    filesOnDisk;
   console.log(
     JSON.stringify(
       {
@@ -201,6 +227,7 @@ try {
         alphaSourcePaths: alphaSources.map((source) => source.path),
         betaSourcePaths: betaSources.map((source) => source.path),
         bindingsDistinct,
+        pathMemoryCoherent,
         draftOnAlpha,
         draftOnBeta,
         draftBackOnAlpha,
@@ -209,6 +236,8 @@ try {
         clearTipSessionId: clearTip?.providerSessionId ?? null,
         alphaSourcesAfterClear: alphaSourcesAfterClear.map((source) => source.providerSessionId),
         rebindCoherent,
+        clearTipPath: clearTip?.path ?? null,
+        pathMemoryFollowsRebind,
         filesOnDisk,
         success,
       },

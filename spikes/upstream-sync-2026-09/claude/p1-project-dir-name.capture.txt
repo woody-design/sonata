@@ -1,0 +1,708 @@
+# p1 — project directory naming at claude 2.1.258 (Claude Code) (D2 U2)
+
+Probe: `p1-project-dir-name.mjs`. Version pinned at start (`2.1.258 (Claude Code)`)
+and at end (`2.1.258 (Claude Code)`).
+
+Spawn env hygiene: parent keys deleted before the first spawn —
+CLAUDE_EFFORT, CLAUDE_PID, CLAUDE_PLUGIN_DATA
+(U1 F70). Inherited `CLAUDE_CONFIG_DIR`: none.
+
+Settings guard: {"path":"~/.claude/settings.json","brackets":[{"at":"2026-09-02T20:38:41.797Z","label":"arm1","mutatedByProbe":false,"restored":true},{"at":"2026-09-02T20:38:45.962Z","label":"arm2a","mutatedByProbe":false,"restored":true},{"at":"2026-09-02T20:38:49.923Z","label":"arm2b","mutatedByProbe":false,"restored":true},{"at":"2026-09-02T20:38:58.313Z","label":"arm2c","mutatedByProbe":false,"restored":true},{"at":"2026-09-02T20:39:02.281Z","label":"arm4","mutatedByProbe":false,"restored":true},{"at":"2026-09-02T20:39:02.290Z","label":"final","mutatedByProbe":false,"restored":true}]}
+
+## Summary
+
+| arm | cwd chars | project directory the CLI USED | hash suffix? | == old rule(cwd)? | == old rule(realpath)? |
+|---|---|---|---|---|---|
+| arm1 | 52 | `-private-tmp-sonata-sync-2026-09-project-dir-arm1-ws` | false | yes | yes |
+| arm2a | 200 | `-private-tmp-sonata-sync-2026-09-project-dir-arm2a-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyy` | false | yes | yes |
+| arm2b | 201 | `-private-tmp-sonata-sync-2026-09-project-dir-arm2b-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyy-ykvb5a` | true | **NO** | **NO** |
+| arm2c | 300 | `-private-tmp-sonata-sync-2026-09-project-dir-arm2c-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxx-v5abde` | true | **NO** | **NO** |
+| arm4 | 44 | `-private-tmp-sonata-sync-2026-09-project-dir-arm4-ws` | false | **NO** | yes |
+
+## The id-anchored scan, timed over the REAL projects root
+
+The same shape the slice ships: one `readdir` of the projects root, then an
+exact-path `stat` per project directory (no recursion, no content reads, no
+naming rule). Measured here rather than estimated, because the scan replaces a
+single-directory read.
+
+| arm | project dirs | first sweep of the arm | warm full sweep (a MISS — worst case) | warm sweep that HITS |
+|---|---|---|---|---|
+| arm1 | 915 | 13.75 ms | 4.82 ms | 1.18 ms (68 stats) |
+| arm2a | 915 | 16.53 ms | 5.26 ms | — (no file: this arm drove no turn) |
+| arm2b | 915 | 16.20 ms | 4.89 ms | — (no file: this arm drove no turn) |
+| arm2c | 915 | 21.03 ms | 9.11 ms | 2.42 ms (69 stats) |
+| arm4 | 915 | 16.09 ms | 5.61 ms | — (no file: this arm drove no turn) |
+
+## Per-arm records
+
+### arm1
+
+```json
+{
+  "arm": "arm1",
+  "version": "2.1.258 (Claude Code)",
+  "sessionId": "42a36bbb-c487-4ed6-a11b-471a0c86c1ce",
+  "cwdHandedToSpawn": "/private/tmp/sonata-sync-2026-09/project-dir/arm1/ws",
+  "cwdHandedLength": 52,
+  "cwdRealpath": "/private/tmp/sonata-sync-2026-09/project-dir/arm1/ws",
+  "extraEnv": {
+    "CLAUDE_CODE_PROJECT_DIR_NAME": "sonata-p1-armone"
+  },
+  "configDirInSpawnEnv": null,
+  "argvHasSessionId": true,
+  "readyMs": 664,
+  "sessionStartHook": {
+    "atMs": 627,
+    "event": "SessionStart",
+    "keys": [
+      "cwd",
+      "hook_event_name",
+      "model",
+      "scratchpad_dir",
+      "session_id",
+      "source",
+      "transcript_path"
+    ],
+    "session_id": "42a36bbb-c487-4ed6-a11b-471a0c86c1ce",
+    "transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-project-dir-arm1-ws/42a36bbb-c487-4ed6-a11b-471a0c86c1ce.jsonl",
+    "transcriptExistedAtHook": false,
+    "cwd": "/private/tmp/sonata-sync-2026-09/project-dir/arm1/ws"
+  },
+  "projectDirFromHook": "-private-tmp-sonata-sync-2026-09-project-dir-arm1-ws",
+  "projectDirFromIdScan": "-private-tmp-sonata-sync-2026-09-project-dir-arm1-ws",
+  "readsAgree": true,
+  "oldRulePredictedFromHandedCwd": "-private-tmp-sonata-sync-2026-09-project-dir-arm1-ws",
+  "oldRulePredictedFromRealpath": "-private-tmp-sonata-sync-2026-09-project-dir-arm1-ws",
+  "idScan": {
+    "root": "$HOME/.claude/projects",
+    "found": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-project-dir-arm1-ws/42a36bbb-c487-4ed6-a11b-471a0c86c1ce.jsonl",
+    "dirCount": 915,
+    "statsPerformed": 68,
+    "elapsedMs": 1.175583
+  },
+  "idScanFullSweepCost": {
+    "dirCount": 915,
+    "hits": 1,
+    "elapsedMs": 4.820042
+  },
+  "hookEvents": [
+    "SessionStart@627ms",
+    "UserPromptSubmit@4199ms",
+    "Stop@7148ms"
+  ],
+  "notes": [
+    "ready=true at 664ms",
+    "SessionStart hook seen: true",
+    "id scan before any prompt: not found (915 dirs, 13.75ms)",
+    "prompt \"hi\" verified on the composer (attempt 1)",
+    "turn ended (Stop hook): true"
+  ],
+  "ready": true,
+  "scanBeforePrompt": {
+    "root": "$HOME/.claude/projects",
+    "found": null,
+    "dirCount": 915,
+    "statsPerformed": 915,
+    "elapsedMs": 13.747625
+  },
+  "promptSent": true,
+  "turnEnded": true
+}
+```
+
+#### arm1 — boot frame (@3166ms)
+
+```
+
+▗ ▗   ▖ ▖  Claude Code v2.1.258
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/project-dir/arm1/ws
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+```
+
+#### arm1 — after the turn (@7352ms)
+
+```
+
+▗ ▗   ▖ ▖  Claude Code v2.1.258
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/project-dir/arm1/ws
+
+
+❯ hi                                                                                                                    
+
+⏺ 嗨 Woody。工作区目前是干净的 main 分支，还没有提交记录。今天想从哪里开始？
+
+✻ Baked for 2s · done 4:38 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+```
+
+### arm2a
+
+```json
+{
+  "arm": "arm2a",
+  "version": "2.1.258 (Claude Code)",
+  "sessionId": "f2db512f-d766-4768-8ddd-f9f4bb032677",
+  "cwdHandedToSpawn": "/private/tmp/sonata-sync-2026-09/project-dir/arm2a/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "cwdHandedLength": 200,
+  "cwdRealpath": "/private/tmp/sonata-sync-2026-09/project-dir/arm2a/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "extraEnv": null,
+  "configDirInSpawnEnv": null,
+  "argvHasSessionId": true,
+  "readyMs": 828,
+  "sessionStartHook": {
+    "atMs": 729,
+    "event": "SessionStart",
+    "keys": [
+      "cwd",
+      "hook_event_name",
+      "model",
+      "scratchpad_dir",
+      "session_id",
+      "source",
+      "transcript_path"
+    ],
+    "session_id": "f2db512f-d766-4768-8ddd-f9f4bb032677",
+    "transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-project-dir-arm2a-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyy/f2db512f-d766-4768-8ddd-f9f4bb032677.jsonl",
+    "transcriptExistedAtHook": false,
+    "cwd": "/private/tmp/sonata-sync-2026-09/project-dir/arm2a/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+  },
+  "projectDirFromHook": "-private-tmp-sonata-sync-2026-09-project-dir-arm2a-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "projectDirFromIdScan": null,
+  "readsAgree": null,
+  "oldRulePredictedFromHandedCwd": "-private-tmp-sonata-sync-2026-09-project-dir-arm2a-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "oldRulePredictedFromRealpath": "-private-tmp-sonata-sync-2026-09-project-dir-arm2a-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "idScan": {
+    "root": "$HOME/.claude/projects",
+    "found": null,
+    "dirCount": 915,
+    "statsPerformed": 915,
+    "elapsedMs": 6.310708
+  },
+  "idScanFullSweepCost": {
+    "dirCount": 915,
+    "hits": 0,
+    "elapsedMs": 5.262667
+  },
+  "hookEvents": [
+    "SessionStart@729ms"
+  ],
+  "notes": [
+    "ready=true at 828ms",
+    "SessionStart hook seen: true",
+    "id scan before any prompt: not found (915 dirs, 16.53ms)"
+  ],
+  "ready": true,
+  "scanBeforePrompt": {
+    "root": "$HOME/.claude/projects",
+    "found": null,
+    "dirCount": 915,
+    "statsPerformed": 915,
+    "elapsedMs": 16.525125
+  },
+  "promptSent": false,
+  "turnEnded": null
+}
+```
+
+#### arm2a — boot frame (@3331ms)
+
+```
+
+▗ ▗   ▖ ▖  Claude Code v2.1.258
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /…/yyyyyyyyyyyyyyyyyyyyyyyyyyyy
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+```
+
+### arm2b
+
+```json
+{
+  "arm": "arm2b",
+  "version": "2.1.258 (Claude Code)",
+  "sessionId": "8e28b62d-f6e5-48fa-9131-b8f74b762308",
+  "cwdHandedToSpawn": "/private/tmp/sonata-sync-2026-09/project-dir/arm2b/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "cwdHandedLength": 201,
+  "cwdRealpath": "/private/tmp/sonata-sync-2026-09/project-dir/arm2b/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "extraEnv": null,
+  "configDirInSpawnEnv": null,
+  "argvHasSessionId": true,
+  "readyMs": 626,
+  "sessionStartHook": {
+    "atMs": 525,
+    "event": "SessionStart",
+    "keys": [
+      "cwd",
+      "hook_event_name",
+      "model",
+      "scratchpad_dir",
+      "session_id",
+      "source",
+      "transcript_path"
+    ],
+    "session_id": "8e28b62d-f6e5-48fa-9131-b8f74b762308",
+    "transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-project-dir-arm2b-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyy-ykvb5a/8e28b62d-f6e5-48fa-9131-b8f74b762308.jsonl",
+    "transcriptExistedAtHook": false,
+    "cwd": "/private/tmp/sonata-sync-2026-09/project-dir/arm2b/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+  },
+  "projectDirFromHook": "-private-tmp-sonata-sync-2026-09-project-dir-arm2b-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyy-ykvb5a",
+  "projectDirFromIdScan": null,
+  "readsAgree": null,
+  "oldRulePredictedFromHandedCwd": "-private-tmp-sonata-sync-2026-09-project-dir-arm2b-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "oldRulePredictedFromRealpath": "-private-tmp-sonata-sync-2026-09-project-dir-arm2b-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "idScan": {
+    "root": "$HOME/.claude/projects",
+    "found": null,
+    "dirCount": 915,
+    "statsPerformed": 915,
+    "elapsedMs": 5.516167
+  },
+  "idScanFullSweepCost": {
+    "dirCount": 915,
+    "hits": 0,
+    "elapsedMs": 4.891083
+  },
+  "hookEvents": [
+    "SessionStart@525ms"
+  ],
+  "notes": [
+    "ready=true at 626ms",
+    "SessionStart hook seen: true",
+    "id scan before any prompt: not found (915 dirs, 16.20ms)"
+  ],
+  "ready": true,
+  "scanBeforePrompt": {
+    "root": "$HOME/.claude/projects",
+    "found": null,
+    "dirCount": 915,
+    "statsPerformed": 915,
+    "elapsedMs": 16.195792
+  },
+  "promptSent": false,
+  "turnEnded": null
+}
+```
+
+#### arm2b — boot frame (@3129ms)
+
+```
+
+▗ ▗   ▖ ▖  Claude Code v2.1.258
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /…/yyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+```
+
+### arm2c
+
+```json
+{
+  "arm": "arm2c",
+  "version": "2.1.258 (Claude Code)",
+  "sessionId": "9632e7a5-4252-42a2-9d4c-bba86ba8abad",
+  "cwdHandedToSpawn": "/private/tmp/sonata-sync-2026-09/project-dir/arm2c/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyy",
+  "cwdHandedLength": 300,
+  "cwdRealpath": "/private/tmp/sonata-sync-2026-09/project-dir/arm2c/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyy",
+  "extraEnv": null,
+  "configDirInSpawnEnv": null,
+  "argvHasSessionId": true,
+  "readyMs": 627,
+  "sessionStartHook": {
+    "atMs": 627,
+    "event": "SessionStart",
+    "keys": [
+      "cwd",
+      "hook_event_name",
+      "model",
+      "scratchpad_dir",
+      "session_id",
+      "source",
+      "transcript_path"
+    ],
+    "session_id": "9632e7a5-4252-42a2-9d4c-bba86ba8abad",
+    "transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-project-dir-arm2c-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxx-v5abde/9632e7a5-4252-42a2-9d4c-bba86ba8abad.jsonl",
+    "transcriptExistedAtHook": false,
+    "cwd": "/private/tmp/sonata-sync-2026-09/project-dir/arm2c/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/yyyyyyy"
+  },
+  "projectDirFromHook": "-private-tmp-sonata-sync-2026-09-project-dir-arm2c-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxx-v5abde",
+  "projectDirFromIdScan": "-private-tmp-sonata-sync-2026-09-project-dir-arm2c-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxx-v5abde",
+  "readsAgree": true,
+  "oldRulePredictedFromHandedCwd": "-private-tmp-sonata-sync-2026-09-project-dir-arm2c-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyy",
+  "oldRulePredictedFromRealpath": "-private-tmp-sonata-sync-2026-09-project-dir-arm2c-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-yyyyyyy",
+  "idScan": {
+    "root": "$HOME/.claude/projects",
+    "found": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-project-dir-arm2c-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxx-v5abde/9632e7a5-4252-42a2-9d4c-bba86ba8abad.jsonl",
+    "dirCount": 915,
+    "statsPerformed": 69,
+    "elapsedMs": 2.418167
+  },
+  "idScanFullSweepCost": {
+    "dirCount": 915,
+    "hits": 1,
+    "elapsedMs": 9.113583
+  },
+  "hookEvents": [
+    "SessionStart@627ms",
+    "UserPromptSubmit@4189ms",
+    "Stop@7540ms"
+  ],
+  "notes": [
+    "ready=true at 627ms",
+    "SessionStart hook seen: true",
+    "id scan before any prompt: not found (915 dirs, 21.03ms)",
+    "prompt \"hi\" verified on the composer (attempt 1)",
+    "turn ended (Stop hook): true"
+  ],
+  "ready": true,
+  "scanBeforePrompt": {
+    "root": "$HOME/.claude/projects",
+    "found": null,
+    "dirCount": 915,
+    "statsPerformed": 915,
+    "elapsedMs": 21.025792
+  },
+  "promptSent": true,
+  "turnEnded": true
+}
+```
+
+#### arm2c — boot frame (@3127ms)
+
+```
+
+▗ ▗   ▖ ▖  Claude Code v2.1.258
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /…/yyyyyyy
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+```
+
+#### arm2c — after the turn (@7574ms)
+
+```
+
+▗ ▗   ▖ ▖  Claude Code v2.1.258
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /…/yyyyyyy
+
+
+❯ hi                                                                                                                    
+
+⏺ 你好 Woody。这里是 yyyyyyy 项目目录，git 状态干净，还没有提交记录。今天想做什么？
+
+✻ Worked for 3s · done 4:38 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+```
+
+### arm4
+
+```json
+{
+  "arm": "arm4",
+  "version": "2.1.258 (Claude Code)",
+  "sessionId": "673e23b5-8f24-4a1f-a8f0-d4f96929d2bf",
+  "cwdHandedToSpawn": "/tmp/sonata-sync-2026-09/project-dir/arm4/ws",
+  "cwdHandedLength": 44,
+  "cwdRealpath": "/private/tmp/sonata-sync-2026-09/project-dir/arm4/ws",
+  "extraEnv": null,
+  "configDirInSpawnEnv": null,
+  "argvHasSessionId": true,
+  "readyMs": 630,
+  "sessionStartHook": {
+    "atMs": 630,
+    "event": "SessionStart",
+    "keys": [
+      "cwd",
+      "hook_event_name",
+      "model",
+      "scratchpad_dir",
+      "session_id",
+      "source",
+      "transcript_path"
+    ],
+    "session_id": "673e23b5-8f24-4a1f-a8f0-d4f96929d2bf",
+    "transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-project-dir-arm4-ws/673e23b5-8f24-4a1f-a8f0-d4f96929d2bf.jsonl",
+    "transcriptExistedAtHook": false,
+    "cwd": "/private/tmp/sonata-sync-2026-09/project-dir/arm4/ws"
+  },
+  "projectDirFromHook": "-private-tmp-sonata-sync-2026-09-project-dir-arm4-ws",
+  "projectDirFromIdScan": null,
+  "readsAgree": null,
+  "oldRulePredictedFromHandedCwd": "-tmp-sonata-sync-2026-09-project-dir-arm4-ws",
+  "oldRulePredictedFromRealpath": "-private-tmp-sonata-sync-2026-09-project-dir-arm4-ws",
+  "idScan": {
+    "root": "$HOME/.claude/projects",
+    "found": null,
+    "dirCount": 915,
+    "statsPerformed": 915,
+    "elapsedMs": 6.884958
+  },
+  "idScanFullSweepCost": {
+    "dirCount": 915,
+    "hits": 0,
+    "elapsedMs": 5.609667
+  },
+  "hookEvents": [
+    "SessionStart@630ms"
+  ],
+  "notes": [
+    "ready=true at 630ms",
+    "SessionStart hook seen: true",
+    "id scan before any prompt: not found (915 dirs, 16.09ms)"
+  ],
+  "ready": true,
+  "scanBeforePrompt": {
+    "root": "$HOME/.claude/projects",
+    "found": null,
+    "dirCount": 915,
+    "statsPerformed": 915,
+    "elapsedMs": 16.093292
+  },
+  "promptSent": false,
+  "turnEnded": null
+}
+```
+
+#### arm4 — boot frame (@3133ms)
+
+```
+
+▗ ▗   ▖ ▖  Claude Code v2.1.258
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/project-dir/arm4/ws
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+```
+
