@@ -56,4 +56,19 @@ assert.equal(classifySlashIntent(entry("claude", "status")), "passthrough");
 assert.equal(classifySlashIntent(entry("codex", "model")), "passthrough");
 assert.equal(classifySlashIntent(entry("codex", "permissions")), "passthrough");
 
+// The 2026-09-02 refresh added ALIAS entries (`/review` → /code-review,
+// `/quit` → /exit, …). An alias is still a builtin and still submits verbatim:
+// the CLI, not Sonata, resolves the fold. Locking both halves of a pair here
+// makes that explicit — nothing in this file may start rewriting an alias to
+// its canonical spelling on the way to the PTY.
+for (const [alias, canonical] of [["review", "code-review"], ["quit", "exit"], ["stats", "usage"]]) {
+  assert.equal(classifySlashIntent(entry("claude", alias)), "passthrough", `/${alias} → passthrough`);
+  assert.equal(classifySlashIntent(entry("claude", canonical)), "passthrough", `/${canonical} → passthrough`);
+  assert.equal(
+    entry("claude", alias).invocation,
+    `/${alias}`,
+    `/${alias} submits as itself, not as /${canonical}`,
+  );
+}
+
 console.log("slash-intent smoke: all assertions passed (2-way: skill | passthrough)");

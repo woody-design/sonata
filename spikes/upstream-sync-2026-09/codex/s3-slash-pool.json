@@ -1,0 +1,725 @@
+{
+  "version": "codex-cli 0.152.1",
+  "ok": true,
+  "walk": {
+    "channelA": 50,
+    "channelAsteps": 59,
+    "channelAendedDry": true,
+    "channelB": 52
+  },
+  "pool": [
+    {
+      "name": "agents",
+      "description": "view and switch between all active agent sessions",
+      "channels": "AB"
+    },
+    {
+      "name": "app",
+      "description": "continue this session in the Desktop app",
+      "channels": "ABC"
+    },
+    {
+      "name": "approve",
+      "description": "approve one retry of a recent auto-review denial",
+      "channels": "ABC"
+    },
+    {
+      "name": "archive",
+      "description": "archive this session and exit",
+      "channels": "ABC"
+    },
+    {
+      "name": "btw",
+      "description": "start a side conversation in an ephemeral fork",
+      "channels": "BC"
+    },
+    {
+      "name": "cd",
+      "description": "change the current working directory",
+      "channels": "ABC"
+    },
+    {
+      "name": "clear",
+      "description": "clear the terminal and start a new chat",
+      "channels": "ABC"
+    },
+    {
+      "name": "compact",
+      "description": "summarize conversation to prevent hitting the context limit",
+      "channels": "ABC"
+    },
+    {
+      "name": "copy",
+      "description": "copy the last response, code block, or quote",
+      "channels": "ABC"
+    },
+    {
+      "name": "delete",
+      "description": "permanently delete this session and exit",
+      "channels": "ABC"
+    },
+    {
+      "name": "diff",
+      "description": "show git diff (including untracked files)",
+      "channels": "ABC"
+    },
+    {
+      "name": "exit",
+      "description": "exit Codex",
+      "channels": "ABC"
+    },
+    {
+      "name": "experimental",
+      "description": "toggle experimental features",
+      "channels": "ABC"
+    },
+    {
+      "name": "export",
+      "description": "export the conversation as markdown",
+      "channels": "ABC"
+    },
+    {
+      "name": "fast",
+      "description": "1.5x speed, increased usage",
+      "channels": "ABC"
+    },
+    {
+      "name": "feedback",
+      "description": "send logs to maintainers",
+      "channels": "ABC"
+    },
+    {
+      "name": "fork",
+      "description": "fork the current chat",
+      "channels": "ABC"
+    },
+    {
+      "name": "goal",
+      "description": "set or view the goal for a long-running task",
+      "channels": "ABC"
+    },
+    {
+      "name": "hooks",
+      "description": "view and manage lifecycle hooks",
+      "channels": "ABC"
+    },
+    {
+      "name": "ide",
+      "description": "include current selection, open files, and other context from your IDE",
+      "channels": "ABC"
+    },
+    {
+      "name": "import",
+      "description": "import setup, this project, and recent chats from Claude Code",
+      "channels": "ABC"
+    },
+    {
+      "name": "init",
+      "description": "create an AGENTS.md file with instructions for Codex",
+      "channels": "ABC"
+    },
+    {
+      "name": "keymap",
+      "description": "remap TUI shortcuts",
+      "channels": "ABC"
+    },
+    {
+      "name": "logout",
+      "description": "log out of Codex",
+      "channels": "ABC"
+    },
+    {
+      "name": "mcp",
+      "description": "list configured MCP tools; use /mcp verbose for details",
+      "channels": "ABC"
+    },
+    {
+      "name": "memories",
+      "description": "configure memory use and generation",
+      "channels": "ABC"
+    },
+    {
+      "name": "mention",
+      "description": "mention a file",
+      "channels": "ABC"
+    },
+    {
+      "name": "model",
+      "description": "choose what model and reasoning effort to use",
+      "channels": "ABC"
+    },
+    {
+      "name": "new",
+      "description": "start a new chat during a conversation",
+      "channels": "ABC"
+    },
+    {
+      "name": "permissions",
+      "description": "choose what Codex is allowed to do",
+      "channels": "ABC"
+    },
+    {
+      "name": "personality",
+      "description": "choose a communication style for Codex",
+      "channels": "ABC"
+    },
+    {
+      "name": "pets",
+      "description": "choose or hide the terminal pet",
+      "channels": "ABC"
+    },
+    {
+      "name": "plan",
+      "description": "switch to Plan mode",
+      "channels": "ABC"
+    },
+    {
+      "name": "plugins",
+      "description": "browse plugins",
+      "channels": "ABC"
+    },
+    {
+      "name": "ps",
+      "description": "list background terminals",
+      "channels": "ABC"
+    },
+    {
+      "name": "pwd",
+      "description": "show the current working directory",
+      "channels": "ABC"
+    },
+    {
+      "name": "quit",
+      "description": "exit Codex",
+      "channels": "BC"
+    },
+    {
+      "name": "raw",
+      "description": "toggle raw scrollback mode for copy-friendly terminal selection",
+      "channels": "ABC"
+    },
+    {
+      "name": "recap",
+      "description": "summarize the current conversation now",
+      "channels": "AB"
+    },
+    {
+      "name": "rename",
+      "description": "rename the current thread",
+      "channels": "ABC"
+    },
+    {
+      "name": "resume",
+      "description": "resume a saved chat",
+      "channels": "ABC"
+    },
+    {
+      "name": "review",
+      "description": "review my current changes and find issues",
+      "channels": "ABC"
+    },
+    {
+      "name": "side",
+      "description": "start a side conversation in an ephemeral fork",
+      "channels": "ABC"
+    },
+    {
+      "name": "skills",
+      "description": "use skills to improve how Codex performs specific tasks",
+      "channels": "ABC"
+    },
+    {
+      "name": "status",
+      "description": "show current session configuration and token usage",
+      "channels": "ABC"
+    },
+    {
+      "name": "statusline",
+      "description": "configure which items appear in the status line",
+      "channels": "ABC"
+    },
+    {
+      "name": "stop",
+      "description": "stop all background terminals",
+      "channels": "ABC"
+    },
+    {
+      "name": "subagents",
+      "description": "switch between this session's subagents",
+      "channels": "ABC"
+    },
+    {
+      "name": "theme",
+      "description": "choose a syntax highlighting theme",
+      "channels": "ABC"
+    },
+    {
+      "name": "title",
+      "description": "configure which items appear in the terminal title",
+      "channels": "ABC"
+    },
+    {
+      "name": "usage",
+      "description": "view account usage or use a usage limit reset",
+      "channels": "ABC"
+    },
+    {
+      "name": "vim",
+      "description": "toggle Vim mode for the composer",
+      "channels": "ABC"
+    }
+  ],
+  "nameProbes": [
+    {
+      "name": "model",
+      "exact": true,
+      "description": "choose what model and reasoning effort to use",
+      "offered": [
+        "model"
+      ]
+    },
+    {
+      "name": "permissions",
+      "exact": true,
+      "description": "choose what Codex is allowed to do",
+      "offered": [
+        "permissions"
+      ]
+    },
+    {
+      "name": "compact",
+      "exact": true,
+      "description": "summarize conversation to prevent hitting the context limit",
+      "offered": [
+        "compact"
+      ]
+    },
+    {
+      "name": "status",
+      "exact": true,
+      "description": "show current session configuration and token usage",
+      "offered": [
+        "status",
+        "statusline"
+      ]
+    },
+    {
+      "name": "diff",
+      "exact": true,
+      "description": "show git diff (including untracked files)",
+      "offered": [
+        "diff"
+      ]
+    },
+    {
+      "name": "init",
+      "exact": true,
+      "description": "create an AGENTS.md file with instructions for Codex",
+      "offered": [
+        "init"
+      ]
+    },
+    {
+      "name": "mcp",
+      "exact": true,
+      "description": "list configured MCP tools; use /mcp verbose for details",
+      "offered": [
+        "mcp"
+      ]
+    },
+    {
+      "name": "fast",
+      "exact": true,
+      "description": "1.5x speed, increased usage",
+      "offered": [
+        "fast"
+      ]
+    },
+    {
+      "name": "review",
+      "exact": true,
+      "description": "review my current changes and find issues",
+      "offered": [
+        "review"
+      ]
+    },
+    {
+      "name": "new",
+      "exact": true,
+      "description": "start a new chat during a conversation",
+      "offered": [
+        "new"
+      ]
+    },
+    {
+      "name": "clear",
+      "exact": true,
+      "description": "clear the terminal and start a new chat",
+      "offered": [
+        "clear"
+      ]
+    },
+    {
+      "name": "archive",
+      "exact": true,
+      "description": "archive this session and exit",
+      "offered": [
+        "archive"
+      ]
+    },
+    {
+      "name": "delete",
+      "exact": true,
+      "description": "permanently delete this session and exit",
+      "offered": [
+        "delete"
+      ]
+    },
+    {
+      "name": "resume",
+      "exact": true,
+      "description": "resume a saved chat",
+      "offered": [
+        "resume"
+      ]
+    },
+    {
+      "name": "fork",
+      "exact": true,
+      "description": "fork the current chat",
+      "offered": [
+        "fork"
+      ]
+    },
+    {
+      "name": "app",
+      "exact": true,
+      "description": "continue this session in the Desktop app",
+      "offered": [
+        "app",
+        "approve"
+      ]
+    },
+    {
+      "name": "plan",
+      "exact": true,
+      "description": "switch to Plan mode",
+      "offered": [
+        "plan"
+      ]
+    },
+    {
+      "name": "goal",
+      "exact": true,
+      "description": "set or view the goal for a long-running task",
+      "offered": [
+        "goal"
+      ]
+    },
+    {
+      "name": "agent",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "agents"
+      ]
+    },
+    {
+      "name": "subagents",
+      "exact": true,
+      "description": "switch between this session's subagents",
+      "offered": [
+        "subagents"
+      ]
+    },
+    {
+      "name": "side",
+      "exact": true,
+      "description": "start a side conversation in an ephemeral fork",
+      "offered": [
+        "side"
+      ]
+    },
+    {
+      "name": "btw",
+      "exact": true,
+      "description": "start a side conversation in an ephemeral fork",
+      "offered": [
+        "btw"
+      ]
+    },
+    {
+      "name": "copy",
+      "exact": true,
+      "description": "copy the last response, code block, or quote",
+      "offered": [
+        "copy"
+      ]
+    },
+    {
+      "name": "raw",
+      "exact": true,
+      "description": "toggle raw scrollback mode for copy-friendly terminal selection",
+      "offered": [
+        "raw"
+      ]
+    },
+    {
+      "name": "mention",
+      "exact": true,
+      "description": "mention a file",
+      "offered": [
+        "mention"
+      ]
+    },
+    {
+      "name": "skills",
+      "exact": true,
+      "description": "use skills to improve how Codex performs specific tasks",
+      "offered": [
+        "skills"
+      ]
+    },
+    {
+      "name": "hooks",
+      "exact": true,
+      "description": "view and manage lifecycle hooks",
+      "offered": [
+        "hooks"
+      ]
+    },
+    {
+      "name": "plugins",
+      "exact": true,
+      "description": "browse plugins",
+      "offered": [
+        "plugins"
+      ]
+    },
+    {
+      "name": "ps",
+      "exact": true,
+      "description": "list background terminals",
+      "offered": [
+        "ps"
+      ]
+    },
+    {
+      "name": "stop",
+      "exact": true,
+      "description": "stop all background terminals",
+      "offered": [
+        "stop"
+      ]
+    },
+    {
+      "name": "experimental",
+      "exact": true,
+      "description": "toggle experimental features",
+      "offered": [
+        "experimental"
+      ]
+    },
+    {
+      "name": "memories",
+      "exact": true,
+      "description": "configure memory use and generation",
+      "offered": [
+        "memories"
+      ]
+    },
+    {
+      "name": "personality",
+      "exact": true,
+      "description": "choose a communication style for Codex",
+      "offered": [
+        "personality"
+      ]
+    },
+    {
+      "name": "feedback",
+      "exact": true,
+      "description": "send logs to maintainers",
+      "offered": [
+        "feedback"
+      ]
+    },
+    {
+      "name": "import",
+      "exact": true,
+      "description": "import setup, this project, and recent chats from Claude Code",
+      "offered": [
+        "import"
+      ]
+    },
+    {
+      "name": "keymap",
+      "exact": true,
+      "description": "remap TUI shortcuts",
+      "offered": [
+        "keymap"
+      ]
+    },
+    {
+      "name": "theme",
+      "exact": true,
+      "description": "choose a syntax highlighting theme",
+      "offered": [
+        "theme"
+      ]
+    },
+    {
+      "name": "title",
+      "exact": true,
+      "description": "configure which items appear in the terminal title",
+      "offered": [
+        "title"
+      ]
+    },
+    {
+      "name": "statusline",
+      "exact": true,
+      "description": "configure which items appear in the status line",
+      "offered": [
+        "statusline"
+      ]
+    },
+    {
+      "name": "pets",
+      "exact": true,
+      "description": "choose or hide the terminal pet",
+      "offered": [
+        "pets"
+      ]
+    },
+    {
+      "name": "vim",
+      "exact": true,
+      "description": "toggle Vim mode for the composer",
+      "offered": [
+        "vim"
+      ]
+    },
+    {
+      "name": "ide",
+      "exact": true,
+      "description": "include current selection, open files, and other context from your IDE",
+      "offered": [
+        "ide"
+      ]
+    },
+    {
+      "name": "rename",
+      "exact": true,
+      "description": "rename the current thread",
+      "offered": [
+        "rename"
+      ]
+    },
+    {
+      "name": "approve",
+      "exact": true,
+      "description": "approve one retry of a recent auto-review denial",
+      "offered": [
+        "approve"
+      ]
+    },
+    {
+      "name": "usage",
+      "exact": true,
+      "description": "view account usage or use a usage limit reset",
+      "offered": [
+        "usage"
+      ]
+    },
+    {
+      "name": "logout",
+      "exact": true,
+      "description": "log out of Codex",
+      "offered": [
+        "logout"
+      ]
+    },
+    {
+      "name": "quit",
+      "exact": true,
+      "description": "exit Codex",
+      "offered": [
+        "quit"
+      ]
+    },
+    {
+      "name": "exit",
+      "exact": true,
+      "description": "exit Codex",
+      "offered": [
+        "exit"
+      ]
+    },
+    {
+      "name": "export",
+      "exact": true,
+      "description": "export the conversation as markdown",
+      "offered": [
+        "export"
+      ]
+    },
+    {
+      "name": "cd",
+      "exact": true,
+      "description": "change the current working directory",
+      "offered": [
+        "cd"
+      ]
+    },
+    {
+      "name": "pwd",
+      "exact": true,
+      "description": "show the current working directory",
+      "offered": [
+        "pwd"
+      ]
+    },
+    {
+      "name": "cwd",
+      "exact": false,
+      "description": null,
+      "offered": []
+    },
+    {
+      "name": "undo",
+      "exact": false,
+      "description": null,
+      "offered": []
+    },
+    {
+      "name": "login",
+      "exact": false,
+      "description": null,
+      "offered": []
+    },
+    {
+      "name": "help",
+      "exact": false,
+      "description": null,
+      "offered": []
+    },
+    {
+      "name": "about",
+      "exact": false,
+      "description": null,
+      "offered": []
+    }
+  ],
+  "diskSkills": [
+    ".system  [$HOME/.codex/skills]",
+    "architect  [$HOME/.codex/skills]",
+    "architect-codex  [$HOME/.codex/skills]",
+    "designer-woody  [$HOME/.codex/skills]",
+    "release  [$HOME/.codex/skills]",
+    "save-writing  [$HOME/.codex/skills]",
+    "woody-learn  [$HOME/.codex/skills]"
+  ],
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": false
+}

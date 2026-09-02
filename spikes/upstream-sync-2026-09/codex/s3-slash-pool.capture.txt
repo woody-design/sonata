@@ -1,0 +1,467 @@
+# S3 — codex /-picker pool walk (codex codex-cli 0.152.1)
+# captured 2026-09-02T04:21:28.028Z
+
+===== spawn shape =====
+["-p","sonata","--dangerously-bypass-hook-trust","--no-alt-screen","-C","/private/tmp/sonata-sync-2026-09/slash-pool-codex/walk","-s","workspace-write","-a","on-request","-c","approvals_reviewer=\"user\""]
+cols=200 rows=40
+
+===== boot — production acceptsPromptInput() went true at =====
+152 ms
+
+===== boot — idle composer =====
+--- screen ---
+╭─────────────────────────────────────────────────╮
+│ >_ OpenAI Codex (v0.152.1)                      │
+│                                                 │
+│ model:     loading   /model to change           │
+│ directory: /private/tmp/…/slash-pool-codex/walk │
+╰─────────────────────────────────────────────────╯
+ 
+ 
+› Ask Codex to do anything
+ 
+  ? for shortcuts
+
+===== on-disk codex skills ($-invoked, expected ABSENT from the / picker) =====
+.system  [$HOME/.codex/skills]
+architect  [$HOME/.codex/skills]
+architect-codex  [$HOME/.codex/skills]
+designer-woody  [$HOME/.codex/skills]
+release  [$HOME/.codex/skills]
+save-writing  [$HOME/.codex/skills]
+woody-learn  [$HOME/.codex/skills]
+
+===== A — picker OPEN on bare `/` =====
+--- screen ---
+
+
+╭─────────────────────────────────────────────────╮
+│ >_ OpenAI Codex (v0.152.1)                      │
+│                                                 │
+│ model:     gpt-5.6-sol   /model to change       │
+│ directory: /private/tmp/…/slash-pool-codex/walk │
+╰─────────────────────────────────────────────────╯
+
+  Tip: New Use /fast to enable our fastest inference with increased plan usage.
+
+⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.
+
+• You have 1 usage limit reset available. Run /usage to use one.
+ 
+ 
+› /
+ 
+  /model         choose what model and reasoning effort to use
+  /fast          1.5x speed, increased usage
+  /ide           include current selection, open files, and other context from your IDE
+  /permissions   choose what Codex is allowed to do
+  /keymap        remap TUI shortcuts
+  /vim           toggle Vim mode for the composer
+  /experimental  toggle experimental features
+  /approve       approve one retry of a recent auto-review denial
+
+===== A — picker at the END of the Down walk =====
+--- screen ---
+
+
+╭─────────────────────────────────────────────────╮
+│ >_ OpenAI Codex (v0.152.1)                      │
+│                                                 │
+│ model:     gpt-5.6-sol   /model to change       │
+│ directory: /private/tmp/…/slash-pool-codex/walk │
+╰─────────────────────────────────────────────────╯
+
+  Tip: New Use /fast to enable our fastest inference with increased plan usage.
+
+⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.
+
+• You have 1 usage limit reset available. Run /usage to use one.
+ 
+ 
+› /
+ 
+  /ide           include current selection, open files, and other context from your IDE
+  /permissions   choose what Codex is allowed to do
+  /keymap        remap TUI shortcuts
+  /vim           toggle Vim mode for the composer
+  /experimental  toggle experimental features
+  /approve       approve one retry of a recent auto-review denial
+  /memories      configure memory use and generation
+  /skills        use skills to improve how Codex performs specific tasks
+
+===== A — bare-`/` walk (steps=59, endedDry=true, names=50) =====
+  | /model  choose what model and reasoning effort to use
+  | /fast  1.5x speed, increased usage
+  | /ide  include current selection, open files, and other context from your IDE
+  | /permissions  choose what Codex is allowed to do
+  | /keymap  remap TUI shortcuts
+  | /vim  toggle Vim mode for the composer
+  | /experimental  toggle experimental features
+  | /approve  approve one retry of a recent auto-review denial
+  | /memories  configure memory use and generation
+  | /skills  use skills to improve how Codex performs specific tasks
+  | /import  import setup, this project, and recent chats from Claude Code
+  | /hooks  view and manage lifecycle hooks
+  | /review  review my current changes and find issues
+  | /rename  rename the current thread
+  | /new  start a new chat during a conversation
+  | /archive  archive this session and exit
+  | /delete  permanently delete this session and exit
+  | /resume  resume a saved chat
+  | /fork  fork the current chat
+  | /app  continue this session in the Desktop app
+  | /init  create an AGENTS.md file with instructions for Codex
+  | /compact  summarize conversation to prevent hitting the context limit
+  | /recap  summarize the current conversation now
+  | /plan  switch to Plan mode
+  | /goal  set or view the goal for a long-running task
+  | /agents  view and switch between all active agent sessions
+  | /side  start a side conversation in an ephemeral fork
+  | /copy  copy the last response, code block, or quote
+  | /export  export the conversation as markdown
+  | /raw  toggle raw scrollback mode for copy-friendly terminal selection
+  | /diff  show git diff (including untracked files)
+  | /mention  mention a file
+  | /status  show current session configuration and token usage
+  | /cd  change the current working directory
+  | /pwd  show the current working directory
+  | /usage  view account usage or use a usage limit reset
+  | /title  configure which items appear in the terminal title
+  | /statusline  configure which items appear in the status line
+  | /theme  choose a syntax highlighting theme
+  | /pets  choose or hide the terminal pet
+  | /mcp  list configured MCP tools; use /mcp verbose for details
+  | /plugins  browse plugins
+  | /logout  log out of Codex
+  | /exit  exit Codex
+  | /feedback  send logs to maintainers
+  | /ps  list background terminals
+  | /stop  stop all background terminals
+  | /clear  clear the terminal and start a new chat
+  | /personality  choose a communication style for Codex
+  | /subagents  switch between this session's subagents
+
+===== B — prefix sweep (a–z, 0–9), each walked to exhaustion =====
+/a  names=4 (steps=6, endedDry=true)
+        | /approve  approve one retry of a recent auto-review denial
+        | /archive  archive this session and exit
+        | /app  continue this session in the Desktop app
+        | /agents  view and switch between all active agent sessions
+/b  names=1 (steps=6, endedDry=true)
+        | /btw  start a side conversation in an ephemeral fork
+/c  names=4 (steps=6, endedDry=true)
+        | /compact  summarize conversation to prevent hitting the context limit
+        | /copy  copy the last response, code block, or quote
+        | /cd  change the current working directory
+        | /clear  clear the terminal and start a new chat
+/d  names=2 (steps=6, endedDry=true)
+        | /delete  permanently delete this session and exit
+        | /diff  show git diff (including untracked files)
+/e  names=3 (steps=6, endedDry=true)
+        | /experimental  toggle experimental features
+        | /export  export the conversation as markdown
+        | /exit  exit Codex
+/f  names=3 (steps=6, endedDry=true)
+        | /fast  1.5x speed, increased usage
+        | /fork  fork the current chat
+        | /feedback  send logs to maintainers
+/g  names=1 (steps=6, endedDry=true)
+        | /goal  set or view the goal for a long-running task
+/h  names=1 (steps=6, endedDry=true)
+        | /hooks  view and manage lifecycle hooks
+/i  names=3 (steps=6, endedDry=true)
+        | /ide  include current selection, open files, and other context from your IDE
+        | /import  import setup, this project, and recent chats from Claude Code
+        | /init  create an AGENTS.md file with instructions for Codex
+/j  names=0 (steps=6, endedDry=true)
+
+/k  names=1 (steps=6, endedDry=true)
+        | /keymap  remap TUI shortcuts
+/l  names=1 (steps=6, endedDry=true)
+        | /logout  log out of Codex
+/m  names=4 (steps=6, endedDry=true)
+        | /model  choose what model and reasoning effort to use
+        | /memories  configure memory use and generation
+        | /mention  mention a file
+        | /mcp  list configured MCP tools; use /mcp verbose for details
+/n  names=1 (steps=6, endedDry=true)
+        | /new  start a new chat during a conversation
+/o  names=0 (steps=6, endedDry=true)
+
+/p  names=7 (steps=6, endedDry=true)
+        | /permissions  choose what Codex is allowed to do
+        | /plan  switch to Plan mode
+        | /pwd  show the current working directory
+        | /pets  choose or hide the terminal pet
+        | /plugins  browse plugins
+        | /ps  list background terminals
+        | /personality  choose a communication style for Codex
+/q  names=1 (steps=6, endedDry=true)
+        | /quit  exit Codex
+/r  names=5 (steps=6, endedDry=true)
+        | /review  review my current changes and find issues
+        | /rename  rename the current thread
+        | /resume  resume a saved chat
+        | /recap  summarize the current conversation now
+        | /raw  toggle raw scrollback mode for copy-friendly terminal selection
+/s  names=6 (steps=6, endedDry=true)
+        | /skills  use skills to improve how Codex performs specific tasks
+        | /side  start a side conversation in an ephemeral fork
+        | /status  show current session configuration and token usage
+        | /statusline  configure which items appear in the status line
+        | /stop  stop all background terminals
+        | /subagents  switch between this session's subagents
+/t  names=2 (steps=6, endedDry=true)
+        | /title  configure which items appear in the terminal title
+        | /theme  choose a syntax highlighting theme
+/u  names=1 (steps=6, endedDry=true)
+        | /usage  view account usage or use a usage limit reset
+/v  names=1 (steps=6, endedDry=true)
+        | /vim  toggle Vim mode for the composer
+/w  names=0 (steps=6, endedDry=true)
+
+/x  names=0 (steps=6, endedDry=true)
+
+/y  names=0 (steps=6, endedDry=true)
+
+/z  names=0 (steps=6, endedDry=true)
+
+/0  names=0 (steps=6, endedDry=true)
+
+/1  names=0 (steps=6, endedDry=true)
+
+/2  names=0 (steps=6, endedDry=true)
+
+/3  names=0 (steps=6, endedDry=true)
+
+/4  names=0 (steps=6, endedDry=true)
+
+/5  names=0 (steps=6, endedDry=true)
+
+/6  names=0 (steps=6, endedDry=true)
+
+/7  names=0 (steps=6, endedDry=true)
+
+/8  names=0 (steps=6, endedDry=true)
+
+/9  names=0 (steps=6, endedDry=true)
+
+
+===== C — full-name probes (exact row present?) =====
+  /model          exact=true  offered=[model]
+      choose what model and reasoning effort to use
+  /permissions    exact=true  offered=[permissions]
+      choose what Codex is allowed to do
+  /compact        exact=true  offered=[compact]
+      summarize conversation to prevent hitting the context limit
+  /status         exact=true  offered=[status, statusline]
+      show current session configuration and token usage
+  /diff           exact=true  offered=[diff]
+      show git diff (including untracked files)
+  /init           exact=true  offered=[init]
+      create an AGENTS.md file with instructions for Codex
+  /mcp            exact=true  offered=[mcp]
+      list configured MCP tools; use /mcp verbose for details
+  /fast           exact=true  offered=[fast]
+      1.5x speed, increased usage
+  /review         exact=true  offered=[review]
+      review my current changes and find issues
+  /new            exact=true  offered=[new]
+      start a new chat during a conversation
+  /clear          exact=true  offered=[clear]
+      clear the terminal and start a new chat
+  /archive        exact=true  offered=[archive]
+      archive this session and exit
+  /delete         exact=true  offered=[delete]
+      permanently delete this session and exit
+  /resume         exact=true  offered=[resume]
+      resume a saved chat
+  /fork           exact=true  offered=[fork]
+      fork the current chat
+  /app            exact=true  offered=[app, approve]
+      continue this session in the Desktop app
+  /plan           exact=true  offered=[plan]
+      switch to Plan mode
+  /goal           exact=true  offered=[goal]
+      set or view the goal for a long-running task
+  /agent          exact=false offered=[agents]
+  /subagents      exact=true  offered=[subagents]
+      switch between this session's subagents
+  /side           exact=true  offered=[side]
+      start a side conversation in an ephemeral fork
+  /btw            exact=true  offered=[btw]
+      start a side conversation in an ephemeral fork
+  /copy           exact=true  offered=[copy]
+      copy the last response, code block, or quote
+  /raw            exact=true  offered=[raw]
+      toggle raw scrollback mode for copy-friendly terminal selection
+  /mention        exact=true  offered=[mention]
+      mention a file
+  /skills         exact=true  offered=[skills]
+      use skills to improve how Codex performs specific tasks
+  /hooks          exact=true  offered=[hooks]
+      view and manage lifecycle hooks
+  /plugins        exact=true  offered=[plugins]
+      browse plugins
+  /ps             exact=true  offered=[ps]
+      list background terminals
+  /stop           exact=true  offered=[stop]
+      stop all background terminals
+  /experimental   exact=true  offered=[experimental]
+      toggle experimental features
+  /memories       exact=true  offered=[memories]
+      configure memory use and generation
+  /personality    exact=true  offered=[personality]
+      choose a communication style for Codex
+  /feedback       exact=true  offered=[feedback]
+      send logs to maintainers
+  /import         exact=true  offered=[import]
+      import setup, this project, and recent chats from Claude Code
+  /keymap         exact=true  offered=[keymap]
+      remap TUI shortcuts
+  /theme          exact=true  offered=[theme]
+      choose a syntax highlighting theme
+  /title          exact=true  offered=[title]
+      configure which items appear in the terminal title
+  /statusline     exact=true  offered=[statusline]
+      configure which items appear in the status line
+  /pets           exact=true  offered=[pets]
+      choose or hide the terminal pet
+  /vim            exact=true  offered=[vim]
+      toggle Vim mode for the composer
+  /ide            exact=true  offered=[ide]
+      include current selection, open files, and other context from your IDE
+  /rename         exact=true  offered=[rename]
+      rename the current thread
+  /approve        exact=true  offered=[approve]
+      approve one retry of a recent auto-review denial
+  /usage          exact=true  offered=[usage]
+      view account usage or use a usage limit reset
+  /logout         exact=true  offered=[logout]
+      log out of Codex
+  /quit           exact=true  offered=[quit]
+      exit Codex
+  /exit           exact=true  offered=[exit]
+      exit Codex
+  /export         exact=true  offered=[export]
+      export the conversation as markdown
+  /cd             exact=true  offered=[cd]
+      change the current working directory
+  /pwd            exact=true  offered=[pwd]
+      show the current working directory
+  /cwd            exact=false offered=[]
+  /undo           exact=false offered=[]
+  /login          exact=false offered=[]
+  /help           exact=false offered=[]
+  /about          exact=false offered=[]
+
+===== MEASURED POOL =====
+  AB  /agents
+        view and switch between all active agent sessions
+  ABC /app
+        continue this session in the Desktop app
+  ABC /approve
+        approve one retry of a recent auto-review denial
+  ABC /archive
+        archive this session and exit
+  BC  /btw
+        start a side conversation in an ephemeral fork
+  ABC /cd
+        change the current working directory
+  ABC /clear
+        clear the terminal and start a new chat
+  ABC /compact
+        summarize conversation to prevent hitting the context limit
+  ABC /copy
+        copy the last response, code block, or quote
+  ABC /delete
+        permanently delete this session and exit
+  ABC /diff
+        show git diff (including untracked files)
+  ABC /exit
+        exit Codex
+  ABC /experimental
+        toggle experimental features
+  ABC /export
+        export the conversation as markdown
+  ABC /fast
+        1.5x speed, increased usage
+  ABC /feedback
+        send logs to maintainers
+  ABC /fork
+        fork the current chat
+  ABC /goal
+        set or view the goal for a long-running task
+  ABC /hooks
+        view and manage lifecycle hooks
+  ABC /ide
+        include current selection, open files, and other context from your IDE
+  ABC /import
+        import setup, this project, and recent chats from Claude Code
+  ABC /init
+        create an AGENTS.md file with instructions for Codex
+  ABC /keymap
+        remap TUI shortcuts
+  ABC /logout
+        log out of Codex
+  ABC /mcp
+        list configured MCP tools; use /mcp verbose for details
+  ABC /memories
+        configure memory use and generation
+  ABC /mention
+        mention a file
+  ABC /model
+        choose what model and reasoning effort to use
+  ABC /new
+        start a new chat during a conversation
+  ABC /permissions
+        choose what Codex is allowed to do
+  ABC /personality
+        choose a communication style for Codex
+  ABC /pets
+        choose or hide the terminal pet
+  ABC /plan
+        switch to Plan mode
+  ABC /plugins
+        browse plugins
+  ABC /ps
+        list background terminals
+  ABC /pwd
+        show the current working directory
+  BC  /quit
+        exit Codex
+  ABC /raw
+        toggle raw scrollback mode for copy-friendly terminal selection
+  AB  /recap
+        summarize the current conversation now
+  ABC /rename
+        rename the current thread
+  ABC /resume
+        resume a saved chat
+  ABC /review
+        review my current changes and find issues
+  ABC /side
+        start a side conversation in an ephemeral fork
+  ABC /skills
+        use skills to improve how Codex performs specific tasks
+  ABC /status
+        show current session configuration and token usage
+  ABC /statusline
+        configure which items appear in the status line
+  ABC /stop
+        stop all background terminals
+  ABC /subagents
+        switch between this session's subagents
+  ABC /theme
+        choose a syntax highlighting theme
+  ABC /title
+        configure which items appear in the terminal title
+  ABC /usage
+        view account usage or use a usage limit reset
+  ABC /vim
+        toggle Vim mode for the composer
+
+===== version pin =====
+start=codex-cli 0.152.1
+end=codex-cli 0.152.1
+drift=false

@@ -1,0 +1,238 @@
+{
+  "version": "2.1.258 (Claude Code)",
+  "ok": true,
+  "acceptance": [
+    {
+      "name": "zzz-not-a-command-sl10",
+      "role": "CONTROL — cannot exist; defines the rejection shape",
+      "submitted": "/zzz-not-a-command-sl10",
+      "submittedVerbatim": true,
+      "rejected": true,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        " ▐▛███▛█   Claude Code v2.1.258",
+        "▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max",
+        "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-alias-claude/acceptance",
+        "⏺ Unknown command: /zzz-not-a-command-sl10",
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "❯ ",
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "                                                                                                                                                                                                   /rc",
+        "  ⏸ manual mode on · ← for agents"
+      ]
+    },
+    {
+      "name": "review",
+      "role": "changelog hypothesis: renamed to /code-review. LISTED in Sonata's picker today",
+      "submitted": "/review",
+      "submittedVerbatim": true,
+      "rejected": false,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-alias-claude/acceptance",
+        "❯ /code-review                                                                                                                                                                                          ",
+        "  ⎿  Running in the background as @code-review",
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "❯ ",
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "                                                                                                                                                                                                   /rc",
+        "  ⏸ manual mode on · ← for agents",
+        "  ⏺ main                                                                                                                                                                                           ",
+        "  ◯ code-review  /code-review                                                                                                                                                      4s · ↓ 34.6k tokens"
+      ]
+    },
+    {
+      "name": "ultraplan",
+      "role": "changelog hypothesis: removed. Never in Sonata's snapshot",
+      "submitted": "/ultraplan",
+      "submittedVerbatim": true,
+      "rejected": true,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        " ▐▛███▛█   Claude Code v2.1.258",
+        "▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max",
+        "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-alias-claude/acceptance",
+        "⏺ Unknown command: /ultraplan",
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "❯ ",
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "                                                                                                                                                                                                   /rc",
+        "  ⏸ manual mode on · ← for agents"
+      ]
+    },
+    {
+      "name": "checkpoint",
+      "role": "snapshot alias of /rewind",
+      "submitted": "/checkpoint",
+      "submittedVerbatim": true,
+      "rejected": false,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        " ▐▛███▛█   Claude Code v2.1.258",
+        "▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max",
+        "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-alias-claude/acceptance",
+        "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔",
+        "   Rewind",
+        "   Nothing to rewind to yet.",
+        "   Esc to cancel"
+      ]
+    },
+    {
+      "name": "undo",
+      "role": "snapshot alias of /rewind",
+      "submitted": "/undo",
+      "submittedVerbatim": true,
+      "rejected": false,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        " ▐▛███▛█   Claude Code v2.1.258",
+        "▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max",
+        "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-alias-claude/acceptance",
+        "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔",
+        "   Rewind",
+        "   Nothing to rewind to yet.",
+        "   Esc to cancel"
+      ]
+    },
+    {
+      "name": "stats",
+      "role": "snapshot alias of /usage",
+      "submitted": "/stats",
+      "submittedVerbatim": true,
+      "rejected": false,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        "       ········································▒▓█▓▓█▒▒▒░░",
+        "       Less ░ ▒ ▓ █ More",
+        "   All time · Last 7 days · Last 30 days",
+        "   Favorite model: Opus 4.8        Total tokens: 22.2b",
+        "   Sessions: 3.1k                  Longest session: 7d 20h 10m",
+        "   Active days: 67/75              Longest streak: 21 days",
+        "   Most active day: Jul 3          Current streak: 21 days",
+        "   Input 20.2m · Output 92.2m · Cache read 21.3b · Cache write 794.8m",
+        "   Your input and output are ~195x the tokens in The Lord of the Rings",
+        "     ↓ stats · r to cycle dates · ctrl+s to copy"
+      ]
+    },
+    {
+      "name": "cost",
+      "role": "snapshot alias of /usage",
+      "submitted": "/cost",
+      "submittedVerbatim": true,
+      "rejected": false,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        "   What's contributing to your limits usage?",
+        "   Approximate, based on local sessions on this machine — does not include other devices or claude.ai",
+        "   Last 24h · these are independent characteristics of your usage, not a breakdown",
+        "   98% of your usage came from subagent-heavy sessions",
+        "    Each subagent runs its own requests. Be deliberate about spawning them — and ",
+        "    consider configuring a cheaper model for simpler subagents.",
+        "   98% of your usage came from sessions active for 8+ hours",
+        "    These are often background/loop sessions. Continuous usage can add up quickly ",
+        "    so make sure it is intentional.",
+        "   86% of your usage was at >150k context                                                                                                                                                             ↓"
+      ]
+    },
+    {
+      "name": "bashes",
+      "role": "snapshot alias of /tasks",
+      "submitted": "/bashes",
+      "submittedVerbatim": true,
+      "rejected": false,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        " ▐▛███▛█   Claude Code v2.1.258",
+        "▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max",
+        "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-alias-claude/acceptance",
+        "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔",
+        "   Background",
+        "   No tasks currently running",
+        "   ↑/↓ to select · Enter to view · Esc to close"
+      ]
+    },
+    {
+      "name": "plugins",
+      "role": "snapshot alias of /plugin",
+      "submitted": "/plugins",
+      "submittedVerbatim": true,
+      "rejected": false,
+      "exited": false,
+      "exitInfo": null,
+      "tail": [
+        "     ◯ code-review · claude-plugins-official · 464.9K installs",
+        "       Automated code review for pull requests using multiple spec…",
+        "     ◯ context7 · claude-plugins-official [Community Managed] · 437.6K installs",
+        "       Upstash Context7 MCP server for up-to-date documentation lo…",
+        "     ◯ skill-creator · claude-plugins-official · 413.3K installs",
+        "       Create new skills, improve existing skills, and measure ski…",
+        "     ◯ code-simplifier · claude-plugins-official · 364.1K installs",
+        "       Agent that simplifies and refines code for clarity, consist…",
+        "    ↓ more below",
+        "   Type to search · Space to toggle · Enter to view · Esc to go back"
+      ]
+    },
+    {
+      "name": "quit",
+      "role": "snapshot alias of /exit — a success here EXITS the CLI, which is its own evidence",
+      "submitted": "/quit",
+      "submittedVerbatim": true,
+      "rejected": false,
+      "exited": true,
+      "exitInfo": {
+        "exitCode": 0,
+        "signal": 0
+      },
+      "tail": []
+    }
+  ],
+  "skills": {
+    "lines": [
+      " ▐▛███▛█   Claude Code v2.1.258",
+      "▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max",
+      "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-alias-claude/acceptance",
+      "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔",
+      "   Skills",
+      "   11 skills · enter/space to cycle, / to search, t to sort, Esc to close",
+      "   ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮",
+      "   │ ⌕ Search skills…                                                                                                                                                                               │",
+      "   ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯",
+      "   ❯ 🔒 on          codex:codex-cli-runtime · plugin · ~40 tok · locked by plugin",
+      "     🔒 on          codex:codex-result-handling · plugin · ~30 tok · locked by plugin",
+      "     🔒 on          codex:gpt-5-4-prompting · plugin · ~60 tok · locked by plugin",
+      "     🔒 on          frontend-design:frontend-design · plugin · ~80 tok · locked by plugin",
+      "     ✔ on         architect · user · ~120 tok",
+      "     ✔ on         architect-codex · user · ~80 tok",
+      "     ✔ on         designer-woody · user · ~80 tok",
+      "     ✔ on         orchestration · user · ~80 tok",
+      "     🔒 user-only  release · user · ~60 tok · locked by author",
+      "     ✔ on         save-writing · user · ~80 tok",
+      "     ✔ on         woody-learn · user · ~60 tok",
+      "   Plugin skills are managed via /plugin",
+      "     🔒 on          codex:codex-cli-runtime · plugin · ~40 tok · locked by plugin",
+      "   ❯ 🔒 on          codex:codex-result-handling · plugin · ~30 tok · locked by plugin",
+      "   ❯ 🔒 on          codex:gpt-5-4-prompting · plugin · ~60 tok · locked by plugin",
+      "   ❯ 🔒 on          frontend-design:frontend-design · plugin · ~80 tok · locked by plugin",
+      "   ❯ ✔ on         architect · user · ~120 tok",
+      "   ❯ ✔ on         architect-codex · user · ~80 tok",
+      "   ❯ ✔ on         designer-woody · user · ~80 tok",
+      "   ❯ ✔ on         orchestration · user · ~80 tok",
+      "   ❯ 🔒 user-only  rrelease· user · ~60 tok · locked by author",
+      "     🔒 user-only  rrelease· user · ~60 tok · locked by author",
+      "   ❯ ✔ on         save-writing · user · ~80 tok",
+      "   ❯ ✔ on         woody-learn · user · ~60 tok"
+    ],
+    "steps": 20
+  },
+  "settingsUntouched": true,
+  "endVersion": "2.1.258 (Claude Code)",
+  "versionDrift": false
+}

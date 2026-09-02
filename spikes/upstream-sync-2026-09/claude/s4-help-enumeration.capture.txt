@@ -1,0 +1,541 @@
+# S4 — claude /help enumeration + family sweep (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-02T04:47:13.671Z
+
+===== spawn shape =====
+claude --permission-mode default --settings <production runtime settings>
+cols=200 rows=40
+
+===== H — /help, landing tab =====
+[cursor] x=9 y=25
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-help-claude/help
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Help  General   Commands   Custom commands
+
+   Claude understands your codebase, makes edits with your permission, and executes commands — right from your terminal.
+   Shortcuts
+   ! for shell mode          double tap esc to clear input        ctrl + shift + _ to undo
+   / for commands            shift + tab to auto-accept edits     ctrl + z to suspend
+   @ for file paths          ctrl + o for verbose output          ctrl + v to paste images
+   /btw for side question    ctrl + t to toggle tasks             opt + p to switch model
+                             backslash (\) + return (⏎) for       ctrl + s to stash prompt
+                             newline                              ctrl + g to edit in $EDITOR
+                                                                  /keybindings to customize
+
+   For more help: https://code.claude.com/docs/en/overview
+                                                                                                                                                                                                   
+   Esc to cancel
+
+===== H — /help tab 0 after 15 Downs =====
+[cursor] x=9 y=25
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-help-claude/help
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Help  General   Commands   Custom commands
+
+   Claude understands your codebase, makes edits with your permission, and executes commands — right from your terminal.
+   Shortcuts
+   ! for shell mode          double tap esc to clear input        ctrl + shift + _ to undo
+   / for commands            shift + tab to auto-accept edits     ctrl + z to suspend
+   @ for file paths          ctrl + o for verbose output          ctrl + v to paste images
+   /btw for side question    ctrl + t to toggle tasks             opt + p to switch model
+                             backslash (\) + return (⏎) for       ctrl + s to stash prompt
+                             newline                              ctrl + g to edit in $EDITOR
+                                                                  /keybindings to customize
+
+   For more help: https://code.claude.com/docs/en/overview
+                                                                                                                                                                                                   
+   Esc to cancel
+
+===== H — /help tab 1 after 119 Downs =====
+[cursor] x=3 y=33
+--- screen ---
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-help-claude/help
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Help  General   Commands   Custom commands
+
+
+   Browse default commands
+
+   ↑ /agents
+       (removed) Ask Claude to create/manage subagents, or edit .claude/agents/
+     /artifact-capabilities
+       Runtime capabilities a published Artifact page can be granted — behavior static HTML cannot provide on its own, such as the page reading live or connected data, remembering what people …
+     /artifact-diagramming
+       Diagramming know-how for Artifacts - when a picture earns its place, how to draw one that shows the real mechanism, and the inline-SVG mechanics that keep it legible in both themes.
+     /artifacts
+       Browse your published and shared artifacts
+     /auto-mode-setup
+       Teach auto mode about your environment, plus optional rule tweaks
+     /autocompact
+       Set how full the context gets before auto-summarizing
+     /autofix-pr
+       Monitor and autofix any issues with the current PR
+     /background
+       Send this session to the background and free the terminal
+     /batch
+       Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR.
+     /branch
+       Create a branch of the current conversation at this point
+     /btw
+       Ask a quick side question without interrupting the main conversation
+     /bug
+       Report a bug or share your conversation
+   ❯ /cd
+       Move this session to a new working directory
+                                                                  
+
+   For more help: https://code.claude.com/docs/en/overview
+                                                                                                                                                                                                   
+   Esc to cancel
+
+===== H — /help tab 2 after 15 Downs =====
+[cursor] x=3 y=33
+--- screen ---
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-help-claude/help
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Help  General   Commands   Custom commands
+
+
+   Browse default commands
+
+   ↑ /claude-in-chrome
+       Automates your Chrome browser to interact with web pages - clicking elements, filling forms, capturing screenshots, reading console logs, and navigating sites. Opens pages in new tabs w…
+     /clear
+       Start a new session with empty context; previous session stays on disk (resumable with /resume)
+     /code-review
+       Review the current diff, or a PR number/branch/path target, for correctness bugs and reuse/simplification/efficiency cleanups at the given effort level (low/medium: fewer, high-confiden…
+     /color
+       Set the prompt bar color for this session
+     /compact
+       Free up context by summarizing the conversation so far
+     /config
+       Open settings
+     /context
+       Visualize current context usage as a colored grid
+     /copy
+       Copy Claude's last response to clipboard (or /copy N for the Nth-latest)
+     /dataviz
+       Use this skill whenever you are about to create ANY chart, graph, plot, dashboard, or data visualization, in ANY output medium — an HTML or React artifact, inline SVG, plotting code in …
+     /debug
+       Enable debug logging for this session and help diagnose issues
+     /deep-research
+       Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report. (dynamic workflow)
+     /design
+       Create a design canvas - a multi-artboard visual design published as an Artifact that runs Claude Design's canvas editor (an early preview of Claude Design inside Claude Code). You DRAF…
+   ❯ /design-login
+       Authorize design-system access for /design-sync with your claude.ai account
+                                                                  
+
+   For more help: https://code.claude.com/docs/en/overview
+                                                                                                                                                                                                   
+   Esc to cancel
+
+===== H — /help tab 3 after 15 Downs =====
+[cursor] x=3 y=33
+--- screen ---
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-help-claude/help
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Help  General   Commands   Custom commands
+
+
+   Browse default commands
+
+   ↑ /diff
+       View uncommitted changes and per-turn diffs
+     /doctor
+       Health-check the user's Claude Code setup and fix issues: diagnose installation health — what the `claude doctor` terminal diagnostics cover — from local data (duplicate or leftover ins…
+     /effort
+       Set effort level for model usage
+     /exit
+       Exit the CLI
+     /export
+       Export the current conversation to a file or clipboard
+     /fast
+       Toggle fast mode (Opus 5)
+     /feedback
+       Send feedback to Anthropic or report a bug
+     /fewer-permission-prompts
+       Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission prompts.
+     /focus
+       Toggle focus view: just your prompt, summary, and response
+     /fork
+       Copy this conversation into a new background session and keep working here
+     /goal
+       Set a goal Claude checks before stopping
+     /help
+       Show help and available commands
+   ❯ /hooks
+       View hook configurations for tool events
+                                                                  
+
+   For more help: https://code.claude.com/docs/en/overview
+                                                                                                                                                                                                   
+   Esc to cancel
+
+===== H — /help tab 4 after 15 Downs =====
+[cursor] x=3 y=33
+--- screen ---
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-help-claude/help
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Help  General   Commands   Custom commands
+
+
+   Browse default commands
+
+   ↑ /init
+       Initialize a new CLAUDE.md file with codebase documentation
+     /insights
+       Generate a report analyzing your Claude Code sessions
+     /install-github-app
+       Set up Claude GitHub Actions for a repository
+     /install-slack-app
+       Install the Claude Slack app
+     /keybindings
+       Open your keyboard shortcuts file
+     /list-agents
+       List subagents, teammates, and other Claude sessions you can message
+     /login
+       Sign in with your Anthropic account
+     /logout
+       Sign out from your Anthropic account
+     /loop
+       Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo). Omit the interval to let the model self-pace.
+     /mcp
+       Manage MCP servers
+     /memory
+       Edit CLAUDE.md files and memory settings
+     /mobile
+       Show QR code to download the Claude mobile app
+   ❯ /model
+       Set the AI model for Claude Code (currently Opus 5 (1M context))
+                                                                  
+
+   For more help: https://code.claude.com/docs/en/overview
+                                                                                                                                                                                                   
+   Esc to cancel
+
+===== H — tab walk =====
+tab 0  header="Help  General   Commands   Custom commands"  steps=15  new names=0  running total=0
+tab 1  header="Help  General   Commands   Custom commands"  steps=119  new names=104  running total=104
+tab 2  header="Help  General   Commands   Custom commands"  steps=15  new names=0  running total=104
+tab 3  header="Help  General   Commands   Custom commands"  steps=15  new names=0  running total=104
+tab 4  header="Help  General   Commands   Custom commands"  steps=15  new names=0  running total=104
+
+===== H — /help, FULL SCROLLBACK =====
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/slash-help-claude/help
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Help  General   Commands   Custom commands
+
+
+   Browse default commands
+
+   ↑ /init
+       Initialize a new CLAUDE.md file with codebase documentation
+     /insights
+       Generate a report analyzing your Claude Code sessions
+     /install-github-app
+       Set up Claude GitHub Actions for a repository
+     /install-slack-app
+       Install the Claude Slack app
+     /keybindings
+       Open your keyboard shortcuts file
+     /list-agents
+       List subagents, teammates, and other Claude sessions you can message
+     /login
+       Sign in with your Anthropic account
+     /logout
+       Sign out from your Anthropic account
+     /loop
+       Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo). Omit the interval to let the model self-pace.
+     /mcp
+       Manage MCP servers
+     /memory
+       Edit CLAUDE.md files and memory settings
+     /mobile
+       Show QR code to download the Claude mobile app
+   ❯ /model
+       Set the AI model for Claude Code (currently Opus 5 (1M context))
+                                                                  
+
+   For more help: https://code.claude.com/docs/en/overview
+                                                                                                                                                                                                   
+   Esc to cancel
+
+===== H — /help parsed rows (104) =====
+  | /add-dir  Add a new working directory
+  | /advisor  Let Claude consult a stronger model at key moments
+  | /agents  (removed) Ask Claude to create/manage subagents, or edit .claude/agents/
+  | /artifact-capabilities  Runtime capabilities a published Artifact page can be granted — behavior static HTML cannot provide on its own, such as the page reading live or connected data, remembering what people …
+  | /artifact-diagramming  Diagramming know-how for Artifacts - when a picture earns its place, how to draw one that shows the real mechanism, and the inline-SVG mechanics that keep it legible in both themes.
+  | /artifacts  Browse your published and shared artifacts
+  | /auto-mode-setup  Teach auto mode about your environment, plus optional rule tweaks
+  | /autocompact  Set how full the context gets before auto-summarizing
+  | /autofix-pr  Monitor and autofix any issues with the current PR
+  | /background  Send this session to the background and free the terminal
+  | /batch  Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR.
+  | /branch  Create a branch of the current conversation at this point
+  | /btw  Ask a quick side question without interrupting the main conversation
+  | /bug  Report a bug or share your conversation
+  | /cd  Move this session to a new working directory
+  | /chrome  Open Claude in Chrome settings
+  | /claude-api  Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration.…
+  | /claude-in-chrome  Automates your Chrome browser to interact with web pages - clicking elements, filling forms, capturing screenshots, reading console logs, and navigating sites. Opens pages in new tabs w…
+  | /clear  Start a new session with empty context; previous session stays on disk (resumable with /resume)
+  | /code-review  Review the current diff, or a PR number/branch/path target, for correctness bugs and reuse/simplification/efficiency cleanups at the given effort level (low/medium: fewer, high-confiden…
+  | /color  Set the prompt bar color for this session
+  | /compact  Free up context by summarizing the conversation so far
+  | /config  Open settings
+  | /context  Visualize current context usage as a colored grid
+  | /copy  Copy Claude's last response to clipboard (or /copy N for the Nth-latest)
+  | /dataviz  Use this skill whenever you are about to create ANY chart, graph, plot, dashboard, or data visualization, in ANY output medium — an HTML or React artifact, inline SVG, plotting code in …
+  | /debug  Enable debug logging for this session and help diagnose issues
+  | /deep-research  Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report. (dynamic workflow)
+  | /design  Create a design canvas - a multi-artboard visual design published as an Artifact that runs Claude Design's canvas editor (an early preview of Claude Design inside Claude Code). You DRAF…
+  | /design-login  Authorize design-system access for /design-sync with your claude.ai account
+  | /design-sync  Push a React design system to claude.ai/design. This runs a converter that bundles the real component code (from Storybook or a bare package) and uploads it. Use when the user runs /des…
+  | /desktop  Continue the current session in Claude Desktop
+  | /diff  View uncommitted changes and per-turn diffs
+  | /doctor  Health-check the user's Claude Code setup and fix issues: diagnose installation health — what the `claude doctor` terminal diagnostics cover — from local data (duplicate or leftover ins…
+  | /effort  Set effort level for model usage
+  | /exit  Exit the CLI
+  | /export  Export the current conversation to a file or clipboard
+  | /fast  Toggle fast mode (Opus 5)
+  | /feedback  Send feedback to Anthropic or report a bug
+  | /fewer-permission-prompts  Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission prompts.
+  | /focus  Toggle focus view: just your prompt, summary, and response
+  | /fork  Copy this conversation into a new background session and keep working here
+  | /goal  Set a goal Claude checks before stopping
+  | /help  Show help and available commands
+  | /hooks  View hook configurations for tool events
+  | /ide  Manage IDE integrations and show status
+  | /import  Import config from another AI coding agent
+  | /init  Initialize a new CLAUDE.md file with codebase documentation
+  | /insights  Generate a report analyzing your Claude Code sessions
+  | /install-github-app  Set up Claude GitHub Actions for a repository
+  | /install-slack-app  Install the Claude Slack app
+  | /keybindings  Open your keyboard shortcuts file
+  | /list-agents  List subagents, teammates, and other Claude sessions you can message
+  | /login  Sign in with your Anthropic account
+  | /logout  Sign out from your Anthropic account
+  | /loop  Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo). Omit the interval to let the model self-pace.
+  | /mcp  Manage MCP servers
+  | /memory  Edit CLAUDE.md files and memory settings
+  | /mobile  Show QR code to download the Claude mobile app
+  | /model  Set the AI model for Claude Code (currently Opus 5 (1M context))
+  | /passes  Share a free week of Claude Code with friends and earn usage credits
+  | /permissions  Manage allow and deny tool permission rules
+  | /plan  Enable plan mode or view the current session plan
+  | /plugin  Manage Claude Code plugins
+  | /powerup  Discover Claude Code features through quick interactive lessons
+  | /privacy-settings  View and update your privacy settings
+  | /radio  Listen to Claude FM lo-fi radio
+  | /recap  Generate a one-line session recap now
+  | /release-notes  View release notes
+  | /reload-plugins  Activate pending plugin changes in the current session
+  | /reload-skills  Pick up skills added or changed on disk during this session
+  | /remote-control  Disconnect Remote Control
+  | /remote-env  Choose the default environment for cloud agents
+  | /rename  Rename the current conversation
+  | /resume  Resume a previous conversation
+  | /rewind  Restore the code and/or conversation to a previous point
+  | /run  Launch and drive this project's app to see a change working. Use when asked to run, start, or screenshot the app, or to confirm a change works in the real app (not just tests). First lo…
+  | /run-skill-generator  Author or improve the run-<unit> skill - a per-project skill that tells agents how to build, launch, and drive this project's app. Use when the user asks to set up the project, get it r…
+  | /sandbox  ◯ sandbox disabled (⏎ to configure)
+  | /schedule  Create, update, list, or run scheduled cloud agents (routines) that execute on a cron schedule.
+  | /scroll-speed  Adjust mouse wheel scroll speed
+  | /security-review  Complete a security review of the pending changes on the current branch
+  | /simplify  Review the changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes. Quality only — it does not hunt for bugs; use /code-review for that.
+  | /skills  List available skills
+  | /status  Show Claude Code status including version, model, account, API connectivity, and tool statuses
+  | /statusline  Set up Claude Code's status line UI
+  | /stickers  Order Claude Code stickers
+  | /subtask  Send a subagent off with your full context; its result comes back here
+  | /tasks  View and manage everything running in the background
+  | /team-onboarding  Help teammates ramp on Claude Code with a guide from your usage
+  | /teleport  Send this session to the cloud, or resume one from claude.ai
+  | /terminal-setup  Install Shift+Enter key binding for newlines
+  | /theme  Change the theme
+  | /tui  Set the terminal UI renderer (default | fullscreen)
+  | /ultrareview  Start a cloud agent that finds and verifies bugs in your branch (~5-10 min, $5-$25 USD) · Runs in Claude Code on the web. See https://code.claude.com/docs/en/claude-code-on-the-web
+  | /update-config  Use this skill to configure the Claude Code harness via settings.json. Automated behaviors ("from now on when X", "each time X", "whenever X", "before/after X") require hooks configured…
+  | /upgrade  Upgrade to Max for higher rate limits and more Opus
+  | /usage  Show session cost, plan usage, and activity stats
+  | /usage-credits  Configure usage credits or request them from your admin when you hit a limit
+  | /verify  Verify that a code change actually does what it's supposed to by exercising it end-to-end and observing behavior — drive the affected flow, not just tests or typecheck. Run before commi…
+  | /voice  Toggle voice mode
+  | /web-setup  Set up Claude Code on the web with your GitHub account
+  | /workflow-authoring  Reference for writing a Workflow tool script (script API and gotchas, resume, quality patterns, worked examples). Load before authoring a script for a workflow the user already opted in…
+  | /workflows  Browse running and completed workflows
+
+===== F — family sweep (stems derived from S1's names) =====
+/add              → [add-dir, update-config, artifact-capabilities]
+/add-dir          → [add-dir]
+/advisor          → [advisor]
+/agents           → [agents, claude-api, list-agents, batch]
+/artifact         → [artifacts, artifact-diagramming, artifact-capabilities]
+/auto             → [autofix-pr, autocompact, auto-mode-setup, update-config]
+/autofix          → [autofix-pr]
+/batch            → [batch]
+/branch           → [branch, ultrareview, security-review]
+/btw              → [btw]
+/bug              → [bug, code-review, debug, feedback]
+/cd               → [cd]
+/chrome           → [chrome, claude-in-chrome]
+/claude           → [claude-api, claude-in-chrome]
+/clear            → [clear, woody-learn, orchestration]   NOVEL: woody-learn, orchestration
+/code             → [code-review, codex:setup, codex:review, codex:cancel]
+/color            → [color, dataviz, context]
+/compact          → [compact, autocompact, architect, security-review]   NOVEL: architect
+/config           → [config, update-config, import]
+/context          → [context, doctor, autocompact, subtask]
+/copy             → [copy, fork]
+/dataviz          → [dataviz]
+/debug            → [debug, claude-api, update-config]
+/deep             → [deep-research, architect, code-review]   NOVEL: architect
+/design           → [design, design, design-sync]
+/desktop          → [desktop]
+/diff             → [diff, code-review, verify]
+/doctor           → [doctor]
+/effort           → [effort, code-review]
+/exit             → [exit, context, codex:transfer, design]
+/export           → [export, teleport, design, deep-research]
+/fast             → [fast, artifact-capabilities, artifact-diagramming]
+/fewer            → [fewer-permission-prompts, code-review]
+/focus            → [focus]
+/fork             → [fork, code-review, claude-api]
+/goal             → [goal]
+/help             → [help, frontend-design:frontend-design, debug, team-onboarding]
+/hooks            → [hooks, update-config, doctor]
+/ide              → [ide, architect, code-review]   NOVEL: architect
+/import           → [import]
+/init             → [init, install-slack-app, install-github-app, artifact-capabilities]
+/install          → [install-slack-app, install-github-app, terminal-setup, doctor]
+/list             → [list-agents, schedule, skills, doctor]
+/login            → [login, design-login, plugin, reload-plugins, debug]
+/logout           → [logout]
+/loop             → [loop, claude-api, run]
+/mcp              → [mcp, claude-api, fewer-permission-prompts]
+/memory           → [memory, claude-api, update-config]
+/mobile           → [mobile]
+/model            → [model, claude-api, loop, advisor]
+/passes           → [passes]
+/plan             → [plan, batch, usage, design]
+/plugin           → [plugin, reload-plugins, doctor]
+/powerup          → [powerup]
+/privacy          → [privacy-settings]
+/radio            → [radio, orchestration, designer-woody]   NOVEL: orchestration, designer-woody
+/recap            → [recap, doctor]
+/release          → [release, release-notes]   NOVEL: release
+/reload           → [reload-skills, reload-plugins]
+/remote           → [remote-env, remote-control, agents]
+/rename           → [rename]
+/resume           → [resume, clear, workflow-authoring, teleport]
+/rewind           → [rewind]
+/run              → [run, run-skill-generator]
+/sandbox          → [sandbox]
+/scroll           → [scroll-speed]
+/security         → [security-review]
+/skills           → [skills, reload-skills, doctor]
+/status           → [status, statusline, codex:status, ide, usage]
+/subtask          → [subtask]
+/tasks            → [tasks, subtask, claude-api]
+/team             → [team-onboarding, terminal-setup, list-agents, dataviz]
+/terminal         → [terminal-setup, doctor, background, tui]
+/theme            → [theme, update-config, artifact-diagramming]
+/tui              → [tui, run]
+/update           → [update-config, schedule, privacy-settings]
+/upgrade          → [upgrade, dataviz]
+/usage            → [usage, usage-credits, context, effort, passes]
+/verify           → [verify, deep-research, run-skill-generator]
+/voice            → [voice, claude-api, frontend-design:frontend-design]
+/web              → [web-setup, deep-research, claude-in-chrome]
+/workflow         → [workflows, workflow-authoring]
+
+===== F — names NOT in S1's pool =====
+  /woody-learn
+        Analyze a conversation and propose structured updates to woody.md, @architect, and/or @designer-woody. Use when the user identifies a conversation worth
+  /orchestration
+        Delegation discipline for orchestrator sessions working with the tech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only — load at
+  /codex:setup
+        (codex) Check whether the local Codex CLI is ready and optionally toggle the stop-time review gate
+  /codex:review
+        (codex) Run a Codex code review against local git state
+  /codex:cancel
+        (codex) Cancel an active background Codex job in this repository
+  /architect
+        Integrated product/design/engineering worldview — three-forces convergence (Design, Engineering, Product Will). The default mode for most work sessions:
+  /codex:transfer
+        (codex) Transfer the current Claude Code session into a resumable Codex thread
+  /frontend-design:frontend-design
+        (frontend-design) Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction,
+  /designer-woody
+        Manual-only. Invoke with @designer-woody to enter design collaboration mode — Buchanan-lineage Design Thinking worldview, full collaboration dynamics, and
+  /release
+        Ship a release for any macOS or iOS project. Pre-flight validation, build orchestration, error diagnosis, post-release verification. Invoke with /release
+  /codex:status
+        (codex) Show active and recent Codex jobs for this repository, including review-gate status
+
+===== mutation fence — ~/.claude/settings.json byte-identical? =====
+true
+
+===== version pin =====
+start=2.1.258 (Claude Code)
+end=2.1.258 (Claude Code)
+drift=false

@@ -59,6 +59,76 @@ for (const provider of ["claude", "codex"]) {
   );
 }
 
+// --- the CURATED listed set is the whole picker (SL-10) ---------------------
+// The listing policy is a deliberate, small, Woody-owned set — "widening it is
+// a follow-up, not a routing concern". At 130 claude entries an accidental
+// `listed: true` is a one-character edit that nothing else would catch, so the
+// set is pinned exactly rather than by count.
+assert.deepEqual(
+  builtinSlashCommands("claude").filter((e) => e.listed).map((e) => e.name),
+  ["model", "effort", "permissions", "compact", "status", "init", "security-review", "code-review", "simplify", "btw", "fast"],
+  "claude listed set (order is the curated picker order, not alphabetical)",
+);
+assert.deepEqual(
+  builtinSlashCommands("codex").filter((e) => e.listed).map((e) => e.name),
+  ["model", "permissions", "compact", "status", "diff", "init", "mcp", "fast"],
+  "codex listed set",
+);
+
+// --- the 2026-09-02 walk, pinned where the measurement CHANGED --------------
+// Presence pins are cheap and would rot into noise if applied to all 182
+// entries; these are the ones whose status the walk actually moved, which is
+// also the set a future refresh most needs protected.
+{
+  const claude = new Map(builtinSlashCommands("claude").map((e) => [e.name, e]));
+  const codex = new Map(builtinSlashCommands("codex").map((e) => [e.name, e]));
+
+  // /review stopped being its own command and became an alias of /code-review
+  // (measured: submitting it starts a code-review run). It has to stay in the
+  // snapshot — the CLI still accepts it — but out of the picker, where
+  // /code-review already sits. This is the one entry claude 2.1.236's
+  // fuzzy-match removal would have punished if the walk had read it as gone.
+  assert.equal(claude.get("review")?.listed, false, "/review is an alias, not a picker row");
+  assert.match(claude.get("review")?.description ?? "", /alias of \/code-review/);
+  assert.equal(claude.get("code-review")?.listed, true, "/code-review carries the listing");
+
+  // Every alias spelling s2 submitted and measured as still ACCEPTED.
+  for (const [alias, canonical] of [
+    ["checkpoint", "rewind"], ["undo", "rewind"], ["stats", "usage"], ["cost", "usage"],
+    ["bashes", "tasks"], ["quit", "exit"], ["plugins", "plugin"],
+  ]) {
+    const entry = claude.get(alias);
+    assert.ok(entry, `claude /${alias} stays in the snapshot (measured accepted at 2.1.258)`);
+    assert.equal(entry.listed, false, `/${alias} is unlisted`);
+    assert.match(entry.description, new RegExp(`alias of /${canonical}`), `/${alias} names its canonical`);
+  }
+
+  // Measured PRESENT at 2.1.258 / 0.152.1 and absent from the previous pin.
+  assert.ok(claude.has("ultrareview"), "claude /ultrareview (missing from the snapshot since ~2.1.206)");
+  for (const name of ["export", "cd", "pwd", "agents", "recap"]) {
+    assert.ok(codex.has(name), `codex /${name} is new at 0.152.1`);
+  }
+
+  // Measured ABSENT. `/agent` is a strict prefix of the `/agents` that replaced
+  // it, so a picker that still knew it would have offered it — this is the one
+  // removal in either pool, and the only kind of drift that can leave a dead
+  // row in Sonata's own picker.
+  assert.equal(codex.has("agent"), false, "codex /agent was renamed to /agents at 0.152");
+  assert.equal(claude.has("ultraplan"), false, "claude /ultraplan does not exist (measured: Unknown command)");
+}
+
+// --- the unlisted tail is alphabetical (the file's maintenance contract) ----
+// Refreshing this snapshot means diffing a sorted file against a sorted walk.
+// The ordering is load-bearing for that, and nothing else enforces it.
+for (const provider of ["claude", "codex"]) {
+  const unlisted = builtinSlashCommands(provider).filter((e) => !e.listed).map((e) => e.name);
+  assert.deepEqual(
+    unlisted,
+    [...unlisted].sort(),
+    `${provider} unlisted builtins must stay alphabetical`,
+  );
+}
+
 // --- Claude discovery: personal skill + legacy command + project shadowing ---
 const claudeSkillsRoot = path.join(fixtureHome, ".claude", "skills");
 writeSkill(claudeSkillsRoot, "deploy-docs", ["name: deploy-docs", "description: Deploy the docs site", "argument-hint: [env]"]);

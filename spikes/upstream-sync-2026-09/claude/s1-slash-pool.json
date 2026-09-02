@@ -1,0 +1,859 @@
+{
+  "version": "2.1.258 (Claude Code)",
+  "ok": true,
+  "walk": {
+    "channelA": 120,
+    "channelAsteps": 130,
+    "channelAendedDry": true,
+    "channelB": 120
+  },
+  "builtins": [
+    {
+      "name": "add-dir",
+      "aliases": [],
+      "description": "Add a new working directory",
+      "channels": "AB"
+    },
+    {
+      "name": "advisor",
+      "aliases": [],
+      "description": "Let Claude consult a stronger model at key moments",
+      "channels": "AB"
+    },
+    {
+      "name": "agents",
+      "aliases": [],
+      "description": "(removed) Ask Claude to create/manage subagents, or edit .claude/agents/",
+      "channels": "AB"
+    },
+    {
+      "name": "artifact-capabilities",
+      "aliases": [],
+      "description": "Runtime capabilities a published Artifact page can be granted — behavior static HTML cannot provide on its own, such as the page reading live or connected",
+      "channels": "AB"
+    },
+    {
+      "name": "artifact-diagramming",
+      "aliases": [],
+      "description": "Diagramming know-how for Artifacts - when a picture earns its place, how to draw one that shows the real mechanism, and the inline-SVG mechanics that keep it",
+      "channels": "AB"
+    },
+    {
+      "name": "artifacts",
+      "aliases": [],
+      "description": "Browse your published and shared artifacts",
+      "channels": "AB"
+    },
+    {
+      "name": "auto-mode-setup",
+      "aliases": [],
+      "description": "Teach auto mode about your environment, plus optional rule tweaks",
+      "channels": "AB"
+    },
+    {
+      "name": "autocompact",
+      "aliases": [],
+      "description": "Set how full the context gets before auto-summarizing",
+      "channels": "AB"
+    },
+    {
+      "name": "autofix-pr",
+      "aliases": [],
+      "description": "Monitor and autofix any issues with the current PR",
+      "channels": "AB"
+    },
+    {
+      "name": "background",
+      "aliases": [],
+      "description": "Send this session to the background and free the terminal",
+      "channels": "AB"
+    },
+    {
+      "name": "batch",
+      "aliases": [],
+      "description": "Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR.",
+      "channels": "AB"
+    },
+    {
+      "name": "branch",
+      "aliases": [],
+      "description": "Create a branch of the current conversation at this point",
+      "channels": "AB"
+    },
+    {
+      "name": "btw",
+      "aliases": [],
+      "description": "Ask a quick side question without interrupting the main conversation",
+      "channels": "AB"
+    },
+    {
+      "name": "bug",
+      "aliases": [],
+      "description": "Report a bug or share your conversation",
+      "channels": "AB"
+    },
+    {
+      "name": "cd",
+      "aliases": [],
+      "description": "Move this session to a new working directory",
+      "channels": "AB"
+    },
+    {
+      "name": "chrome",
+      "aliases": [],
+      "description": "Open Claude in Chrome settings",
+      "channels": "AB"
+    },
+    {
+      "name": "claude-api",
+      "aliases": [],
+      "description": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration. TRIGGER",
+      "channels": "AB"
+    },
+    {
+      "name": "claude-in-chrome",
+      "aliases": [],
+      "description": "Automates your Chrome browser to interact with web pages - clicking elements, filling forms, capturing screenshots, reading console logs, and navigating sites.",
+      "channels": "AB"
+    },
+    {
+      "name": "clear",
+      "aliases": [],
+      "description": "Start a new session with empty context; previous session stays on disk (resumable with /resume)",
+      "channels": "AB"
+    },
+    {
+      "name": "code-review",
+      "aliases": [],
+      "description": "3 free /ultrareview · Review the current diff, or a PR number/branch/path target, for correctness bugs and reuse/simplification/efficiency cleanups at the",
+      "channels": "AB"
+    },
+    {
+      "name": "color",
+      "aliases": [],
+      "description": "Set the prompt bar color for this session",
+      "channels": "AB"
+    },
+    {
+      "name": "compact",
+      "aliases": [],
+      "description": "Free up context by summarizing the conversation so far",
+      "channels": "AB"
+    },
+    {
+      "name": "config",
+      "aliases": [],
+      "description": "Open settings",
+      "channels": "AB"
+    },
+    {
+      "name": "context",
+      "aliases": [],
+      "description": "Visualize current context usage as a colored grid",
+      "channels": "AB"
+    },
+    {
+      "name": "copy",
+      "aliases": [],
+      "description": "Copy Claude's last response to clipboard (or /copy N for the Nth-latest)",
+      "channels": "AB"
+    },
+    {
+      "name": "dataviz",
+      "aliases": [],
+      "description": "Use this skill whenever you are about to create ANY chart, graph, plot, dashboard, or data visualization, in ANY output medium — an HTML or React artifact,",
+      "channels": "AB"
+    },
+    {
+      "name": "debug",
+      "aliases": [],
+      "description": "Enable debug logging for this session and help diagnose issues",
+      "channels": "AB"
+    },
+    {
+      "name": "deep-research",
+      "aliases": [],
+      "description": "[dynamic workflow] Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report.",
+      "channels": "AB"
+    },
+    {
+      "name": "design",
+      "aliases": [],
+      "description": "Grant or revoke Claude agent access to your Design projects",
+      "channels": "AB"
+    },
+    {
+      "name": "design-login",
+      "aliases": [],
+      "description": "Authorize design-system access for /design-sync with your claude.ai account",
+      "channels": "AB"
+    },
+    {
+      "name": "design-sync",
+      "aliases": [],
+      "description": "Push a React design system to claude.ai/design. This runs a converter that bundles the real component code (from Storybook or a bare package) and uploads it.",
+      "channels": "AB"
+    },
+    {
+      "name": "desktop",
+      "aliases": [],
+      "description": "Continue the current session in Claude Desktop",
+      "channels": "AB"
+    },
+    {
+      "name": "diff",
+      "aliases": [],
+      "description": "View uncommitted changes and per-turn diffs",
+      "channels": "AB"
+    },
+    {
+      "name": "doctor",
+      "aliases": [],
+      "description": "Health-check the user's Claude Code setup and fix issues: diagnose installation health — what the `claude doctor` terminal diagnostics cover — from local data",
+      "channels": "AB"
+    },
+    {
+      "name": "effort",
+      "aliases": [],
+      "description": "Set effort level for model usage",
+      "channels": "AB"
+    },
+    {
+      "name": "exit",
+      "aliases": [],
+      "description": "Exit the CLI",
+      "channels": "AB"
+    },
+    {
+      "name": "export",
+      "aliases": [],
+      "description": "Export the current conversation to a file or clipboard",
+      "channels": "AB"
+    },
+    {
+      "name": "fast",
+      "aliases": [],
+      "description": "Toggle fast mode (Opus 5)",
+      "channels": "AB"
+    },
+    {
+      "name": "feedback",
+      "aliases": [],
+      "description": "Send feedback to Anthropic or report a bug",
+      "channels": "AB"
+    },
+    {
+      "name": "fewer-permission-prompts",
+      "aliases": [],
+      "description": "Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission",
+      "channels": "AB"
+    },
+    {
+      "name": "focus",
+      "aliases": [],
+      "description": "Toggle focus view: just your prompt, summary, and response",
+      "channels": "AB"
+    },
+    {
+      "name": "fork",
+      "aliases": [],
+      "description": "Copy this conversation into a new background session and keep working here",
+      "channels": "AB"
+    },
+    {
+      "name": "goal",
+      "aliases": [],
+      "description": "Set a goal Claude checks before stopping",
+      "channels": "AB"
+    },
+    {
+      "name": "help",
+      "aliases": [],
+      "description": "Show help and available commands",
+      "channels": "AB"
+    },
+    {
+      "name": "hooks",
+      "aliases": [],
+      "description": "View hook configurations for tool events",
+      "channels": "AB"
+    },
+    {
+      "name": "ide",
+      "aliases": [],
+      "description": "Manage IDE integrations and show status",
+      "channels": "AB"
+    },
+    {
+      "name": "import",
+      "aliases": [],
+      "description": "Import config from another AI coding agent",
+      "channels": "AB"
+    },
+    {
+      "name": "init",
+      "aliases": [],
+      "description": "Initialize a new CLAUDE.md file with codebase documentation",
+      "channels": "AB"
+    },
+    {
+      "name": "insights",
+      "aliases": [],
+      "description": "Generate a report analyzing your Claude Code sessions",
+      "channels": "AB"
+    },
+    {
+      "name": "install-github-app",
+      "aliases": [],
+      "description": "Set up Claude GitHub Actions for a repository",
+      "channels": "AB"
+    },
+    {
+      "name": "install-slack-app",
+      "aliases": [],
+      "description": "Install the Claude Slack app",
+      "channels": "AB"
+    },
+    {
+      "name": "keybindings",
+      "aliases": [],
+      "description": "Open your keyboard shortcuts file",
+      "channels": "AB"
+    },
+    {
+      "name": "list-agents",
+      "aliases": [],
+      "description": "List subagents, teammates, and other Claude sessions you can message",
+      "channels": "AB"
+    },
+    {
+      "name": "login",
+      "aliases": [],
+      "description": "Sign in with your Anthropic account",
+      "channels": "AB"
+    },
+    {
+      "name": "logout",
+      "aliases": [],
+      "description": "Sign out from your Anthropic account",
+      "channels": "AB"
+    },
+    {
+      "name": "loop",
+      "aliases": [],
+      "description": "Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo). Omit the interval to let the model self-pace.",
+      "channels": "AB"
+    },
+    {
+      "name": "mcp",
+      "aliases": [],
+      "description": "Manage MCP servers",
+      "channels": "AB"
+    },
+    {
+      "name": "memory",
+      "aliases": [],
+      "description": "Edit CLAUDE.md files and memory settings",
+      "channels": "AB"
+    },
+    {
+      "name": "mobile",
+      "aliases": [],
+      "description": "Show QR code to download the Claude mobile app",
+      "channels": "AB"
+    },
+    {
+      "name": "model",
+      "aliases": [],
+      "description": "Set the AI model for Claude Code (currently Opus 5 (1M context))",
+      "channels": "AB"
+    },
+    {
+      "name": "passes",
+      "aliases": [],
+      "description": "Share a free week of Claude Code with friends and earn usage credits",
+      "channels": "AB"
+    },
+    {
+      "name": "permissions",
+      "aliases": [],
+      "description": "Manage allow and deny tool permission rules",
+      "channels": "AB"
+    },
+    {
+      "name": "plan",
+      "aliases": [],
+      "description": "Enable plan mode or view the current session plan",
+      "channels": "AB"
+    },
+    {
+      "name": "plugin",
+      "aliases": [],
+      "description": "Manage Claude Code plugins",
+      "channels": "AB"
+    },
+    {
+      "name": "powerup",
+      "aliases": [],
+      "description": "Discover Claude Code features through quick interactive lessons",
+      "channels": "AB"
+    },
+    {
+      "name": "privacy-settings",
+      "aliases": [],
+      "description": "View and update your privacy settings",
+      "channels": "AB"
+    },
+    {
+      "name": "radio",
+      "aliases": [],
+      "description": "Listen to Claude FM lo-fi radio",
+      "channels": "AB"
+    },
+    {
+      "name": "recap",
+      "aliases": [],
+      "description": "Generate a one-line session recap now",
+      "channels": "AB"
+    },
+    {
+      "name": "release-notes",
+      "aliases": [],
+      "description": "View release notes",
+      "channels": "AB"
+    },
+    {
+      "name": "reload-plugins",
+      "aliases": [],
+      "description": "Activate pending plugin changes in the current session",
+      "channels": "AB"
+    },
+    {
+      "name": "reload-skills",
+      "aliases": [],
+      "description": "Pick up skills added or changed on disk during this session",
+      "channels": "AB"
+    },
+    {
+      "name": "remote-control",
+      "aliases": [],
+      "description": "Disconnect Remote Control",
+      "channels": "AB"
+    },
+    {
+      "name": "remote-env",
+      "aliases": [],
+      "description": "Choose the default environment for cloud agents",
+      "channels": "AB"
+    },
+    {
+      "name": "rename",
+      "aliases": [],
+      "description": "Rename the current conversation",
+      "channels": "AB"
+    },
+    {
+      "name": "resume",
+      "aliases": [],
+      "description": "Resume a previous conversation",
+      "channels": "AB"
+    },
+    {
+      "name": "rewind",
+      "aliases": [],
+      "description": "Restore the code and/or conversation to a previous point",
+      "channels": "AB"
+    },
+    {
+      "name": "run",
+      "aliases": [],
+      "description": "Launch and drive this project's app to see a change working. Use when asked to run, start, or screenshot the app, or to confirm a change works in the real app",
+      "channels": "AB"
+    },
+    {
+      "name": "run-skill-generator",
+      "aliases": [],
+      "description": "Author or improve the run-<unit> skill - a per-project skill that tells agents how to build, launch, and drive this project's app. Use when the user asks to",
+      "channels": "AB"
+    },
+    {
+      "name": "sandbox",
+      "aliases": [],
+      "description": "◯ sandbox disabled (⏎ to configure)",
+      "channels": "AB"
+    },
+    {
+      "name": "schedule",
+      "aliases": [],
+      "description": "Create, update, list, or run scheduled cloud agents (routines) that execute on a cron schedule.",
+      "channels": "AB"
+    },
+    {
+      "name": "scroll-speed",
+      "aliases": [],
+      "description": "Adjust mouse wheel scroll speed",
+      "channels": "AB"
+    },
+    {
+      "name": "security-review",
+      "aliases": [],
+      "description": "Complete a security review of the pending changes on the current branch",
+      "channels": "AB"
+    },
+    {
+      "name": "simplify",
+      "aliases": [],
+      "description": "Review the changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes. Quality only — it does not hunt for bugs; use",
+      "channels": "AB"
+    },
+    {
+      "name": "skills",
+      "aliases": [],
+      "description": "List available skills",
+      "channels": "AB"
+    },
+    {
+      "name": "status",
+      "aliases": [],
+      "description": "Show Claude Code status including version, model, account, API connectivity, and tool statuses",
+      "channels": "AB"
+    },
+    {
+      "name": "statusline",
+      "aliases": [],
+      "description": "Set up Claude Code's status line UI",
+      "channels": "AB"
+    },
+    {
+      "name": "stickers",
+      "aliases": [],
+      "description": "Order Claude Code stickers",
+      "channels": "AB"
+    },
+    {
+      "name": "subtask",
+      "aliases": [],
+      "description": "Send a subagent off with your full context; its result comes back here",
+      "channels": "AB"
+    },
+    {
+      "name": "tasks",
+      "aliases": [],
+      "description": "View and manage everything running in the background",
+      "channels": "AB"
+    },
+    {
+      "name": "team-onboarding",
+      "aliases": [],
+      "description": "Help teammates ramp on Claude Code with a guide from your usage",
+      "channels": "AB"
+    },
+    {
+      "name": "teleport",
+      "aliases": [],
+      "description": "Send this session to the cloud, or resume one from claude.ai",
+      "channels": "AB"
+    },
+    {
+      "name": "terminal-setup",
+      "aliases": [],
+      "description": "Install Shift+Enter key binding for newlines",
+      "channels": "AB"
+    },
+    {
+      "name": "theme",
+      "aliases": [],
+      "description": "Change the theme",
+      "channels": "AB"
+    },
+    {
+      "name": "tui",
+      "aliases": [],
+      "description": "Set the terminal UI renderer (default | fullscreen)",
+      "channels": "AB"
+    },
+    {
+      "name": "ultrareview",
+      "aliases": [],
+      "description": "3 free left · Start a cloud agent that finds and verifies bugs in your branch (~5-10 min, $5-$25 USD) · Runs in Claude Code on the web. See",
+      "channels": "AB"
+    },
+    {
+      "name": "update-config",
+      "aliases": [],
+      "description": "Use this skill to configure the Claude Code harness via settings.json. Automated behaviors (\"from now on when X\", \"each time X\", \"whenever X\", \"before/after",
+      "channels": "AB"
+    },
+    {
+      "name": "upgrade",
+      "aliases": [],
+      "description": "Upgrade to Max for higher rate limits and more Opus",
+      "channels": "AB"
+    },
+    {
+      "name": "usage",
+      "aliases": [],
+      "description": "Show session cost, plan usage, and activity stats",
+      "channels": "AB"
+    },
+    {
+      "name": "usage-credits",
+      "aliases": [],
+      "description": "Configure usage credits or request them from your admin when you hit a limit",
+      "channels": "AB"
+    },
+    {
+      "name": "verify",
+      "aliases": [],
+      "description": "Verify that a code change actually does what it's supposed to by exercising it end-to-end and observing behavior — drive the affected flow, not just tests or",
+      "channels": "AB"
+    },
+    {
+      "name": "voice",
+      "aliases": [],
+      "description": "Toggle voice mode",
+      "channels": "AB"
+    },
+    {
+      "name": "web-setup",
+      "aliases": [],
+      "description": "Set up Claude Code on the web with your GitHub account",
+      "channels": "AB"
+    },
+    {
+      "name": "workflow-authoring",
+      "aliases": [],
+      "description": "Reference for writing a Workflow tool script (script API and gotchas, resume, quality patterns, worked examples). Load before authoring a script for a workflow",
+      "channels": "AB"
+    },
+    {
+      "name": "workflows",
+      "aliases": [],
+      "description": "Browse running and completed workflows",
+      "channels": "AB"
+    }
+  ],
+  "excluded": [
+    {
+      "name": "architect",
+      "source": "~/.claude/skills"
+    },
+    {
+      "name": "architect-codex",
+      "source": "~/.claude/skills"
+    },
+    {
+      "name": "codex:adversarial-review",
+      "source": "plugin (namespaced codex)"
+    },
+    {
+      "name": "codex:cancel",
+      "source": "plugin (namespaced codex)"
+    },
+    {
+      "name": "codex:rescue",
+      "source": "plugin (namespaced codex)"
+    },
+    {
+      "name": "codex:result",
+      "source": "plugin (namespaced codex)"
+    },
+    {
+      "name": "codex:review",
+      "source": "plugin (namespaced codex)"
+    },
+    {
+      "name": "codex:setup",
+      "source": "plugin (namespaced codex)"
+    },
+    {
+      "name": "codex:status",
+      "source": "plugin (namespaced codex)"
+    },
+    {
+      "name": "codex:transfer",
+      "source": "plugin (namespaced codex)"
+    },
+    {
+      "name": "designer-woody",
+      "source": "~/.claude/skills"
+    },
+    {
+      "name": "frontend-design:frontend-design",
+      "source": "plugin (namespaced frontend-design)"
+    },
+    {
+      "name": "orchestration",
+      "source": "~/.claude/skills"
+    },
+    {
+      "name": "release",
+      "source": "~/.claude/skills"
+    },
+    {
+      "name": "save-writing",
+      "source": "~/.claude/skills"
+    },
+    {
+      "name": "woody-learn",
+      "source": "~/.claude/skills"
+    }
+  ],
+  "nameProbes": [
+    {
+      "name": "review",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "code-review",
+        "codex:setup",
+        "codex:review",
+        "security-review"
+      ]
+    },
+    {
+      "name": "code-review",
+      "exact": true,
+      "description": "3 free /ultrareview · Review the current diff, or a PR number/branch/path target, for correctness bugs and reuse/simplification/efficiency cleanups at the",
+      "offered": [
+        "code-review",
+        "codex:review",
+        "simplify"
+      ]
+    },
+    {
+      "name": "ultraplan",
+      "exact": false,
+      "description": null,
+      "offered": []
+    },
+    {
+      "name": "ultrareview",
+      "exact": true,
+      "description": "3 free left · Start a cloud agent that finds and verifies bugs in your branch (~5-10 min, $5-$25 USD) · Runs in Claude Code on the web. See",
+      "offered": [
+        "ultrareview"
+      ]
+    },
+    {
+      "name": "checkpoint",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "rewind",
+        "doctor",
+        "artifact-capabilities"
+      ]
+    },
+    {
+      "name": "undo",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "rewind",
+        "design",
+        "woody-learn"
+      ]
+    },
+    {
+      "name": "stats",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "usage",
+        "codex:status",
+        "status",
+        "statusline"
+      ]
+    },
+    {
+      "name": "cost",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "usage",
+        "code-review",
+        "doctor"
+      ]
+    },
+    {
+      "name": "bashes",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "tasks"
+      ]
+    },
+    {
+      "name": "quit",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "exit",
+        "architect",
+        "update-config"
+      ]
+    },
+    {
+      "name": "plugins",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "plugin",
+        "reload-plugins",
+        "doctor"
+      ]
+    },
+    {
+      "name": "deep-research",
+      "exact": true,
+      "description": "[dynamic workflow] Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report.",
+      "offered": [
+        "deep-research"
+      ]
+    },
+    {
+      "name": "recap",
+      "exact": true,
+      "description": "Generate a one-line session recap now",
+      "offered": [
+        "recap",
+        "doctor"
+      ]
+    },
+    {
+      "name": "artifact-design",
+      "exact": true,
+      "description": "Design guidance and fundamentals for Artifacts.",
+      "offered": [
+        "artifact-design",
+        "artifact-diagramming"
+      ]
+    },
+    {
+      "name": "rc",
+      "exact": false,
+      "description": null,
+      "offered": [
+        "remote-control",
+        "orchestration",
+        "architect"
+      ]
+    },
+    {
+      "name": "pwd",
+      "exact": false,
+      "description": null,
+      "offered": []
+    },
+    {
+      "name": "cwd",
+      "exact": false,
+      "description": null,
+      "offered": []
+    }
+  ],
+  "settingsUntouched": true,
+  "endVersion": "2.1.258 (Claude Code)",
+  "versionDrift": false
+}
