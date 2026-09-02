@@ -26,8 +26,13 @@ try {
   });
 
   await page.locator("#model-chip", { hasText: "Opus 5 High" }).click();
+  // Re-walked against the live `/model` picker at claude 2.1.258 (upstream sync
+  // 2026-09-01, SL-4). Two rows moved: `Fable 5` was the WRONG label (the CLI
+  // calls it Fable 5.1) and `Opus 5 (1M context)` was missing entirely — it is
+  // the picker's only Opus row.
   assert.deepEqual(await settingOptionLabels(page, "Model"), [
-    "Fable 5",
+    "Fable 5.1",
+    "Opus 5 (1M context)",
     "Opus 5",
     "Sonnet 5",
     "Haiku 4.5",
@@ -41,6 +46,22 @@ try {
     ["Standard", "Fast"],
     "Claude Opus offers the Speed section with Fast",
   );
+  // …and the 1M variant is Opus too (SL-4 probe q15 measured it accepting the
+  // same fastMode injection). `/^Opus 5 \(1M context\)$/` rather than a substring:
+  // two rows now start with "Opus 5", so an unanchored locator is ambiguous.
+  await settingSection(page, "Model")
+    .locator("button", { hasText: /^Opus 5 \(1M context\)$/ })
+    .click();
+  await page.locator("#model-chip", { hasText: "Opus 5 (1M context) High" }).waitFor({
+    state: "visible",
+  });
+  assert.deepEqual(
+    await settingOptionLabels(page, "Speed"),
+    ["Standard", "Fast"],
+    "Claude Opus (1M context) offers the Speed section with Fast too",
+  );
+  await settingSection(page, "Model").locator("button", { hasText: /^Opus 5$/ }).click();
+  await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
   // Select Fast, then verify the model-switch unwind: switching Opus→Sonnet must
   // drop the now-unsupported `fast` back to Standard AND remove the section
   // entirely (a lone "Standard" is no real choice). The chip must NOT carry
@@ -60,7 +81,7 @@ try {
     "non-Opus Claude hides the Speed section entirely",
   );
   // Switching back to Opus re-offers the section, now at the unwound Standard.
-  await settingSection(page, "Model").locator("button", { hasText: "Opus 5" }).click();
+  await settingSection(page, "Model").locator("button", { hasText: /^Opus 5$/ }).click();
   await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
   const reofferedSpeed = await settingOptionLabels(page, "Speed");
   assert.deepEqual(reofferedSpeed, ["Standard", "Fast"], "Opus re-offers the Speed section");
@@ -138,7 +159,7 @@ try {
   console.log(
     JSON.stringify(
       {
-        claudeModels: ["Fable 5", "Opus 5", "Sonnet 5", "Haiku 4.5"],
+        claudeModels: ["Fable 5.1", "Opus 5 (1M context)", "Opus 5", "Sonnet 5", "Haiku 4.5"],
         codexModels: [
           "5.6 Sol",
           "5.6 Terra",

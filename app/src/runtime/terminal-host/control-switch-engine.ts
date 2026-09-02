@@ -1614,7 +1614,11 @@ export class ControlSwitchEngine {
     // receipt FIRST: on a session without history the switch applies with a clean
     // receipt and no dialog (the rare clean path); a settled receipt beats a stale
     // dialog frame from a prior repaint.
-    const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind);
+    // `pending.value` is passed so a failure receipt must NAME THIS SWITCH's
+    // target: since 2.1.252 a switch that reshapes the banner forces a full
+    // transcript redraw, which replays every older receipt through this very
+    // window (measured — see parseClaudeControlReceipt's block comment).
+    const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind, pending.value);
     if (verdict === "settled") {
       this.settleValueSwitch(pending);
       return;
@@ -1928,7 +1932,7 @@ export class ControlSwitchEngine {
         pending.phase === "navigating" ||
         pending.phase === "confirming"
       ) {
-        if (parseClaudeControlReceipt(scan, axis) === "settled") {
+        if (parseClaudeControlReceipt(scan, axis, pending.value) === "settled") {
           this.settleParkedClaudeYes(pending);
           return;
         }

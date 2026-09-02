@@ -1,0 +1,1516 @@
+# Q12 — /model picker walk (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-01T22:36:42.178Z
+
+===== spawn shape =====
+claude --permission-mode default --settings <production runtime settings>
+cols=120
+
+===== boot — composer reached? =====
+true (trustDialogSeen=false)
+
+===== boot — idle composer (production spawn) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== H40 — picker OPEN =====
+[cursor] x=3 y=32
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+                                                                                                                   
+   Enter to set as default · s to use this session only · Esc to cancel
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-62 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 (1M context) with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-61 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/model-picker/walk"
+  y=26 | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+        cols 0-120 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"
+  y=27 |    Select model
+        cols 3-15 inv=0 bg=- fg=rgb11647481 b=1 d=0 :: "Select model"
+  y=28 |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+        cols 3-113 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, "
+  y=29 |    specify with --model.
+        cols 3-24 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "specify with --model."
+  y=31 |      1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "1. "
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=32 |    ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 3-4 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "❯"
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "2. "
+        cols 8-25 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "Opus (1M context)"
+        cols 26-27 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "✔"
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=33 |      3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "3. "
+        cols 31-40 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "Fable 5.1"
+        cols 40-98 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " · Most capable for your hardest and longest-running tasks"
+  y=34 |      4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "4. "
+        cols 31-69 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Sonnet 5 · Efficient for routine tasks"
+  y=35 |      5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "5. "
+        cols 31-68 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Fastest for quick answers"
+  y=37 |    ◐ Medium effort ←/→ to adjust
+        cols 3-4 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "◐"
+        cols 4-18 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " Medium effort"
+        cols 18-32 inv=0 bg=- fg=rgb5263440 b=0 d=0 :: " ←/→ to adjust"
+  y=39 |    Enter to set as default · s to use this session only · Esc to cancel
+        cols 3-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Enter to set as default · s to use this session only · Esc to cancel"
+
+===== H40 — picker-open RAW delta (SGR around row names) =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[31B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[39C\u001b[1Btech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most work sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[3C\u001b[36Bm\u001b[40;1H\u001b[37;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\u001b[40;1H\u001b[37;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[36Bo\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[36Bd\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[36Be\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[30B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[30B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[26B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mSelect model\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[3C\u001b[1Bspecify with --model.\r\u001b[2C\u001b[1B\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m1. \u001b[39mDefault (recommended)  \u001b[38;2;153;153;153mOpus\u001b[37G5\u001b[39Gwith 1M \u001b[48Gontext · Best for everyday, complex tasks\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[6G\u001b[38;2;153;153;153m2. \u001b[38;2;78;186;101mOpus (1M context)\u001b[27G✔\u001b[32G\u001b[38;2;153;153;153mOpus 5 wi\u001b[42Gh 1M context · B\u001b[59Gst for\u001b[66Gev\u001b[69Gryday, \u001b[77Gomplex tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m3.\u001b[9G\u001b[39mFable                  \u001b[38;2;215;119;87mFable 5.1\u001b[38;2;153;153;153m ·\u001b[44GMost capable for your hardest and longest-running\u001b[94Gtasks\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m4. \u001b[39mSonnet\u001b[32G\u001b[38;2;153;153;153mSonnet 5 · Efficie\u001b[52G for routine\u001b[66Gasks\u001b[39m\u001b[K\r\u001b[1B     \u001b[38;2;153;153;153m5. \u001b[39mHaiku                  \u001b[38;2;153;153;153mHaiku 4.5 · Fastest for quick answers\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m◐\u001b[38;2;153;153;153m Medium effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[40;1H\u001b[33;4H"
+
+===== H40 — Down walk (stepMs=400) =====
+step  0  focused="2. Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+step  1  focused="3. Fable Fable 5.1 · Most capable for your hardest and longest-running tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+step  2  focused="4. Sonnet Sonnet 5 · Efficient for routine tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | ❯ 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+step  3  focused="5. Haiku Haiku 4.5 · Fastest for quick answers"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ○ Effort not supported for Haiku
+step  4  focused="1. Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ❯ 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+step  5  focused="2. Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+
+===== H40 — after Esc (picker closed?) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+   
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== H40 — Esc-cancel RAW delta (cancel receipt) =====
+"\u001b[H\r\u001b[6B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[19B\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[2B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B         \u001b[32G                                      \u001b[101G\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== H36 — after resize to 120x36 (composer) =====
+[cursor] x=2 y=32
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== H36 — picker OPEN =====
+[cursor] x=3 y=28
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-62 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 (1M context) with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-61 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/model-picker/walk"
+  y= 6 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y= 7 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=22 | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+        cols 0-120 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"
+  y=23 |    Select model
+        cols 3-15 inv=0 bg=- fg=rgb11647481 b=1 d=0 :: "Select model"
+  y=24 |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+        cols 3-113 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, "
+  y=25 |    specify with --model.
+        cols 3-24 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "specify with --model."
+  y=27 |      1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "1. "
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=28 |    ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 3-4 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "❯"
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "2. "
+        cols 8-25 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "Opus (1M context)"
+        cols 26-27 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "✔"
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=29 |      3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "3. "
+        cols 31-40 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "Fable 5.1"
+        cols 40-98 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " · Most capable for your hardest and longest-running tasks"
+  y=30 |      4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "4. "
+        cols 31-69 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Sonnet 5 · Efficient for routine tasks"
+  y=31 |      5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "5. "
+        cols 31-68 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Fastest for quick answers"
+  y=33 |    ◐ Medium effort ←/→ to adjust
+        cols 3-4 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "◐"
+        cols 4-18 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " Medium effort"
+        cols 18-32 inv=0 bg=- fg=rgb5263440 b=0 d=0 :: " ←/→ to adjust"
+  y=35 |    Enter to set as default · s to use this session only · Esc to cancel
+        cols 3-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Enter to set as default · s to use this session only · Esc to cancel"
+
+===== H36 — picker-open RAW delta (SGR around row names) =====
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[27B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[39C\u001b[1Btech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most\u001b[103Gwork sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[36;1H\u001b[33;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\r\u001b[3C\u001b[2Bm\u001b[36;1H\u001b[33;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[32Bo\u001b[36;1H\u001b[33;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[36;1H\u001b[33;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[32Bd\u001b[36;1H\u001b[33;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[36;1H\u001b[33;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[32Be\u001b[36;1H\u001b[33;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[26B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[36;1H\u001b[33;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[32B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[36;1H\u001b[33;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[26B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[36;1H\u001b[33;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mSelect model\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[3C\u001b[1Bspecify with --model.\r\u001b[2C\u001b[1B\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m1. \u001b[39mDefault (recommended)  \u001b[38;2;153;153;153mOpus\u001b[37G5\u001b[39Gwith 1M \u001b[48Gontext · Best for everyday, complex tasks\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[6G\u001b[38;2;153;153;153m2. \u001b[38;2;78;186;101mOpus (1M context)\u001b[27G✔\u001b[32G\u001b[38;2;153;153;153mOpus 5 wi\u001b[42Gh 1M context · B\u001b[59Gst for\u001b[66Gev\u001b[69Gryday, \u001b[77Gomplex tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m3.\u001b[9G\u001b[39mFable                  \u001b[38;2;215;119;87mFable 5.1\u001b[38;2;153;153;153m ·\u001b[44GMost capable for your hardest and longest-running\u001b[94Gtasks\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m4. \u001b[39mSonnet\u001b[32G\u001b[38;2;153;153;153mSonnet 5 · Efficie\u001b[52G for routine\u001b[66Gasks\u001b[39m\u001b[K\r\u001b[1B     \u001b[38;2;153;153;153m5. \u001b[39mHaiku                  \u001b[38;2;153;153;153mHaiku 4.5 · Fastest for quick answers\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m◐\u001b[38;2;153;153;153m Medium effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[36;1H\u001b[29;4H"
+
+===== H36 — Down walk (stepMs=400) =====
+step  0  focused="2. Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+step  1  focused="3. Fable Fable 5.1 · Most capable for your hardest and longest-running tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+step  2  focused="4. Sonnet Sonnet 5 · Efficient for routine tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | ❯ 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+step  3  focused="5. Haiku Haiku 4.5 · Fastest for quick answers"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ○ Effort not supported for Haiku
+step  4  focused="1. Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ❯ 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+step  5  focused="2. Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | ◐ Medium effort ←/→ to adjust
+
+===== H36 — after Esc (picker closed?) =====
+[cursor] x=2 y=32
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+   
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== H36 — Esc-cancel RAW delta (cancel receipt) =====
+"\u001b[H\r\u001b[9B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[12B\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[2B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B         \u001b[32G                                      \u001b[101G\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[36;1H\u001b[33;3H\u001b[?25h"
+
+===== H24 — after resize to 120x24 (composer) =====
+[cursor] x=2 y=20
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== H24 — picker OPEN =====
+[cursor] x=3 y=17
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+   ↓ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+      … +2 models
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-62 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 (1M context) with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-61 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/model-picker/walk"
+  y= 6 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y= 7 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y= 9 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=10 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=11 | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+        cols 0-120 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"
+  y=12 |    Select model
+        cols 3-15 inv=0 bg=- fg=rgb11647481 b=1 d=0 :: "Select model"
+  y=13 |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+        cols 3-113 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, "
+  y=14 |    specify with --model.
+        cols 3-24 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "specify with --model."
+  y=16 |      1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "1. "
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=17 |    ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 3-4 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "❯"
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "2. "
+        cols 8-25 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "Opus (1M context)"
+        cols 26-27 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "✔"
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=18 |    ↓ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        cols 3-4 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "↓"
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "3. "
+        cols 31-40 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "Fable 5.1"
+        cols 40-98 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " · Most capable for your hardest and longest-running tasks"
+  y=19 |       … +2 models
+        cols 6-17 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "… +2 models"
+  y=21 |    ◐ Medium effort ←/→ to adjust
+        cols 3-4 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "◐"
+        cols 4-18 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " Medium effort"
+        cols 18-32 inv=0 bg=- fg=rgb5263440 b=0 d=0 :: " ←/→ to adjust"
+  y=23 |    Enter to set as default · s to use this session only · Esc to cancel
+        cols 3-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Enter to set as default · s to use this session only · Esc to cancel"
+
+===== H24 — picker-open RAW delta (SGR around row names) =====
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[15B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[39C\u001b[1Btech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most\u001b[103Gwork sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[24;1H\u001b[21;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[14B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\r\u001b[3C\u001b[2Bm\u001b[24;1H\u001b[21;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[20Bo\u001b[24;1H\u001b[21;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[14B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[24;1H\u001b[21;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[20Bd\u001b[24;1H\u001b[21;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[14B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[24;1H\u001b[21;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[20Be\u001b[24;1H\u001b[21;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[14B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[24;1H\u001b[21;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[20B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[24;1H\u001b[21;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[14B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[24;1H\u001b[21;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[11B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mSelect model\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[2C\u001b[1B\u001b[39m \u001b[38;2;153;153;153mspecify with --model.\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m1. \u001b[39mDefault\u001b[17G(recommended)\u001b[32G\u001b[38;2;153;153;153mOpus 5 wi\u001b[42Gh 1M context · B\u001b[59Gst for\u001b[66Gev\u001b[69Gryday, \u001b[77Gomplex tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;177;185;249m❯\u001b[39m \u001b[38;2;153;153;153m2.\u001b[9G\u001b[38;2;78;186;101mOpus (1M context)\u001b[39m \u001b[38;2;78;186;101m✔\u001b[39m    \u001b[38;2;153;153;153mOpus\u001b[37G5\u001b[39Gwith\u001b[44G1M c\u001b[49Gntext · Be\u001b[60Gt\u001b[62Gf\u001b[64Gr everyday, complex tasks\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;153;153;153m↓\u001b[6G3. \u001b[39mFable\u001b[32G\u001b[38;2;215;119;87mFable 5.1\u001b[38;2;153;153;153m · Most\u001b[49Gcapable for\u001b[61Gyour \u001b[67Gardest and longest-running tasks\r\u001b[1B\u001b[39m      \u001b[38;2;153;153;153m… +2 models\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m◐\u001b[38;2;153;153;153m Medium effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[24;1H\u001b[18;4H"
+
+===== H24 — Down walk (stepMs=400) =====
+step  0  focused="2. Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | ↓ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | … +2 models
+        | ◐ Medium effort ←/→ to adjust
+step  1  focused="3. Fable Fable 5.1 · Most capable for your hardest and longest-running tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | … +2 models
+        | ◐ Medium effort ←/→ to adjust
+step  2  focused="4. Sonnet Sonnet 5 · Efficient for routine tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ↑ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | ❯ 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | … +2 models
+        | ◐ Medium effort ←/→ to adjust
+step  3  focused="5. Haiku Haiku 4.5 · Fastest for quick answers"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ↑ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | … +2 models
+        | ○ Effort not supported for Haiku
+step  4  focused="1. Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ❯ 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | ↓ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | … +2 models
+        | ◐ Medium effort ←/→ to adjust
+step  5  focused="2. Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | ↓ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | … +2 models
+        | ◐ Medium effort ←/→ to adjust
+
+===== H24 — after Esc (picker closed?) =====
+[cursor] x=2 y=20
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+   
+
+     
+   
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== H24 — Esc-cancel RAW delta (cancel receipt) =====
+"\u001b[H\r\u001b[11B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept model as \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[2B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B \u001b[6G        \u001b[32G                                                                   \u001b[101G\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[24;1H\u001b[21;3H\u001b[?25h"
+
+===== H16 — after resize to 120x16 (composer) =====
+[cursor] x=2 y=12
+--- screen ---
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== H16 — picker OPEN =====
+[cursor] x=3 y=10
+--- screen ---
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+                                       
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+      … +3 models
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+--- styled cells ---
+  y= 2 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y= 3 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y= 4 | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+        cols 0-120 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"
+  y= 5 |    Select model
+        cols 3-15 inv=0 bg=- fg=rgb11647481 b=1 d=0 :: "Select model"
+  y= 6 |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+        cols 3-113 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, "
+  y= 7 |    specify with --model.
+        cols 3-24 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "specify with --model."
+  y= 9 |      1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "1. "
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=10 |    ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 3-4 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "❯"
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "2. "
+        cols 8-25 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "Opus (1M context)"
+        cols 26-27 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "✔"
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=11 |       … +3 models
+        cols 6-17 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "… +3 models"
+  y=13 |    ◐ Medium effort ←/→ to adjust
+        cols 3-4 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "◐"
+        cols 4-18 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " Medium effort"
+        cols 18-32 inv=0 bg=- fg=rgb5263440 b=0 d=0 :: " ←/→ to adjust"
+  y=15 |    Enter to set as default · s to use this session only · Esc to cancel
+        cols 3-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Enter to set as default · s to use this session only · Esc to cancel"
+
+===== H16 — picker-open RAW delta (SGR around row names) =====
+"\u001b[?25l\u001b[H\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[12G\u001b[38;2;153;153;153m/private/tmp/sonata-sync-2026-09/model-picker/walk\r\u001b[2B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[11G\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[1B\u001b[39m         \u001b[40G\u001b[38;2;177;185;249mtech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most\u001b[103Gwork sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[16;1H\u001b[13;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[6B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\r\u001b[3C\u001b[2Bm\u001b[16;1H\u001b[13;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[12Bo\u001b[16;1H\u001b[13;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[6B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[16;1H\u001b[13;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[12Bd\u001b[16;1H\u001b[13;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[6B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[16;1H\u001b[13;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[12Be\u001b[16;1H\u001b[13;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[6B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[16;1H\u001b[13;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[12B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[16;1H\u001b[13;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[6B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[16;1H\u001b[13;9H\u001b[?25h\u001b[?25l\u001b[H\u001b[K\r\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mSelect model\r\u001b[2C\u001b[1B\u001b[22m\u001b[39m \u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[2C\u001b[1B\u001b[39m \u001b[38;2;153;153;153mspecify w\u001b[14Gth\u001b[17G--model.\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m1.\u001b[9G\u001b[39mDefault (recommended)  \u001b[38;2;153;153;153mOpus\u001b[37G5\u001b[39Gwith\u001b[44G1M c\u001b[49Gntext · Be\u001b[60Gt\u001b[62Gf\u001b[64Gr everyday, complex tasks\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[6G\u001b[38;2;153;153;153m2. \u001b[38;2;78;186;101mOpus (1M context)\u001b[27G✔\u001b[32G\u001b[38;2;153;153;153mOpus 5 with 1M context · Best for everyday, complex tasks\r\u001b[1B\u001b[39m      \u001b[38;2;153;153;153m… +3 models\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m◐\u001b[38;2;153;153;153m Medium effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[16;1H\u001b[11;4H"
+
+===== H16 — Down walk (stepMs=400) =====
+step  0  focused="2. Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | … +3 models
+        | ◐ Medium effort ←/→ to adjust
+step  1  focused="3. Fable Fable 5.1 · Most capable for your hardest and longest-running tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ↑ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | … +3 models
+        | ◐ Medium effort ←/→ to adjust
+step  2  focused="4. Sonnet Sonnet 5 · Efficient for routine tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ↑ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        | ❯ 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | … +3 models
+        | ◐ Medium effort ←/→ to adjust
+step  3  focused="5. Haiku Haiku 4.5 · Fastest for quick answers"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ↑ 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        | ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        | … +3 models
+        | ○ Effort not supported for Haiku
+step  4  focused="1. Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | ❯ 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ↓ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | … +3 models
+        | ◐ Medium effort ←/→ to adjust
+step  5  focused="2. Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks"
+        | Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+        | specify with --model.
+        | 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        | ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        | … +3 models
+        | ◐ Medium effort ←/→ to adjust
+
+===== H16 — after Esc (picker closed?) =====
+[cursor] x=2 y=12
+--- screen ---
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+   
+❯ /model                               
+  ⎿  Kept model as Opus 5 (1M context)
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== H16 — Esc-cancel RAW delta (cancel receipt) =====
+"\u001b[H\r\u001b[4B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept model as \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept model\u001b[17Gas \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m\u001b[K\r\u001b[3C\u001b[1B \u001b[6G                    \u001b[27G \u001b[32G                                                         \u001b[101G\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[16;1H\u001b[13;3H\u001b[?25h"
+
+===== FAST300 — picker OPEN =====
+[cursor] x=3 y=28
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-62 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 (1M context) with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-61 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/model-picker/walk"
+  y= 6 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y= 7 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y= 9 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=10 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=12 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=13 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=15 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=16 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=22 | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+        cols 0-120 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"
+  y=23 |    Select model
+        cols 3-15 inv=0 bg=- fg=rgb11647481 b=1 d=0 :: "Select model"
+  y=24 |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+        cols 3-113 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, "
+  y=25 |    specify with --model.
+        cols 3-24 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "specify with --model."
+  y=27 |      1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "1. "
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=28 |    ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 3-4 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "❯"
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "2. "
+        cols 8-25 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "Opus (1M context)"
+        cols 26-27 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "✔"
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=29 |      3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "3. "
+        cols 31-40 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "Fable 5.1"
+        cols 40-98 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " · Most capable for your hardest and longest-running tasks"
+  y=30 |      4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "4. "
+        cols 31-69 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Sonnet 5 · Efficient for routine tasks"
+  y=31 |      5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "5. "
+        cols 31-68 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Fastest for quick answers"
+  y=33 |    ◐ Medium effort ←/→ to adjust
+        cols 3-4 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "◐"
+        cols 4-18 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " Medium effort"
+        cols 18-32 inv=0 bg=- fg=rgb5263440 b=0 d=0 :: " ←/→ to adjust"
+  y=35 |    Enter to set as default · s to use this session only · Esc to cancel
+        cols 3-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Enter to set as default · s to use this session only · Esc to cancel"
+
+===== FAST300 — picker-open RAW delta (SGR around row names) =====
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[27B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[39C\u001b[1Btech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most\u001b[103Gwork sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[36;1H\u001b[33;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\r\u001b[3C\u001b[2Bm\u001b[36;1H\u001b[33;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[32Bo\u001b[36;1H\u001b[33;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[36;1H\u001b[33;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[32Bd\u001b[36;1H\u001b[33;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[36;1H\u001b[33;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[32Be\u001b[36;1H\u001b[33;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[26B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[36;1H\u001b[33;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[32B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[36;1H\u001b[33;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[26B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[36;1H\u001b[33;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mSelect model\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[3C\u001b[1Bspecify with --model.\r\u001b[2C\u001b[1B\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m1. \u001b[39mDefault (recommended)  \u001b[38;2;153;153;153mOpus\u001b[37G5\u001b[39Gwith 1M \u001b[48Gontext · Best for everyday, complex tasks\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[6G\u001b[38;2;153;153;153m2. \u001b[38;2;78;186;101mOpus (1M context)\u001b[27G✔\u001b[32G\u001b[38;2;153;153;153mOpus 5 wi\u001b[42Gh 1M context · B\u001b[59Gst for\u001b[66Gev\u001b[69Gryday, \u001b[77Gomplex tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m3.\u001b[9G\u001b[39mFable                  \u001b[38;2;215;119;87mFable 5.1\u001b[38;2;153;153;153m ·\u001b[44GMost capable for your hardest and longest-running\u001b[94Gtasks\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m4. \u001b[39mSonnet\u001b[32G\u001b[38;2;153;153;153mSonnet 5 · Efficie\u001b[52G for routine\u001b[66Gasks\u001b[39m\u001b[K\r\u001b[1B     \u001b[38;2;153;153;153m5. \u001b[39mHaiku                  \u001b[38;2;153;153;153mHaiku 4.5 · Fastest for quick answers\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m◐\u001b[38;2;153;153;153m Medium effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[36;1H\u001b[29;4H"
+
+===== FAST300 — after 3 Downs at 300ms spacing =====
+[cursor] x=3 y=31
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== FAST300 — after Esc (picker closed?) =====
+[cursor] x=2 y=32
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+
+
+     
+     
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== FAST300 — Esc-cancel RAW delta (cancel receipt) =====
+"\u001b[H\r\u001b[18B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[3B\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[2B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B         \u001b[32G                                      \u001b[101G\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[36;1H\u001b[33;3H\u001b[?25h"
+
+===== FAST60 — picker OPEN =====
+[cursor] x=3 y=28
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-62 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 (1M context) with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-61 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/model-picker/walk"
+  y= 6 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y= 7 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y= 9 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=10 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=12 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=13 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=15 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=16 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=18 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=19 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=22 | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+        cols 0-120 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"
+  y=23 |    Select model
+        cols 3-15 inv=0 bg=- fg=rgb11647481 b=1 d=0 :: "Select model"
+  y=24 |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+        cols 3-113 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, "
+  y=25 |    specify with --model.
+        cols 3-24 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "specify with --model."
+  y=27 |      1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "1. "
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=28 |    ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 3-4 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "❯"
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "2. "
+        cols 8-25 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "Opus (1M context)"
+        cols 26-27 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "✔"
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=29 |      3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "3. "
+        cols 31-40 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "Fable 5.1"
+        cols 40-98 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " · Most capable for your hardest and longest-running tasks"
+  y=30 |      4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "4. "
+        cols 31-69 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Sonnet 5 · Efficient for routine tasks"
+  y=31 |      5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "5. "
+        cols 31-68 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Fastest for quick answers"
+  y=33 |    ◐ Medium effort ←/→ to adjust
+        cols 3-4 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "◐"
+        cols 4-18 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " Medium effort"
+        cols 18-32 inv=0 bg=- fg=rgb5263440 b=0 d=0 :: " ←/→ to adjust"
+  y=35 |    Enter to set as default · s to use this session only · Esc to cancel
+        cols 3-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Enter to set as default · s to use this session only · Esc to cancel"
+
+===== FAST60 — picker-open RAW delta (SGR around row names) =====
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[27B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[39C\u001b[1Btech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most\u001b[103Gwork sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[36;1H\u001b[33;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\r\u001b[3C\u001b[2Bm\u001b[36;1H\u001b[33;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[32Bo\u001b[36;1H\u001b[33;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[36;1H\u001b[33;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[32Bd\u001b[36;1H\u001b[33;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[36;1H\u001b[33;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[32Be\u001b[36;1H\u001b[33;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[26B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[36;1H\u001b[33;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[32B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[36;1H\u001b[33;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[26B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[36;1H\u001b[33;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mSelect model\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[3C\u001b[1Bspecify with --model.\r\u001b[2C\u001b[1B\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m1. \u001b[39mDefault (recommended)  \u001b[38;2;153;153;153mOpus\u001b[37G5\u001b[39Gwith 1M \u001b[48Gontext · Best for everyday, complex tasks\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[6G\u001b[38;2;153;153;153m2. \u001b[38;2;78;186;101mOpus (1M context)\u001b[27G✔\u001b[32G\u001b[38;2;153;153;153mOpus 5 wi\u001b[42Gh 1M context · B\u001b[59Gst for\u001b[66Gev\u001b[69Gryday, \u001b[77Gomplex tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m3.\u001b[9G\u001b[39mFable                  \u001b[38;2;215;119;87mFable 5.1\u001b[38;2;153;153;153m ·\u001b[44GMost capable for your hardest and longest-running\u001b[94Gtasks\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m4. \u001b[39mSonnet\u001b[32G\u001b[38;2;153;153;153mSonnet 5 · Efficie\u001b[52G for routine\u001b[66Gasks\u001b[39m\u001b[K\r\u001b[1B     \u001b[38;2;153;153;153m5. \u001b[39mHaiku                  \u001b[38;2;153;153;153mHaiku 4.5 · Fastest for quick answers\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m◐\u001b[38;2;153;153;153m Medium effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[36;1H\u001b[29;4H"
+
+===== FAST60 — after 3 Downs at 60ms spacing =====
+[cursor] x=3 y=31
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== FAST60 — after Esc (picker closed?) =====
+[cursor] x=2 y=32
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+     
+     
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== FAST60 — Esc-cancel RAW delta (cancel receipt) =====
+"\u001b[H\r\u001b[21B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept model as \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[2B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B         \u001b[32G                                      \u001b[101G\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[36;1H\u001b[33;3H\u001b[?25h"
+
+===== FAST0 — picker OPEN =====
+[cursor] x=3 y=28
+--- screen ---
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+--- styled cells ---
+  y= 0 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 1 | ▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-62 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 (1M context) with medium effort · Claude Max"
+  y= 2 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-61 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/model-picker/walk"
+  y= 5 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y= 6 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y= 8 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y= 9 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=11 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=12 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=14 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=15 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=17 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=18 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=20 | ❯ /model 
+        cols 0-1 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯"
+        cols 1-2 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+        cols 2-8 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "/model"
+        cols 8-9 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: " "
+  y=21 |   ⎿  Kept model as Opus 5 (1M context)
+        cols 0-5 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "  ⎿  "
+        cols 19-38 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "Opus 5 (1M context)"
+  y=22 | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+        cols 0-120 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"
+  y=23 |    Select model
+        cols 3-15 inv=0 bg=- fg=rgb11647481 b=1 d=0 :: "Select model"
+  y=24 |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+        cols 3-113 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, "
+  y=25 |    specify with --model.
+        cols 3-24 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "specify with --model."
+  y=27 |      1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "1. "
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=28 |    ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+        cols 3-4 inv=0 bg=- fg=rgb11647481 b=0 d=0 :: "❯"
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "2. "
+        cols 8-25 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "Opus (1M context)"
+        cols 26-27 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "✔"
+        cols 31-88 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with 1M context · Best for everyday, complex tasks"
+  y=29 |      3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "3. "
+        cols 31-40 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "Fable 5.1"
+        cols 40-98 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " · Most capable for your hardest and longest-running tasks"
+  y=30 |      4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "4. "
+        cols 31-69 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Sonnet 5 · Efficient for routine tasks"
+  y=31 |      5. Haiku                  Haiku 4.5 · Fastest for quick answers
+        cols 5-8 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "5. "
+        cols 31-68 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Fastest for quick answers"
+  y=33 |    ◐ Medium effort ←/→ to adjust
+        cols 3-4 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "◐"
+        cols 4-18 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " Medium effort"
+        cols 18-32 inv=0 bg=- fg=rgb5263440 b=0 d=0 :: " ←/→ to adjust"
+  y=35 |    Enter to set as default · s to use this session only · Esc to cancel
+        cols 3-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Enter to set as default · s to use this session only · Esc to cancel"
+
+===== FAST0 — picker-open RAW delta (SGR around row names) =====
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[27B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[39C\u001b[1Btech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most\u001b[103Gwork sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[36;1H\u001b[33;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[3C\u001b[32Bm\u001b[36;1H\u001b[33;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\u001b[36;1H\u001b[33;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[32Bo\u001b[36;1H\u001b[33;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[36;1H\u001b[33;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[32Bd\u001b[36;1H\u001b[33;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[26B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[36;1H\u001b[33;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[32Be\u001b[36;1H\u001b[33;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[26B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[36;1H\u001b[33;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[32B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[36;1H\u001b[33;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[26B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[36;1H\u001b[33;9H\u001b[?25h\u001b[?25l\u001b[H\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;2;153;153;153mv2.1.258\r\u001b[1B\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█\u001b[7G█\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mOpus 5 (1M context) with medium effort · Claude Max\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[12G\u001b[38;2;153;153;153m/\u001b[14Grivate/tmp/sona\u001b[30Ga-sync-2026-09/model-picker/walk\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mSelect model\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[3C\u001b[1Bspecify with --model.\r\u001b[2C\u001b[1B\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m1. \u001b[39mDefault (recommended)  \u001b[38;2;153;153;153mOpus\u001b[37G5\u001b[39Gwith 1M \u001b[48Gontext · Best for everyday, complex tasks\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[6G\u001b[38;2;153;153;153m2. \u001b[38;2;78;186;101mOpus (1M context)\u001b[27G✔\u001b[32G\u001b[38;2;153;153;153mOpus 5 wi\u001b[42Gh 1M context · B\u001b[59Gst for\u001b[66Gev\u001b[69Gryday, \u001b[77Gomplex tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m3.\u001b[9G\u001b[39mFable                  \u001b[38;2;215;119;87mFable 5.1\u001b[38;2;153;153;153m ·\u001b[44GMost capable for your hardest and longest-running\u001b[94Gtasks\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m4. \u001b[39mSonnet\u001b[32G\u001b[38;2;153;153;153mSonnet 5 · Efficie\u001b[52G for routine\u001b[66Gasks\u001b[39m\u001b[K\r\u001b[1B     \u001b[38;2;153;153;153m5. \u001b[39mHaiku                  \u001b[38;2;153;153;153mHaiku 4.5 · Fastest for quick answers\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m◐\u001b[38;2;153;153;153m Medium effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[36;1H\u001b[29;4H"
+
+===== FAST0 — after 3 Downs at 0ms spacing =====
+[cursor] x=3 y=31
+--- screen ---
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== FAST0 — after Esc (picker closed?) =====
+[cursor] x=2 y=32
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+     
+     
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== FAST0 — Esc-cancel RAW delta (cancel receipt) =====
+"\u001b[H\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛\u001b[7G▛█\u001b[39m\u001b[49m \u001b[12G\u001b[1mClaude Code\u001b[22m \u001b[38;2;153;153;153mv2.1.258\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mO\u001b[14Gus 5 (1M contex\u001b[30G) with medium effort · Claude Max\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[12G\u001b[38;2;153;153;153m/private/tmp/sonata-sync-2026-09/model-picker/walk\r\u001b[2B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[11G\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[11G\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[11G\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[11G\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[11G\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[11G\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept model as \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mKept model as \u001b[38;2;177;185;249mOpus 5 (1M context)\r\u001b[5C\u001b[2B\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B         \u001b[32G                                      \u001b[101G\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[36;1H\u001b[33;3H\u001b[?25h"
+
+===== final — screen at teardown =====
+[cursor] x=2 y=32
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/model-picker/walk
+
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+     
+     
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== user settings.json byte-identical after probe? =====
+true
+
+===== binary version at probe end =====
+2.1.258 (Claude Code)

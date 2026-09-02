@@ -72,9 +72,13 @@ try {
 
   // Menu structure: Model + Reasoning sections (no CLI-default caption — removed
   // S6, field revision 5; the disclosure lives in docs, not menu chrome).
+  // Re-walked against the live `/model` picker at claude 2.1.258 (upstream sync
+  // 2026-09-01, SL-4): `Fable 5` was the wrong label and `Opus 5 (1M context)`
+  // was missing — see reading-core/config.ts for the measured alias→display-name
+  // table these labels have to equal.
   assert.deepEqual(
     await settingOptionLabels(page, "Model"),
-    ["Fable 5", "Opus 5", "Sonnet 5", "Haiku 4.5"],
+    ["Fable 5.1", "Opus 5 (1M context)", "Opus 5", "Sonnet 5", "Haiku 4.5"],
     "the Model section is the curated list, WITHOUT Native Default (no mid-session meaning)",
   );
   assert.deepEqual(

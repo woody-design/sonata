@@ -1,12 +1,21 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Unit coverage for the mid-session switch receipt parser (S1). The pure
 // parser is the seam the receipt watcher keys on: it turns the RAW pty tail
 // (ANSI + word-positioned redraw + whitespace noise) into a settle / fail /
 // keep-waiting verdict. Strings are the probe-verified verbatim receipts
-// (claude 2.1.214 — spikes/midsession-switch-probe/findings.md).
+// (claude 2.1.214 — spikes/midsession-switch-probe/findings.md), re-stamped
+// against claude 2.1.258 by the 2026-09-01 sync (SL-4, probes q13/q14/q16 —
+// spikes/upstream-sync-2026-09/claude/findings.md F16/F17/F19). Where a receipt
+// MOVED between those versions, both forms are pinned: the parser has to keep
+// working against a binary a user has not updated yet.
 const require = createRequire(import.meta.url);
+const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), "../fixtures");
+const readFixture = (name) => readFileSync(resolve(FIXTURES, name), "utf8");
 const {
   parseClaudeControlReceipt,
   parseClaudePermissionModeLine,
@@ -27,11 +36,13 @@ const {
   parseCodexConsentCursor,
 } = require("../../dist/runtime");
 
-// — Success: model —
+// — Success: model. Both receipt tails are MEASURED — 2.1.214 had no
+//   "for new sessions", 2.1.258 does. —
 assert.equal(
   parseClaudeControlReceipt(
     "⎿ Set model to Sonnet 5 and saved as your default for new sessions",
     "model",
+    "sonnet",
   ),
   "settled",
   "the `Set model to …` receipt settles a model switch",
@@ -46,42 +57,136 @@ assert.equal(
   parseClaudeControlReceipt(
     "  ⎿  SetmodeltoSonnet 5andsavedasyourdefaultfornewsessions",
     "model",
+    "sonnet",
   ),
   "settled",
   "the word-positioned (glued) model receipt still settles",
 );
 assert.equal(
-  parseClaudeControlReceipt("  ⎿  SeteffortleveltolowsavedasyourdefaultfornewsessionsX", "effort"),
+  parseClaudeControlReceipt(
+    "  ⎿  SeteffortleveltolowsavedasyourdefaultfornewsessionsX",
+    "effort",
+    "low",
+  ),
   "settled",
   "the word-positioned (glued) effort receipt still settles",
 );
 
-// — Success: effort —
+// MEASURED at 2.1.258 (q13 arm C2): choosing a picker row with `s` (session-only)
+// prints a receipt with NO "saved as your default" tail at all. It is still a
+// settle — the model DID change — and the anchor is unchanged, so this pins that
+// the needle never depended on the tail.
+assert.equal(
+  parseClaudeControlReceipt(
+    "⎿  Set model to Opus 5 (1M context) for this session only",
+    "model",
+    "opus[1m]",
+  ),
+  "settled",
+  "the picker's session-only receipt (no default tail) still settles",
+);
+// MEASURED at 2.1.258 (q13 arm C1): the picker's `Default (recommended)` row adds
+// a parenthesised `(default)` between the name and the tail.
+assert.equal(
+  parseClaudeControlReceipt(
+    "⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions",
+    "model",
+    "opus[1m]",
+  ),
+  "settled",
+  "the picker's Default-row receipt settles",
+);
+
+// — Success: effort. 2.1.258 appends a description after a colon, and `max`
+//   reports "(this session only)" instead of the default tail — both MEASURED
+//   (q16), both still settles. —
 assert.equal(
   parseClaudeControlReceipt(
     "⎿ Set effort level to low (saved as your default for new sessions)",
     "effort",
+    "low",
   ),
   "settled",
   "the `Set effort level to …` receipt settles an effort switch",
 );
-
-// — Failure: model —
 assert.equal(
-  parseClaudeControlReceipt("⎿ Model 'bogus-model-xyz' not found", "model"),
+  parseClaudeControlReceipt(
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with minimal overhead",
+    "effort",
+    "low",
+  ),
+  "settled",
+  "…and the 2.1.258 description tail does not disturb it",
+);
+assert.equal(
+  parseClaudeControlReceipt(
+    "⎿  Set effort level to max (this session only): Maximum capability with deepest reasoning. May use excessive tokens",
+    "effort",
+    "max",
+  ),
+  "settled",
+  "…and `max`, which does NOT persist as a default, still settles",
+);
+
+// — Failure: model. The needle is anchored on the value THIS switch asked for
+//   (see parseClaudeControlReceipt's block comment): a repaint of an older
+//   failure naming a different model must not fail this one. —
+assert.equal(
+  parseClaudeControlReceipt("⎿ Model 'bogus-model-xyz' not found", "model", "bogus-model-xyz"),
   "failed",
-  "the `Model '<x>' not found` receipt fails a model switch",
+  "the `Model '<x>' not found` receipt fails a model switch that asked for <x>",
+);
+assert.equal(
+  parseClaudeControlReceipt("⎿ Model 'bogus-model-xyz' not found", "model", "haiku"),
+  null,
+  "…and the SAME line does not fail a switch that asked for a different model",
+);
+// A real alias carries regex metacharacters (`opus[1m]` — MODEL_OPTIONS.claude).
+// Unescaped, `[1m]` would become a character class and the needle would never
+// match its own failure; escaped, it matches literally and nothing else.
+assert.equal(
+  parseClaudeControlReceipt("⎿ Model 'opus[1m]' not found", "model", "opus[1m]"),
+  "failed",
+  "a value carrying regex metacharacters is matched LITERALLY",
+);
+assert.equal(
+  parseClaudeControlReceipt("⎿ Model 'opusm' not found", "model", "opus[1m]"),
+  null,
+  "…and is not treated as a character class (`opusm` must not match `opus[1m]`)",
+);
+
+// — Failure: effort. MEASURED at 2.1.258 (q16): `/effort <bogus>` prints
+//   `Invalid argument: <x>. Valid options are: low, medium, high, xhigh, max,
+//   ultracode, auto`. Before this was measured the parser returned null here and
+//   the switch sat pending for the full timeout. —
+assert.equal(
+  parseClaudeControlReceipt(
+    "⎿  Invalid argument: bogus-tier. Valid options are: low, medium, high, xhigh, max, ultracode, auto",
+    "effort",
+    "bogus-tier",
+  ),
+  "failed",
+  "the `Invalid argument: <tier>.` receipt fails an effort switch that asked for <tier>",
+);
+assert.equal(
+  parseClaudeControlReceipt(
+    "⎿  Invalid argument: bogus-tier. Valid options are: low, medium, high, xhigh, max, ultracode, auto",
+    "effort",
+    "high",
+  ),
+  null,
+  "…and does not fail a switch that asked for a different tier",
 );
 
 // — Timeout paths: no receipt yet (parser returns null → the watcher waits,
 //   then the timeout re-classifies the screen as needs-attention). —
 assert.equal(
-  parseClaudeControlReceipt("❯ /model sonnet", "model"),
+  parseClaudeControlReceipt("❯ /model sonnet", "model", "sonnet"),
   null,
   "the echoed command line is not a receipt",
 );
 assert.equal(
-  parseClaudeControlReceipt("", "model"),
+  parseClaudeControlReceipt("", "model", "sonnet"),
   null,
   "an empty scan keeps waiting",
 );
@@ -89,28 +194,44 @@ assert.equal(
   parseClaudeControlReceipt(
     "· Thinking… (esc to interrupt · ctrl+t to hide todos)",
     "effort",
+    "high",
   ),
   null,
   "unrelated TUI chrome keeps waiting",
 );
+// MEASURED at 2.1.258 (q16): `/effort auto` is accepted but prints a receipt in a
+// shape this parser does not recognise. Sonata never INJECTS `auto` (it is not in
+// REASONING_OPTIONS, and config.ts records why), so this pins the honest
+// consequence if it ever did: keep waiting, then needs-attention — never a
+// guessed settle.
+assert.equal(
+  parseClaudeControlReceipt("⎿  Effort level set to auto", "effort", "auto"),
+  null,
+  "the `/effort auto` receipt is NOT recognised as a settle (unmodelled, fails safe)",
+);
 
 // — Cross-kind isolation: each kind matches only its own receipt line. —
 assert.equal(
-  parseClaudeControlReceipt("⎿ Set effort level to low", "model"),
+  parseClaudeControlReceipt("⎿ Set effort level to low", "model", "sonnet"),
   null,
   "an effort receipt must NOT settle a model switch",
 );
 assert.equal(
-  parseClaudeControlReceipt("⎿ Set model to Sonnet 5", "effort"),
+  parseClaudeControlReceipt("⎿ Set model to Sonnet 5", "effort", "low"),
   null,
   "a model receipt must NOT settle an effort switch",
 );
-// `/effort` has no probed failure receipt — a `Model '…' not found` in the
-// scan must not fail an effort switch (it times out to needs-attention).
+// A `Model '…' not found` in the scan must not fail an effort switch, even when
+// the two axes share a value string.
 assert.equal(
-  parseClaudeControlReceipt("⎿ Model 'x' not found", "effort"),
+  parseClaudeControlReceipt("⎿ Model 'x' not found", "effort", "x"),
   null,
   "the model-failure line does not fail an effort switch",
+);
+assert.equal(
+  parseClaudeControlReceipt("⎿  Invalid argument: x. Valid options are: low", "model", "x"),
+  null,
+  "…and the effort-failure line does not fail a model switch",
 );
 
 // — Robustness: ANSI escapes + word-positioned redraw + whitespace noise. The
@@ -118,27 +239,93 @@ assert.equal(
 //   still matches (the RAW tail is accumulated before parsing). —
 assert.equal(
   parseClaudeControlReceipt(
-    "\x1b[2m\x1b[38;5;244m⎿ Set model to\x1b[0m\x1b[32G Fable 5\x1b[0m",
+    "\x1b[2m\x1b[38;5;244m⎿ Set model to\x1b[0m\x1b[32G Fable 5.1\x1b[0m",
     "model",
+    "fable",
   ),
   "settled",
   "ANSI-decorated + cursor-positioned receipt still settles",
 );
 assert.equal(
-  parseClaudeControlReceipt("⎿   Set    model\n   to   Opus 4.8", "model"),
+  parseClaudeControlReceipt("⎿   Set    model\n   to   Opus 4.8", "model", "opus"),
   "settled",
   "collapsed whitespace bridges a wrapped receipt",
 );
 
 // — Failure wins over success in the same scan (safe ordering): a screen that
-//   somehow shows both is treated as a failure, never a false settle. —
+//   shows both, for THIS switch's value, is treated as a failure. —
 assert.equal(
   parseClaudeControlReceipt(
     "⎿ Model 'bogus' not found\n⎿ Set model to Sonnet 5",
     "model",
+    "bogus",
   ),
   "failed",
-  "a failure line in the scan wins over a later success line",
+  "a failure line for this switch's value wins over a later success line",
+);
+
+// ── The repaint hazard, pinned on MEASURED windows ──────────────────────────
+//
+// Both fixtures are VERBATIM pty windows produced by the production ladder at
+// claude 2.1.258 (q13, arms B4 and B5 — the exact 4096-char rolling window
+// `detectControlSwitchReceipt` held at the moment it reached a verdict). Since
+// 2.1.252 claude renders in the alternate screen, and a switch that reshapes the
+// banner forces a FULL TRANSCRIPT REDRAW, so every receipt the session ever
+// printed re-enters the stream inside the CURRENT switch's window.
+const STALE_FAILURE_WINDOW = readFixture("claude-midsession/stale-failure-repaint-2.1.258.txt");
+const STALE_SUCCESS_WINDOW = readFixture("claude-midsession/stale-success-repaint-2.1.258.txt");
+
+// The window is genuinely poisoned — an earlier arm's failure line is in it…
+assert.match(
+  STALE_FAILURE_WINDOW.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\s+/g, ""),
+  /Model'bogus-model-xyz'notfound/,
+  "fixture sanity: the measured window really does carry the earlier failure line",
+);
+// …and it is the window of a `/model haiku` that SUCCEEDED (the statusline mirror
+// moved to Haiku 4.5 as it was captured). What the window does NOT contain is
+// haiku's own receipt — the `Set model to` lines in it are replays naming
+// `Opus 5` and `Opus 5 (1M context)`. Stated explicitly because it changes what
+// the next assertion proves: the FAILURE half is fixed (the stale rejection no
+// longer wins), and the value it settles on is a replayed success for another
+// model, which is the residual pinned at the bottom of this block.
+assert.doesNotMatch(
+  STALE_FAILURE_WINDOW.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\s+/g, ""),
+  /SetmodeltoHaiku/,
+  "fixture sanity: the succeeding switch's OWN receipt is NOT in this window",
+);
+assert.equal(
+  parseClaudeControlReceipt(STALE_FAILURE_WINDOW, "model", "haiku"),
+  "settled",
+  "a repaint of an EARLIER switch's rejection must not FAIL the switch in flight",
+);
+// The same window, for the switch that actually failed, still fails.
+assert.equal(
+  parseClaudeControlReceipt(STALE_FAILURE_WINDOW, "model", "bogus-model-xyz"),
+  "failed",
+  "…while the switch that DID ask for the rejected value still reads failed",
+);
+
+// ── KNOWN RESIDUAL, pinned as what it is rather than hidden ────────────────
+// The SUCCESS needle is NOT value-anchored, deliberately: the receipt names the
+// model's DISPLAY name ("Sonnet 5"), not the alias we sent ("sonnet"), so
+// anchoring it would mean trusting the label table this very sync had to correct
+// and would fail CLOSED into needs-attention on every upstream rename — worse
+// than what it fixes. Two shapes of the consequence, both on MEASURED windows:
+//
+// (a) the sharpest one — `fable` was never switched to in the session this
+//     window came from, so no `Set model to Fable 5.1` exists anywhere in it, and
+//     the parser settles anyway on a replayed `Set model to Opus 5`.
+assert.equal(
+  parseClaudeControlReceipt(STALE_FAILURE_WINDOW, "model", "fable"),
+  "settled",
+  "RESIDUAL: a replayed success line for ANOTHER model settles a switch whose own receipt is absent",
+);
+// (b) the same-value shape: this window's only `Set model to` is a repaint, and
+//     it settles the switch a beat early (measured settling on chunk 3, live).
+assert.equal(
+  parseClaudeControlReceipt(STALE_SUCCESS_WINDOW, "model", "sonnet"),
+  "settled",
+  "RESIDUAL: a repainted success line can settle a switch early (mirror is the SSOT)",
 );
 
 // ===========================================================================

@@ -1,0 +1,316 @@
+# Q14 — production receipt-window replay (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-01T22:41:24.083Z
+
+===== P1 /model sonnet (clean) [production] — ladder verdict =====
+{
+  "label": "P1 /model sonnet (clean)",
+  "mode": "production",
+  "kind": "model",
+  "value": "sonnet",
+  "productionVerdict": "settled",
+  "verdictChunk": 4,
+  "chunksSeen": 5,
+  "verdictAtMs": 163,
+  "mirrorAfter": {
+    "displayName": "Sonnet 5",
+    "effort": "medium"
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 1,
+  "windowSetEffortToCount": 0
+}
+
+===== P1 /model sonnet (clean) [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mSonnet\u001b[19G5 with m\u001b[28Gdium effort · Claude Max\u001b[39m\u001b[K\r\u001b[4B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[100C\u001b[27B\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m─────────────────────────────────"
+
+===== P2 /model bogus-model-xyz (poison) [production] — ladder verdict =====
+{
+  "label": "P2 /model bogus-model-xyz (poison)",
+  "mode": "production",
+  "kind": "model",
+  "value": "bogus-model-xyz",
+  "productionVerdict": "failed",
+  "verdictChunk": 4,
+  "chunksSeen": 5,
+  "verdictAtMs": 324,
+  "mirrorAfter": {
+    "displayName": "Sonnet 5",
+    "effort": "medium"
+  },
+  "windowCarriedStaleNotFound": true,
+  "windowSetModelToCount": 0,
+  "windowSetEffortToCount": 0
+}
+
+===== P2 /model bogus-model-xyz (poison) [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mbogus-model-xyz\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;25H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[100C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[9B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[100C\u001b[24B\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C"
+
+===== P3 /model haiku [production] — ladder verdict =====
+{
+  "label": "P3 /model haiku",
+  "mode": "production",
+  "kind": "model",
+  "value": "haiku",
+  "productionVerdict": "settled",
+  "verdictChunk": 4,
+  "chunksSeen": 5,
+  "verdictAtMs": 157,
+  "mirrorAfter": {
+    "displayName": "Haiku 4.5",
+    "effort": null
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 1,
+  "windowSetEffortToCount": 0
+}
+
+===== P3 /model haiku [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mhaiku\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[100C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mHaiku 4.5 · Clau\u001b[29Ge Max\u001b[39m\u001b[K\r\u001b[10B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[22B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────"
+
+===== P4 /model sonnet [production] — ladder verdict =====
+{
+  "label": "P4 /model sonnet",
+  "mode": "production",
+  "kind": "model",
+  "value": "sonnet",
+  "productionVerdict": "settled",
+  "verdictChunk": 4,
+  "chunksSeen": 5,
+  "verdictAtMs": 154,
+  "mirrorAfter": {
+    "displayName": "Sonnet 5",
+    "effort": "medium"
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 1,
+  "windowSetEffortToCount": 0
+}
+
+===== P4 /model sonnet [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mSonnet 5 with me\u001b[29Gium effort · Claude Max\r\u001b[13B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[100C\u001b[18B\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────"
+
+===== P5 /effort high [production] — ladder verdict =====
+{
+  "label": "P5 /effort high",
+  "mode": "production",
+  "kind": "effort",
+  "value": "high",
+  "productionVerdict": "settled",
+  "verdictChunk": 4,
+  "chunksSeen": 5,
+  "verdictAtMs": 165,
+  "mirrorAfter": {
+    "displayName": "Sonnet 5",
+    "effort": "high"
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 0,
+  "windowSetEffortToCount": 1
+}
+
+===== P5 /effort high [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/effort\u001b[11G\u001b[39mhigh\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[25C\u001b[2B\u001b[38;2;153;153;153mhigh effort ·\u001b[40GClaude Max\u001b[39m\u001b[K\r\u001b[100C\u001b[32B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[18B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[102C\u001b[14B\u001b[38;2;153;153;153m● high · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m──────────────────────────────────"
+
+===== P6 /model haiku [production] — ladder verdict =====
+{
+  "label": "P6 /model haiku",
+  "mode": "production",
+  "kind": "model",
+  "value": "haiku",
+  "productionVerdict": "settled",
+  "verdictChunk": 5,
+  "chunksSeen": 6,
+  "verdictAtMs": 151,
+  "mirrorAfter": {
+    "displayName": "Haiku 4.5",
+    "effort": null
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 1,
+  "windowSetEffortToCount": 0
+}
+
+===== P6 /model haiku [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mhaiku\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[102C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mHaiku 4.5 · Claude\u001b[31GMax\u001b[39m\u001b[K\r\u001b[20B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[12B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────"
+
+===== P7 /model sonnet [production] — ladder verdict =====
+{
+  "label": "P7 /model sonnet",
+  "mode": "production",
+  "kind": "model",
+  "value": "sonnet",
+  "productionVerdict": "settled",
+  "verdictChunk": 5,
+  "chunksSeen": 6,
+  "verdictAtMs": 150,
+  "mirrorAfter": {
+    "displayName": "Sonnet 5",
+    "effort": "high"
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 1,
+  "windowSetEffortToCount": 0
+}
+
+===== P7 /model sonnet [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mSonnet 5 with high\u001b[31Geffort · Claude Max\r\u001b[23B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[102C\u001b[8B\u001b[38;2;153;153;153m● high · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m──────────────────────────────────────"
+
+===== P8 /model haiku [production] — ladder verdict =====
+{
+  "label": "P8 /model haiku",
+  "mode": "production",
+  "kind": "model",
+  "value": "haiku",
+  "productionVerdict": "settled",
+  "verdictChunk": 4,
+  "chunksSeen": 5,
+  "verdictAtMs": 147,
+  "mirrorAfter": {
+    "displayName": "Haiku 4.5",
+    "effort": null
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 1,
+  "windowSetEffortToCount": 0
+}
+
+===== P8 /model haiku [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mhaiku\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[102C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mHaiku 4.5 · Claude\u001b[31GMax\u001b[39m\u001b[K\r\u001b[26B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[6B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m─────────────────────────────────────────────────────────"
+
+===== P9 /model sonnet [production] — ladder verdict =====
+{
+  "label": "P9 /model sonnet",
+  "mode": "production",
+  "kind": "model",
+  "value": "sonnet",
+  "productionVerdict": "settled",
+  "verdictChunk": 4,
+  "chunksSeen": 5,
+  "verdictAtMs": 198,
+  "mirrorAfter": {
+    "displayName": "Sonnet 5",
+    "effort": "high"
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 1,
+  "windowSetEffortToCount": 0
+}
+
+===== P9 /model sonnet [production] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mSonnet 5 with high\u001b[31Geffort · Claude Max\r\u001b[29B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[102C\u001b[2B\u001b[38;2;153;153;153m● high · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m──────────────────────────────────────"
+
+===== E1 /model haiku [early] — ladder verdict =====
+{
+  "label": "E1 /model haiku",
+  "mode": "early",
+  "kind": "model",
+  "value": "haiku",
+  "productionVerdict": "settled",
+  "verdictChunk": 11,
+  "chunksSeen": 22,
+  "verdictAtMs": 161,
+  "mirrorAfter": {
+    "displayName": "Haiku 4.5",
+    "effort": null
+  },
+  "windowCarriedStaleNotFound": false,
+  "windowSetModelToCount": 2,
+  "windowSetEffortToCount": 0
+}
+
+===== E1 /model haiku [early] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[31B  \u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\u001b[39m\u001b[K\r\u001b[1B        \u001b[10G     \u001b[16G  \u001b[19G        \u001b[28G   \u001b[32G     \u001b[38G  \u001b[38;2;177;185;249mtech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most work sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[3C\u001b[36Bm\u001b[40;1H\u001b[37;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[3C\u001b[31B\u001b[38;2;177;185;249m\u001b[1mmo\u001b[22mdel        \u001b[40GS\u001b[42Gt the AI\u001b[51G\u001b[1mmo\u001b[22mdel for Claude Code (cur\u001b[78Gently Sonnet 5)\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile                              Show QR code to download the Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\u001b[39m\u001b[K\r\u001b[88C\u001b[2B\u001b[1mmo\r\u001b[4C\u001b[2B\u001b[22mo\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[36Bd\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[29B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Sonnet 5)\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[36Be\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[30B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[30B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[29B\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[2C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas your default for new sessions\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[39C\u001b[1B                                             \u001b[103G\u001b[38;2;153;153;153m● high · /effort\r\u001b[10C\u001b[2B[model]\u001b[39m\u001b[40;1H\u001b[37;10H\u001b[?25h"
+
+===== E2 /model sonnet [early] — ladder verdict =====
+{
+  "label": "E2 /model sonnet",
+  "mode": "early",
+  "kind": "model",
+  "value": "sonnet",
+  "productionVerdict": "failed",
+  "verdictChunk": 2,
+  "chunksSeen": 34,
+  "verdictAtMs": 12,
+  "mirrorAfter": {
+    "displayName": "Sonnet 5",
+    "effort": "high"
+  },
+  "windowCarriedStaleNotFound": true,
+  "windowSetModelToCount": 1,
+  "windowSetEffortToCount": 0
+}
+
+===== E2 /model sonnet [early] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛\u001b[7G▛█\u001b[39m\u001b[49m \u001b[12G\u001b[1mClaude Code\u001b[22m \u001b[38;2;153;153;153mv2.1.258\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mHaiku 4.5 · Claude Max\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[12G\u001b[38;2;153;153;153m/private/tmp/sonata-sync-2026-09/receipt-window/session\r\u001b[2B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39"
+
+===== E3 /model haiku [early] — ladder verdict =====
+{
+  "label": "E3 /model haiku",
+  "mode": "early",
+  "kind": "model",
+  "value": "haiku",
+  "productionVerdict": "failed",
+  "verdictChunk": 2,
+  "chunksSeen": 33,
+  "verdictAtMs": 16,
+  "mirrorAfter": {
+    "displayName": "Haiku 4.5",
+    "effort": null
+  },
+  "windowCarriedStaleNotFound": true,
+  "windowSetModelToCount": 2,
+  "windowSetEffortToCount": 0
+}
+
+===== E3 /model haiku [early] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet"
+
+===== final — transcript after both ladders =====
+[cursor] x=2 y=36
+--- screen ---
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== binary version at probe end =====
+2.1.258 (Claude Code)
+
+===== user settings restored? =====
+true

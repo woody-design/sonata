@@ -1,0 +1,336 @@
+# Q15 — native fast mode on opus[1m] (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-01T22:45:45.638Z
+
+===== F1-opus-fast — boot frame (--model opus, fastMode=true) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F1-opus-fast
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                     Fast mode requires usage credits · /usage-credits to turn them on
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Opus 5 with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-49 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F1-opus-fast
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-69 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/fast-mode-1m/F1-opus-fast"
+  y=34 |                                                      Fast mode requires usage credits · /usage-credits to turn them on
+        cols 53-118 inv=0 bg=- fg=rgb16761095 b=0 d=0 :: "Fast mode requires usage credits · /usage-credits to turn them on"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |                                                                                                                    /rc
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== F1-opus-fast — verdict =====
+{
+  "label": "F1-opus-fast",
+  "model": "opus",
+  "fastMode": true,
+  "injectedFastModeKey": true,
+  "ready": true,
+  "bannerModelLine": "Opus 5 with medium effort · Claude Max",
+  "speedLines": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F1-opus-fast",
+    "Fast mode requires usage credits · /usage-credits to turn them on"
+  ],
+  "exited": false
+}
+
+===== F2-opus1m-fast — boot frame (--model opus[1m], fastMode=true) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F2-opus1m-fast
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                     Fast mode requires usage credits · /usage-credits to turn them on
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-62 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 (1M context) with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F2-opus1m-fast
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/fast-mode-1m/F2-opus1m-fast"
+  y=34 |                                                      Fast mode requires usage credits · /usage-credits to turn them on
+        cols 53-118 inv=0 bg=- fg=rgb16761095 b=0 d=0 :: "Fast mode requires usage credits · /usage-credits to turn them on"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |                                                                                                                    /rc
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== F2-opus1m-fast — verdict =====
+{
+  "label": "F2-opus1m-fast",
+  "model": "opus[1m]",
+  "fastMode": true,
+  "injectedFastModeKey": true,
+  "ready": true,
+  "bannerModelLine": "Opus 5 (1M context) with medium effort · Claude Max",
+  "speedLines": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F2-opus1m-fast",
+    "Fast mode requires usage credits · /usage-credits to turn them on"
+  ],
+  "exited": false
+}
+
+===== F3-opus1m-standard — boot frame (--model opus[1m], fastMode=false) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F3-opus1m-standard
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-62 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 (1M context) with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F3-opus1m-standard
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-75 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/fast-mode-1m/F3-opus1m-standard"
+  y=34 |                                                                                                     ◐ medium · /effort
+        cols 100-118 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "◐ medium · /effort"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |                                                                                                                    /rc
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== F3-opus1m-standard — verdict =====
+{
+  "label": "F3-opus1m-standard",
+  "model": "opus[1m]",
+  "fastMode": false,
+  "injectedFastModeKey": null,
+  "ready": true,
+  "bannerModelLine": "Opus 5 (1M context) with medium effort · Claude Max",
+  "speedLines": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F3-opus1m-standard"
+  ],
+  "exited": false
+}
+
+===== F4-haiku-fast — boot frame (--model haiku, fastMode=true) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F4-haiku-fast
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F4-haiku-fast
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-70 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/fast-mode-1m/F4-haiku-fast"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |                                                                                                                    /rc
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== F4-haiku-fast — verdict =====
+{
+  "label": "F4-haiku-fast",
+  "model": "haiku",
+  "fastMode": true,
+  "injectedFastModeKey": true,
+  "ready": true,
+  "bannerModelLine": null,
+  "speedLines": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fast-mode-1m/F4-haiku-fast"
+  ],
+  "exited": false
+}
+
+===== fence =====
+{
+  "userSettingsUnchanged": true,
+  "endVersion": "2.1.258 (Claude Code)"
+}

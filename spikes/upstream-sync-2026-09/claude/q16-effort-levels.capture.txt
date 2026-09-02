@@ -1,0 +1,800 @@
+# Q16 — claude effort tiers + the no-effort models (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-01T22:53:48.853Z
+
+===== S — boot (--model sonnet) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — after `/effort low` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with low effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — /effort low verdict =====
+{
+  "tier": "low",
+  "parserVerdict": "settled",
+  "lastReceipt": "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+  "bannerModelLine": "Sonnet 5 with low effort · Claude Max",
+  "mirror": {
+    "effort": "low",
+    "display": "Sonnet 5"
+  }
+}
+
+===== S — after `/effort medium` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /effort medium                                                                                                        
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — /effort medium verdict =====
+{
+  "tier": "medium",
+  "parserVerdict": "settled",
+  "lastReceipt": "⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation",
+  "bannerModelLine": "Sonnet 5 with medium effort · Claude Max",
+  "mirror": {
+    "effort": "medium",
+    "display": "Sonnet 5"
+  }
+}
+
+===== S — after `/effort high` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with high effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /effort medium                                                                                                        
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                      ● high · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — /effort high verdict =====
+{
+  "tier": "high",
+  "parserVerdict": "settled",
+  "lastReceipt": "⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive",
+  "bannerModelLine": "Sonnet 5 with high effort · Claude Max",
+  "mirror": {
+    "effort": "high",
+    "display": "Sonnet 5"
+  }
+}
+
+===== S — after `/effort xhigh` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with xhigh effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /effort medium                                                                                                        
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /effort xhigh                                                                                                         
+  ⎿  Set effort level to xhigh (saved as your default for new sessions): Deeper reasoning than high, just below maximum
+     (Fable 5, Opus 4.7+, Sonnet 5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                     ◉ xhigh · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — /effort xhigh verdict =====
+{
+  "tier": "xhigh",
+  "parserVerdict": "settled",
+  "lastReceipt": "⎿  Set effort level to xhigh (saved as your default for new sessions): Deeper reasoning than high, just below maximum",
+  "bannerModelLine": "Sonnet 5 with xhigh effort · Claude Max",
+  "mirror": {
+    "effort": "xhigh",
+    "display": "Sonnet 5"
+  }
+}
+
+===== S — after `/effort max` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with max effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /effort medium                                                                                                        
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /effort xhigh                                                                                                         
+  ⎿  Set effort level to xhigh (saved as your default for new sessions): Deeper reasoning than high, just below maximum
+     (Fable 5, Opus 4.7+, Sonnet 5)
+
+❯ /effort max                                                                                                           
+  ⎿  Set effort level to max (this session only): Maximum capability with deepest reasoning. May use excessive tokens
+     resulting in long response times or overthinking. Use sparingly for the hardest tasks.
+
+
+
+
+
+
+
+
+
+                                                                                                       ◈ max · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — /effort max verdict =====
+{
+  "tier": "max",
+  "parserVerdict": "settled",
+  "lastReceipt": "⎿  Set effort level to max (this session only): Maximum capability with deepest reasoning. May use excessive tokens",
+  "bannerModelLine": "Sonnet 5 with max effort · Claude Max",
+  "mirror": {
+    "effort": "max",
+    "display": "Sonnet 5"
+  }
+}
+
+===== S — after `/effort ultracode` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with xhigh effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /effort medium                                                                                                        
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /effort xhigh                                                                                                         
+  ⎿  Set effort level to xhigh (saved as your default for new sessions): Deeper reasoning than high, just below maximum
+     (Fable 5, Opus 4.7+, Sonnet 5)
+
+❯ /effort max                                                                                                           
+  ⎿  Set effort level to max (this session only): Maximum capability with deepest reasoning. May use excessive tokens
+     resulting in long response times or overthinking. Use sparingly for the hardest tasks.
+
+❯ /effort ultracode                                                                                                     
+  ⎿  Set effort level to ultracode (this session only): xhigh + dynamic workflow orchestration
+
+
+
+
+
+
+                                               ✦ ultracode · xhigh effort + dynamic workflows for maximum thoroughness
+──────────────────────────────────────────────────────────────────────────────────────────────────────────── ultracode ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — /effort ultracode verdict =====
+{
+  "tier": "ultracode",
+  "parserVerdict": "settled",
+  "lastReceipt": "⎿  Set effort level to ultracode (this session only): xhigh + dynamic workflow orchestration",
+  "bannerModelLine": "Sonnet 5 with xhigh effort · Claude Max",
+  "mirror": {
+    "effort": "xhigh",
+    "display": "Sonnet 5"
+  }
+}
+
+===== S — after `/effort auto` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /effort medium                                                                                                        
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /effort xhigh                                                                                                         
+  ⎿  Set effort level to xhigh (saved as your default for new sessions): Deeper reasoning than high, just below maximum
+     (Fable 5, Opus 4.7+, Sonnet 5)
+
+❯ /effort max                                                                                                           
+  ⎿  Set effort level to max (this session only): Maximum capability with deepest reasoning. May use excessive tokens
+     resulting in long response times or overthinking. Use sparingly for the hardest tasks.
+
+❯ /effort ultracode                                                                                                     
+  ⎿  Set effort level to ultracode (this session only): xhigh + dynamic workflow orchestration
+
+❯ /effort auto                                                                                                          
+  ⎿  Effort level set to auto
+
+
+
+                                                                                                      ● high · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — /effort auto verdict =====
+{
+  "tier": "auto",
+  "parserVerdict": null,
+  "lastReceipt": "⎿  Effort level set to auto",
+  "bannerModelLine": "Sonnet 5 · Claude Max",
+  "mirror": {
+    "effort": "high",
+    "display": "Sonnet 5"
+  }
+}
+
+===== S — after `/effort bogus-tier` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/s
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /effort medium                                                                                                        
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /effort xhigh                                                                                                         
+  ⎿  Set effort level to xhigh (saved as your default for new sessions): Deeper reasoning than high, just below maximum
+     (Fable 5, Opus 4.7+, Sonnet 5)
+
+❯ /effort max                                                                                                           
+  ⎿  Set effort level to max (this session only): Maximum capability with deepest reasoning. May use excessive tokens
+     resulting in long response times or overthinking. Use sparingly for the hardest tasks.
+
+❯ /effort ultracode                                                                                                     
+  ⎿  Set effort level to ultracode (this session only): xhigh + dynamic workflow orchestration
+
+❯ /effort auto                                                                                                          
+  ⎿  Effort level set to auto
+
+❯ /effort bogus-tier                                                                                                    
+  ⎿  Invalid argument: bogus-tier. Valid options are: low, medium, high, xhigh, max, ultracode, auto
+                                                                                                      ● high · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== S — /effort bogus-tier verdict =====
+{
+  "tier": "bogus-tier",
+  "parserVerdict": null,
+  "lastReceipt": "⎿  Invalid argument: bogus-tier. Valid options are: low, medium, high, xhigh, max, ultracode, auto",
+  "bannerModelLine": "Sonnet 5 · Claude Max",
+  "mirror": {
+    "effort": "high",
+    "display": "Sonnet 5"
+  }
+}
+
+===== L-sonnet-xhigh — boot frame =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with xhigh effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/L-sonnet-xhigh
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== L-sonnet-xhigh — verdict =====
+{
+  "label": "L-sonnet-xhigh",
+  "model": "sonnet",
+  "effort": "xhigh",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bannerModelLine": "Sonnet 5 with xhigh effort · Claude Max",
+  "mirror": {
+    "effort": "xhigh",
+    "display": "Sonnet 5"
+  },
+  "complaintLines": []
+}
+
+===== L-sonnet-max — boot frame =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with max effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/L-sonnet-max
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== L-sonnet-max — verdict =====
+{
+  "label": "L-sonnet-max",
+  "model": "sonnet",
+  "effort": "max",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bannerModelLine": "Sonnet 5 with max effort · Claude Max",
+  "mirror": {
+    "effort": "max",
+    "display": "Sonnet 5"
+  },
+  "complaintLines": []
+}
+
+===== L-haiku-xhigh — boot frame =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/L-haiku-xhigh
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== L-haiku-xhigh — verdict =====
+{
+  "label": "L-haiku-xhigh",
+  "model": "haiku",
+  "effort": "xhigh",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bannerModelLine": "Haiku 4.5 · Claude Max",
+  "mirror": {
+    "effort": null,
+    "display": "Haiku 4.5"
+  },
+  "complaintLines": []
+}
+
+===== L-haiku-high — boot frame =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/L-haiku-high
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== L-haiku-high — verdict =====
+{
+  "label": "L-haiku-high",
+  "model": "haiku",
+  "effort": "high",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bannerModelLine": "Haiku 4.5 · Claude Max",
+  "mirror": {
+    "effort": null,
+    "display": "Haiku 4.5"
+  },
+  "complaintLines": []
+}
+
+===== L-opus1m-max — boot frame =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with max effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/effort-levels/L-opus1m-max
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== L-opus1m-max — verdict =====
+{
+  "label": "L-opus1m-max",
+  "model": "opus[1m]",
+  "effort": "max",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bannerModelLine": "Opus 5 (1M context) with max effort · Claude Max",
+  "mirror": {
+    "effort": "max",
+    "display": "Opus 5 (1M context)"
+  },
+  "complaintLines": []
+}
+
+===== fence =====
+{
+  "during": false,
+  "endVersion": "2.1.258 (Claude Code)"
+}

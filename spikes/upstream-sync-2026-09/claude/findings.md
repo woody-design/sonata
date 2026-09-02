@@ -802,3 +802,338 @@ runtime dir carries every field `usage-adapters.ts` reads —
 `model.display_name`. No code change. (Side note for the parked statusline-beacon
 idea: the row IS Sonata's to author — but F12 is the reason a beacon would not
 have helped here, since the footer's PRESENCE is not evidence of idleness.)
+
+---
+
+# SL-4 — claude `/model` PICKER, switch RECEIPTS, per-model EFFORT (probed 2026-09-01, binary 2.1.258)
+
+Binary pinned at every probe start AND end. **The binary MOVED mid-slice**:
+q12/q13 were first run at `2.1.257`, and the auto-updater landed `2.1.258` during
+q14's first run. Everything below is the RE-RUN at `2.1.258`; the 2.1.257 pass is
+mentioned only where the two agree (they agree everywhere they overlap — the
+picker frame is identical row-for-row).
+
+Probes: `q12-model-picker.mjs` (picker walk, READ-ONLY — every visit ends in Esc),
+`q13-switch-receipts.mjs` (receipts + per-model effort), `q14-receipt-window.mjs`
+(the production receipt-window replay), `q15-fast-mode-1m.mjs` (fast mode on the
+1M Opus), `q16-effort-levels.mjs` (the effort tier set). Captures alongside each.
+
+**User-state fence.** `/model x` rewrites the user's GLOBAL default model, and
+there is no isolated-config alternative (SL-3 measured that a non-default
+`CLAUDE_CONFIG_DIR` boots LOGGED OUT — Keychain creds are keyed to the default
+dir, and a logged-out CLI has no model list). Every mutating probe therefore
+snapshots `~/.claude/settings.json` up front and restores its bytes after the pty
+is dead; q12/q15 assert it never changed at all. All four report the round trip.
+`~/.claude.json` is deliberately NOT restored — a probe's own trust grant and the
+startup counters legitimately live there.
+
+## F15 — the live `/model` picker at 2.1.258 (q12, MEASURED, read-only)
+
+Five rows, this account, identical at every height and at both binaries:
+
+```
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+```
+
+- **Footer keys CONFIRMED unchanged**: `Enter` = switch + save as default,
+  `s` = session only, `Esc` = cancel.
+- **Marker semantics.** TWO independent marks, and the changelog's "highlight
+  moved to the newest model only" is about the SECOND, not the first:
+  `✔` + green `rgb(78,186,101)` on the row LABEL marks the **current** model;
+  a terracotta `rgb(215,119,87)` on the DESCRIPTION's model name (`Fable 5.1`)
+  marks the **newest** — no other row's description is coloured. The `❯` cursor
+  is separate again and carries the focus.
+- **No Ultracode row.** Ultracode exists at 2.1.258, but as an EFFORT TIER
+  (F17), not a model.
+- **`◐ Medium effort ←/→ to adjust`** is part of the picker: effort is adjustable
+  in place with the horizontal arrows.
+- Esc leaves a transcript receipt: `⎿ Kept model as Opus 5 (1M context)` — the
+  same string `claudeCacheMissCancelled` keys on, now also produced by a plain
+  picker cancel. Harmless (it can only be read while a switch is pending), but
+  recorded so a future reader does not assume the phrase is dialog-exclusive.
+
+### Height clipping and the arrow-walk (the SL-4 objective-1 question)
+
+| pty rows | rows shown | overflow marker | walk reached |
+|---|---|---|---|
+| 40 | all 5 | — | 5/5, wraps |
+| 36 (Sonata's `DEFAULT_ROWS`) | all 5 | — | 5/5, wraps |
+| 24 | 3 (`↓ 3. Fable` last) | `… +2 models` | 5/5, wraps |
+| 16 | 2 | `… +3 models` | 5/5, wraps |
+
+So the picker IS height-clipped and scrollable, with an explicit `… +N models`
+marker — and **the clipping never hides a row from a Down-walk**: at 16 rows,
+where only two are visible, the walk still visits all five and wraps back to the
+first. Nothing Sonata's UI offers becomes unreachable.
+
+**No arming window on this surface.** Three Downs sent at 300ms / 60ms / 0ms
+spacing all land exactly three rows down (`Opus (1M context)` → `Haiku`), picker
+still open. Unlike the trust dialog (SL-1's F1b), the picker swallows nothing —
+so `OPTION_PROMPT_KEY_DELAY_MS`-style pacing is not needed here and cannot
+overshoot. (Sonata does not drive this picker at all — claude model/effort
+switching is the ARG form. The measurement exists so that the option stays open
+and so the UI's rows are known-reachable.)
+
+## F16 — the switch receipts at 2.1.258 (q13, MEASURED)
+
+Alias → what the CLI printed and what the statusline mirror then reported:
+
+| `/model <alias>` | receipt | `model.display_name` | `model.id` |
+|---|---|---|---|
+| `sonnet` | `⎿ Set model to Sonnet 5 and saved as your default for new sessions` | Sonnet 5 | claude-sonnet-5 |
+| `opus` | `⎿ Set model to Opus 5 and saved as your default for new sessions` | Opus 5 | claude-opus-5 |
+| `opus[1m]` | `⎿ Set model to Opus 5 (1M context) and saved as your default for new sessions` | Opus 5 (1M context) | claude-opus-5[1m] |
+| `fable` | `⎿ Set model to Fable 5.1 and saved as your default for new sessions` | **Fable 5.1** | claude-fable-5-1 |
+| `haiku` | `⎿ Set model to Haiku 4.5 and saved as your default for new sessions` | Haiku 4.5 | claude-haiku-4-5-20251001 |
+| `bogus-model-xyz` | `⎿ Model 'bogus-model-xyz' not found` | (unchanged) | — |
+
+Picker-form receipts (both NEW shapes, both still carrying `Set model to`):
+- Enter on `Default (recommended)` → `⎿ Set model to Opus 5 (1M context) (default) and saved as your default for new sessions`, and `settings.json`'s `model` key is **REMOVED** (the row clears the pin).
+- `s` on a row → `⎿ Set model to Opus 5 (1M context) for this session only` — no default tail at all.
+
+**Two Sonata couplings were WRONG before this slice**, both in the LABELS, which
+`sessionModelValue()` uses to map the live `display_name` back to an alias:
+- `Fable 5` should be **`Fable 5.1`**;
+- `opus[1m]` / **`Opus 5 (1M context)` was missing entirely** — and it is this
+  account's default and the picker's only Opus row, so while a session ran on it
+  the session menu marked NO current model (the label matched nothing and the
+  code fell back to the spawn model).
+
+**The `[1m]` alias round-trips through the slash form** — `/model opus[1m]` is
+accepted verbatim and yields `claude-opus-5[1m]`.
+
+**Cache-miss confirm dialog: ALIVE at 2.1.258, and q13 alone would have said
+otherwise.** q13's arm D — one real turn whose whole content was `ok`, then
+`/model opus` — applied DIRECTLY with a clean receipt and
+`claudeCacheMissDialogOpen` false. The `midsession-switch` real-CLI e2e, run on
+the same binary an hour later, raised the dialog on its FIRST switch with the
+verbatim `Yes, switch to <model>` / `No, go back` rows and relayed it through the
+drawer, exactly as the S7 parser expects. The difference is the size of the
+history being re-read: a one-token turn is evidently not worth warning about.
+Recorded as a method lesson as much as a fact — "I probed it once and it did not
+appear" is not evidence a dialog is gone, and had q13 been the only witness this
+slice could have argued for retiring a live RED-LINE relay. The S7 parked relay
+is untouched and its recognizer still matches the live rows.
+
+## F17 — the effort tier set, and the models that have no effort axis (q16, MEASURED)
+
+All five tiers Sonata offers work and are mirrored back:
+
+| `/effort <tier>` | receipt | banner | mirror |
+|---|---|---|---|
+| low / medium / high / xhigh | `⎿ Set effort level to <t> (saved as your default for new sessions): <description>` | `Sonnet 5 with <t> effort` | `<t>` |
+| max | `⎿ Set effort level to max (this session only): …` | `… with max effort` | `max` |
+| **ultracode** | `⎿ Set effort level to ultracode (this session only): xhigh + dynamic workflow orchestration` | `… with **xhigh** effort` | **`xhigh`** |
+| **auto** | `⎿ Effort level set to auto` (a DIFFERENT shape) | effort segment **absent** | the resolved level (`high`) |
+| bogus | `⎿ Invalid argument: bogus-tier. Valid options are: low, medium, high, xhigh, max, ultracode, auto` | unchanged | unchanged |
+
+Three consequences:
+1. **A `/effort` FAILURE receipt exists.** The parser's standing comment said one
+   was unreachable "because its levels come from a curated list" — that argument
+   only ever covered the values Sonata sends, and the receipt is real. Before this
+   slice an unrecognised tier sat pending for the full timeout instead of failing.
+2. **`ultracode` is not menu-able**: it reports back as `xhigh`, so a staged menu
+   comparing staged-vs-mirror would be permanently dirty. **`auto` is not
+   menu-able**: its receipt shape is unrecognised AND its value is per-turn.
+3. **Haiku has NO effort axis at all.** `--effort xhigh`/`--effort high` at LAUNCH
+   are accepted silently, the banner prints `Haiku 4.5 · Claude Max` with no
+   effort segment, and the statusline payload omits `effort` entirely. `/effort
+   high` mid-session on Haiku still prints a success receipt — so "the CLI
+   accepted it" is not evidence the model has the axis.
+
+## F18 — native fast mode DOES apply to `opus[1m]` (q15, MEASURED, with a negative control)
+
+Fast mode has no flag and prints no receipt (it rides in the injected `--settings`
+as `fastMode: true`), so the four arms are compared on the boot frame:
+
+| arm | `--model` | fastMode | boot frame says |
+|---|---|---|---|
+| F1 | `opus` | yes | `Fast mode requires usage credits · /usage-credits to turn them on` |
+| F2 | `opus[1m]` | yes | **the same line** |
+| F3 | `opus[1m]` | no | (no such line) |
+| F4 | `haiku` | yes | (no such line — silently ignored) |
+
+F1 ≡ F2, F3 is the baseline, F4 is what "ignored" looks like. So `opus[1m]`
+accepts the injection exactly as plain Opus does and belongs in
+`CLAUDE_FAST_MODELS`. Incidentally measured: this account cannot ACTIVATE fast
+mode (no usage credits) — an entitlement, not a model gate, and identical on the
+model already in the set. It also retires the old comment's admission that the
+non-Opus behaviour was unverified: it is a silent no-op.
+
+## F19 — the receipt window mis-fires on a repainting transcript (q13/q14, DECISIVE — this is what shipped)
+
+Since 2.1.252 claude renders in the alternate screen, and **a switch that
+reshapes the banner forces a FULL TRANSCRIPT REDRAW** — so every receipt the
+session ever printed re-enters the pty stream, inside the window
+`detectControlSwitchReceipt` opened for the CURRENT switch.
+
+MEASURED at production's exact arming point (one pty write for the command, arm,
+`\r` 120ms later, rolling 4096-char window, ONE chunk at a time, first verdict
+wins — q13 arm B4): **`/model haiku` SUCCEEDED** — its own receipt printed and
+the mirror moved to `Haiku 4.5` — **and the engine emitted `failed`**, because
+the redraw carried this session's earlier `Model 'bogus-model-xyz' not found`
+into the window. Sonata would have told the user Claude rejected a model it had
+just accepted. The verbatim window is pinned as
+`tests/fixtures/claude-midsession/stale-failure-repaint-2.1.258.txt`.
+
+WHY q14's first ladder looked clean, and why that mattered. q14 ran nine
+production-armed switches after the same poison and every one was correct — the
+redraw simply did not fire on those transitions. The hazard is therefore
+INTERMITTENT and transition-dependent (Haiku's banner loses its effort segment,
+which reshapes the layout), which is exactly why "we ran it nine times and it was
+fine" is not evidence of soundness here. q14's second ladder (`early` arming, the
+same session) reproduces it deterministically: 2 of 3 switches read `failed` at
+12–16ms, before the command was even submitted.
+
+**Shipped**: the FAILURE needles are anchored on the value the pending switch
+asked for (`Model '<value>' not found`, `Invalid argument: <value>.`), and the
+value is escaped for regex — `opus[1m]` is a real alias whose brackets would
+otherwise be a character class. Both call sites pass `pending.value`. Verified
+A/B: the new pins FAIL against the pre-fix build (the fix reverted in-tree,
+rebuilt, re-run) and pass after.
+
+**RESIDUAL, pinned honestly rather than hidden** (q13 arm B5, fixture
+`stale-success-repaint-2.1.258.txt`): a repaint of an older `Set model to …` can
+still settle a switch a beat early — measured settling on chunk 3, on a window
+whose only success line was a repaint. The success needle CANNOT be anchored the
+same way: the receipt names the model's DISPLAY name, not the alias, so anchoring
+it would mean trusting the very label table this sync had to correct, and it
+would fail CLOSED into needs-attention on every upstream rename — worse than what
+it fixes. The harm is also of the opposite kind: the switch does complete, the
+statusline mirror (not this scrape) is the state SSOT, and the early settle only
+releases the pending affordance sooner. The structural fix is to confirm a switch
+against the MIRROR rather than the stream (D-1: "did the model change" is a STATE
+query) — a redesign of the choreography, registered rather than taken here.
+
+## F20 — per-model effort memory: FALSIFIED at the mirror (q13 ladder B)
+
+The changelog's 2.1.251 "per-model effort" does not show up as per-model memory
+in anything Sonata reads. The decisive step is B2:
+
+| step | action | mirror `display_name` / `effort` |
+|---|---|---|
+| A1/A2 | `/model sonnet`, `/effort low` | Sonnet 5 / low |
+| A4–A7 | `/model opus`, `opus[1m]`, `fable`, `haiku` | …, Haiku 4.5 / **null** |
+| B1 | `/effort high` (while on haiku) | Haiku 4.5 / null |
+| **B2** | `/model sonnet` | Sonnet 5 / **high** |
+| B3 | `/effort low` | Sonnet 5 / low |
+| B4 | `/model haiku` | Haiku 4.5 / **null** |
+| B5 | `/model sonnet` | Sonnet 5 / low |
+
+B2 is the falsification: sonnet's own last-set effort was `low` (A2), yet
+switching back to sonnet reported `high` — the level set while on HAIKU. Effort
+therefore CARRIES ACROSS a model switch; it is not remembered per model. The
+`null`s at Haiku are F17's no-effort-axis fact, not a memory.
+
+**Sonata's mirror is NOT stale.** The statusline payload follows every switch on
+the next tick, on both axes, in both directions — no code change needed. The one
+imperfection is a consequence of F17, not of staleness: on Haiku the payload
+carries no effort, `sessionEffortValue` falls back to `task.reasoningEffort`, and
+the menu marks a level the model does not have. Registered (below), not fixed:
+making the effort axis genuinely OPTIONAL is a `ReasoningEffort | null` change
+running through draft seeding, `claudeArgs`, the task record and three menus, and
+`reasoningEffortForModel`'s "clamp to xhigh" fallback has no meaning for a model
+with no tiers at all. Measured functional harm today: none (the CLI ignores
+`--effort` on Haiku either way).
+
+Also recorded: `settings.json`'s `effortLevel` did NOT move for any `/effort`
+command even though the receipts say "saved as your default for new sessions",
+and no per-model effort key appeared in `~/.claude.json` (its only effort keys
+stayed `unpinOpus47/48LaunchEffort`, `unpinFable5LaunchEffort`). Where the CLI
+persists the effort default at 2.1.258 is unlocated — noted, not chased.
+
+## F21 — the `midsession-switch` real-CLI e2e: PRE-EXISTING RED, UNAFFECTED by the fix
+
+The e2e that owns this surface does not pass in this environment, before OR after
+the change. It was A/B'd rather than assumed. **The first write-up of this
+finding claimed the fix IMPROVED it. That claim was wrong and is retracted here**
+— it is recorded rather than deleted, because the reasoning error is the useful
+part.
+
+| build | how far it got |
+|---|---|
+| **PRE-FIX** (HEAD sources, e2e's old label list) | fails at line 250 — a `control-switch` attention banner was visible although `chipText` already read `Sonnet 5 Low` |
+| **POST-FIX** | fails at line 278 — the Reasoning section did not mark `Low` as current inside its 20s poll |
+
+WHY THE "IMPROVED" READING WAS WRONG. I saw a needs-attention banner on the
+pre-fix run, saw that both legs had applied, and read it as F19's false-`failed`
+reaching a live session. The code says otherwise, in two places:
+
+- a `failed` verdict **never raises that banner**. `runtime-reducer.ts` sets
+  `view.controlSwitch = null` on `phase === "failed"` and reports a one-line
+  composer status; `banners.ts` gates the `control-switch` attention banner
+  strictly on `phase === "needs-attention"`, which only the TIMEOUT paths emit.
+  So the pre-fix banner was a timeout, and no change to the failure needle could
+  have removed it.
+- and the needle could not have fired at all: **this e2e never injects an invalid
+  alias**, so no `Model '<x>' not found` line exists anywhere in its stream. Old
+  and new needles therefore return IDENTICAL verdicts for every window it
+  produces. The fix is inert in this test by construction.
+
+The two runs' different stopping points are the test's own instability, not a
+behavioural delta. The lesson is the one this slice kept re-learning: a plausible
+causal story that fits the observation is not evidence — the reducer and the
+banner selector were three greps away, and they falsified it.
+
+GROUND TRUTH ON EVERY RUN, read straight out of the live session's statusline
+payload while the test was still up: `{"model":{"id":"claude-sonnet-5"},
+"effort":{"level":"low"}}` — **both staged legs applied CLI-side, on both builds.**
+The choreography works against 2.1.258; what is unresolved is the e2e's final UI
+poll (a plausible mechanism, NOT verified — and after the above, "plausible" is
+worth exactly nothing until someone checks it: the chip is disabled while the
+second leg is still pending, so the poll's `chip.click()` may not be able to
+reopen the menu, and it reads an empty label until it gives up).
+
+Environment note, which is why this was not chased further: **two of the four
+post-fix runs WEDGED** — 13+ minutes with an empty log and no assertion reached,
+killed by hand — while the session's own state showed the full flow had run. The
+test is unstable here independently of the change, so more repetitions would not
+have produced a cleaner answer. Registered for whoever owns this e2e; not fixed
+in SL-4, where fixing it would mean editing a test's polling logic on a guess.
+
+The label-list edits this slice made to the e2e stand: they are the same measured
+rename as everywhere else, and they mask nothing (the test fails well past them).
+
+## F22 — REGISTERED: `claudeCacheMissCancelled` is the cancel-axis sibling of the success-needle residual
+
+Not fixed here; recorded so it is triaged rather than rediscovered.
+
+`claudeCacheMissCancelled` matches a bare `Keptmodelas` / `Kepteffortlevelas`
+with **no value anchor and no recency rule**, and it is consumed while the relay
+is PARKED on the cache-miss dialog (`onParkedConfirmData`). Three measured facts
+now intersect on it:
+
+1. F15 — a plain `/model` picker **Esc** emits `⎿ Kept model as <name>`. The
+   phrase is no longer exclusive to the cache-miss dialog.
+2. F19 — the alternate-screen redraw replays whole transcripts through the
+   4096-byte window, and the window is a SLICE: it can carry an old `Kept …` line
+   without the later `Set model to …` line that would otherwise shadow it.
+3. The park RESETS `controlSwitchScan` (review F2's snapshot design), so a
+   post-park window is exactly the fresh slice this needs.
+
+Consequence if it fires: Sonata reports the switch settled-as-cancelled — "kept
+the current model" — and `settleParkedCancel` drops the staged effort leg, while
+the CLI's dialog is still open and unanswered. That is the same class as the
+success-needle residual, on the cancel axis, and one step worse in that it also
+discards queued work.
+
+Anchoring is NOT free here, which is why it is registered rather than patched
+alongside the failure needles: the `Kept …` line names the model that was KEPT —
+the one being switched AWAY from — not the pending target, so the value the
+engine holds is the wrong one to anchor on, and Sonata does not reliably know the
+outgoing display name (that is the label table again). A recency rule is likewise
+not obviously sound against a slice boundary. The mirror-based confirmation
+registered for F19 covers this class too, which is the argument for doing that
+once rather than three needles separately.

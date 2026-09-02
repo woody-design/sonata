@@ -1,0 +1,1418 @@
+# Q13 — /model + /effort receipts and per-model effort (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-01T22:47:08.659Z
+
+===== user state BEFORE (the fence) =====
+{
+  "settings": {
+    "model": "opus[1m]",
+    "effortLevel": "medium"
+  },
+  "effortKeys": {
+    "unpinOpus47LaunchEffort": true,
+    "unpinOpus48LaunchEffort": true,
+    "unpinFable5LaunchEffort": true
+  }
+}
+
+===== boot — idle composer =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A1 /model sonnet — after `/model sonnet` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A1 /model sonnet — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mSonnet\u001b[19G5 with m\u001b[28Gdium effort · Claude Max\u001b[39m\u001b[K\r\u001b[4B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[100C\u001b[27B\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== A1 /model sonnet — verdict =====
+{
+  "label": "A1 /model sonnet",
+  "command": "/model sonnet",
+  "kind": "model",
+  "parserVerdict": "settled",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions"
+  ],
+  "effortHint": "◐ medium",
+  "mirror": {
+    "displayName": "Sonnet 5",
+    "modelId": "claude-sonnet-5",
+    "effort": "medium"
+  },
+  "userSettings": {
+    "model": "sonnet",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== A1 /model sonnet — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mSonnet\u001b[19G5 with m\u001b[28Gdium effort · Claude Max\u001b[39m\u001b[K\r\u001b[4B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[100C\u001b[27B\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m─────────────────────────────────"
+
+===== A2 /effort low — after `/effort low` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with low effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A2 /effort low — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/effort\u001b[11G\u001b[39mlow\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;14H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[25C\u001b[2B\u001b[38;2;153;153;153mlow effort · Claude Max\u001b[39m\u001b[K\r\u001b[100C\u001b[32B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[9B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[103C\u001b[23B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== A2 /effort low — verdict =====
+{
+  "label": "A2 /effort low",
+  "command": "/effort low",
+  "kind": "effort",
+  "parserVerdict": "settled",
+  "verdictChunk": 5,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Sonnet 5",
+    "modelId": "claude-sonnet-5",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": "sonnet",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== A2 /effort low — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/effort\u001b[11G\u001b[39mlow\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;14H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[25C\u001b[2B\u001b[38;2;153;153;153mlow effort · Claude Max\u001b[39m\u001b[K\r\u001b[100C\u001b[32B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[9B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[103C\u001b[23B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────"
+
+===== A3 /model bogus-model-xyz — after `/model bogus-model-xyz` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with low effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A3 /model bogus-model-xyz — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mbogus-model-xyz\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;25H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[13B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[103C\u001b[20B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== A3 /model bogus-model-xyz — verdict =====
+{
+  "label": "A3 /model bogus-model-xyz",
+  "command": "/model bogus-model-xyz",
+  "kind": "model",
+  "parserVerdict": "failed",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "failed",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Sonnet 5",
+    "modelId": "claude-sonnet-5",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": "sonnet",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== A3 /model bogus-model-xyz — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mbogus-model-xyz\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;25H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[13B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[103C\u001b[20B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b["
+
+===== A4 /model opus — after `/model opus` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 with low effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A4 /model opus — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mopus\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;14H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mOpus 5\u001b[19Gwith low effort ·\u001b[37GClaude Max\u001b[39m\u001b[K\r\u001b[14B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5\u001b[26G\u001b[39mand\u001b[30Gsaved\u001b[36Gas\u001b[39Gyour\u001b[44Gdefault\u001b[52Gfor\u001b[56Gnew\u001b[60Gsessions\r\u001b[103C\u001b[17B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== A4 /model opus — verdict =====
+{
+  "label": "A4 /model opus",
+  "command": "/model opus",
+  "kind": "model",
+  "parserVerdict": "settled",
+  "verdictChunk": 5,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Opus 5",
+    "modelId": "claude-opus-5",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": "opus",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== A4 /model opus — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mopus\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;14H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mOpus 5\u001b[19Gwith low effort ·\u001b[37GClaude Max\u001b[39m\u001b[K\r\u001b[14B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5\u001b[26G\u001b[39mand\u001b[30Gsaved\u001b[36Gas\u001b[39Gyour\u001b[44Gdefault\u001b[52Gfor\u001b[56Gnew\u001b[60Gsessions\r\u001b[103C\u001b[17B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────"
+
+===== A5 /model opus[1m] — after `/model opus[1m]` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with low effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A5 /model opus[1m] — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mopus[1m]\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;18H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[18C\u001b[2B\u001b[38;2;153;153;153m(1M context) with\u001b[37Glow effort · Claude Max\r\u001b[17B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69Gnew\u001b[73Gsessions\r\u001b[103C\u001b[14B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== A5 /model opus[1m] — verdict =====
+{
+  "label": "A5 /model opus[1m]",
+  "command": "/model opus[1m]",
+  "kind": "model",
+  "parserVerdict": "settled",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Opus 5 (1M context)",
+    "modelId": "claude-opus-5[1m]",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": "opus[1m]",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== A5 /model opus[1m] — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mopus[1m]\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;18H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[18C\u001b[2B\u001b[38;2;153;153;153m(1M context) with\u001b[37Glow effort · Claude Max\r\u001b[17B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69Gnew\u001b[73Gsessions\r\u001b[103C\u001b[14B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m─────────────────────────────────"
+
+===== A6 /model fable — after `/model fable` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Fable 5.1 with low effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+
+
+
+
+
+
+
+
+
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A6 /model fable — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mfable\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mFable 5.\u001b[21G with low effort · Claude Max\u001b[39m\u001b[K\r\u001b[20B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mFable 5.1\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[103C\u001b[11B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== A6 /model fable — verdict =====
+{
+  "label": "A6 /model fable",
+  "command": "/model fable",
+  "kind": "model",
+  "parserVerdict": "settled",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Fable 5.1",
+    "modelId": "claude-fable-5-1",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": "fable",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== A6 /model fable — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mfable\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mFable 5.\u001b[21G with low effort · Claude Max\u001b[39m\u001b[K\r\u001b[20B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mFable 5.1\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[103C\u001b[11B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m───────────────────────────────────"
+
+===== A7 /model haiku — after `/model haiku` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A7 /model haiku — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mhaiku\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mH\u001b[14Giku\u001b[18G4\u001b[20G5\u001b[22G· Claude\u001b[31GMax\u001b[39m\u001b[K\r\u001b[23B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[9B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== A7 /model haiku — verdict =====
+{
+  "label": "A7 /model haiku",
+  "command": "/model haiku",
+  "kind": "model",
+  "parserVerdict": "settled",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions"
+  ],
+  "effortHint": null,
+  "mirror": {
+    "displayName": "Haiku 4.5",
+    "modelId": "claude-haiku-4-5-20251001",
+    "effort": null
+  },
+  "userSettings": {
+    "model": "haiku",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== A7 /model haiku — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mhaiku\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mH\u001b[14Giku\u001b[18G4\u001b[20G5\u001b[22G· Claude\u001b[31GMax\u001b[39m\u001b[K\r\u001b[23B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[9B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m───────────────────────────────────────────────────"
+
+===== B1 /effort high (on haiku) — after `/effort high` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== B1 /effort high (on haiku) — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/effort\u001b[11G\u001b[39mhigh\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[28B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[5B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== B1 /effort high (on haiku) — verdict =====
+{
+  "label": "B1 /effort high (on haiku)",
+  "command": "/effort high",
+  "kind": "effort",
+  "parserVerdict": "settled",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive"
+  ],
+  "effortHint": null,
+  "mirror": {
+    "displayName": "Haiku 4.5",
+    "modelId": "claude-haiku-4-5-20251001",
+    "effort": null
+  },
+  "userSettings": {
+    "model": "haiku",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== B1 /effort high (on haiku) — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/effort\u001b[11G\u001b[39mhigh\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[28B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[5B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m───────────────────────────────────────────────────"
+
+===== B2 /model sonnet — after `/model sonnet` =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Sonnet 5 with high effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/switch-receipts/session
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+                                                                                                      ● high · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== B2 /model sonnet — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mSonnet 5 with high\u001b[31Geffort · Claude Max\r\u001b[30B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[102C\u001b[1B\u001b[38;2;153;153;153m● high · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== B2 /model sonnet — verdict =====
+{
+  "label": "B2 /model sonnet",
+  "command": "/model sonnet",
+  "kind": "model",
+  "parserVerdict": "settled",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions"
+  ],
+  "effortHint": "● high",
+  "mirror": {
+    "displayName": "Sonnet 5",
+    "modelId": "claude-sonnet-5",
+    "effort": "high"
+  },
+  "userSettings": {
+    "model": "sonnet",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== B2 /model sonnet — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[35B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[11C\u001b[2B\u001b[38;2;153;153;153mSonnet 5 with high\u001b[31Geffort · Claude Max\r\u001b[30B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[102C\u001b[1B\u001b[38;2;153;153;153m● high · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m──────────────────────────────────────"
+
+===== B3 /effort low (on sonnet) — after `/effort low` =====
+[cursor] x=2 y=36
+--- screen ---
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== B3 /effort low (on sonnet) — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/effort\u001b[11G\u001b[39mlow\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;14H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[25C\u001b[2B\u001b[38;2;153;153;153mlow ef\u001b[33Gort · Claude Max\u001b[39m\u001b[K\r\u001b[102C\u001b[32B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\r\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to low (saved as your default for new sessions): Quick, straightforward implementation with\u001b[K\r\u001b[1B     mini\u001b[11Gal overhead\u001b[K\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mmodel bogus-model-xyz\u001b[26G\u001b[39m\u001b[49m\u001b[K\r\u001b[5C\u001b[1BModel 'bogus-model-xyz'\u001b[30Gnot found\u001b[40G\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5\u001b[39m and\u001b[30Gsaved\u001b[36Gas\u001b[39Gyour\u001b[44Gdefault\u001b[52Gfor\u001b[56Gnew\u001b[60Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive\u001b[K\r\u001b[1B     t\u001b[8Gsting and documentatio\u001b[31G\u001b[K\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mmodel sonnet\r\u001b[9C\u001b[1B\u001b[39m\u001b[49mmodel to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and \u001b[70G\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to low (saved as your default for new sessions): Quick, straightforward implementation with\u001b[K\r\u001b[1B     mini\u001b[11Gal overhead\u001b[K\r\u001b[103C\u001b[1B\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== B3 /effort low (on sonnet) — verdict =====
+{
+  "label": "B3 /effort low (on sonnet)",
+  "command": "/effort low",
+  "kind": "effort",
+  "parserVerdict": "settled",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "settled",
+  "receiptLines": [
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Sonnet 5",
+    "modelId": "claude-sonnet-5",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": "sonnet",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== B3 /effort low (on sonnet) — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/effort\u001b[11G\u001b[39mlow\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;14H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[25C\u001b[2B\u001b[38;2;153;153;153mlow ef\u001b[33Gort · Claude Max\u001b[39m\u001b[K\r\u001b[102C\u001b[32B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\r\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to low (saved as your default for new sessions): Quick, straightforward implementation with\u001b[K\r\u001b[1B     mini\u001b[11Gal overhead\u001b[K\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mmodel bogus-model-xyz\u001b[26G\u001b[39m\u001b[49m\u001b[K\r\u001b[5C\u001b[1BModel 'bogus-model-xyz'\u001b[30Gnot found\u001b[40G\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                             "
+
+===== B4 /model haiku (back) — after `/model haiku` =====
+[cursor] x=2 y=36
+--- screen ---
+
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== B4 /model haiku (back) — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mhaiku\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[1B\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;2;153;153;153mv2.1.258\r\u001b[1B\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[39m  \u001b[38;2;153;153;153mSonnet 5 with low effort · Claude Max\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[39m  \u001b[38;2;153;153;153m/private/tmp/sonata-sync-2026-09/switch-receipts/session\u001b[39m\u001b[K\r\u001b[2B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet \u001b[11Godel to \u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255meffort low\u001b[39m           \u001b[26G                                                                                               \r\u001b[5C\u001b[1B\u001b[49mSet effort level to low\u001b[30G(saved as\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5\u001b[26G\u001b[39mand\u001b[30Gsaved\u001b[36Gas\u001b[39Gyour\u001b[44Gdefault\u001b[52Gfor\u001b[56Gnew\u001b[60Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69Gnew\u001b[73Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mFable 5.1\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mS\u001b[8Gt model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m a\u001b[31Gd\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255meffort high\u001b[39m \r\u001b[9C\u001b[1B\u001b[49meffort level to high (\u001b[70G):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet \u001b[11Godel to \u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[103C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to low (saved as your default for new sessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[9C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mb\u001b[12Ggus-model-xyz\u001b[26G\u001b[39m\u001b[49m\u001b[K\r\u001b[5C\u001b[1BModel 'bogus-model-xyz' not found\u001b[K\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mmodel opus\r\u001b[9C\u001b[1B\u001b[39m\u001b[49mmodel to \u001b[38;2;177;185;249mOpus 5\u001b[26G\u001b[39mand\u001b[30Gsaved as your default for new ses\u001b[64Gions\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69Gnew\u001b[73Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive\u001b[K\r\u001b[1B     t\u001b[8Gsting and documentatio\u001b[31G\u001b[K\r\u001b[9C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255msonnet\r\u001b[18C\u001b[1B\u001b[49m\u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new ses\u001b[66Gions\u001b[K\r\u001b[10C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mlow\u001b[39m \r\u001b[25C\u001b[1B\u001b[49mlow (saved as your default for new ses\u001b[65Gions): Quick, stra\u001b[84Gghtforward implementation with\u001b[K\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\u001b[K\r\u001b[9C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mhaiku\u001b[39m \r\u001b[18C\u001b[1B\u001b[49m\u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new se\u001b[66Gsions\r\u001b[2B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[K\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== B4 /model haiku (back) — verdict =====
+{
+  "label": "B4 /model haiku (back)",
+  "command": "/model haiku",
+  "kind": "model",
+  "parserVerdict": "failed",
+  "verdictChunk": 4,
+  "parserVerdictWholeDelta": "failed",
+  "receiptLines": [
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions"
+  ],
+  "effortHint": null,
+  "mirror": {
+    "displayName": "Haiku 4.5",
+    "modelId": "claude-haiku-4-5-20251001",
+    "effort": null
+  },
+  "userSettings": {
+    "model": "haiku",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== B4 /model haiku (back) — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39mhaiku\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;15H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[1B\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;2;153;153;153mv2.1.258\r\u001b[1B\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[39m  \u001b[38;2;153;153;153mSonnet 5 with low effort · Claude Max\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[39m  \u001b[38;2;153;153;153m/private/tmp/sonata-sync-2026-09/switch-receipts/session\u001b[39m\u001b[K\r\u001b[2B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet \u001b[11Godel to \u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255meffort low\u001b[39m           \u001b[26G                                                                                               \r\u001b[5C\u001b[1B\u001b[49mSet effort level to low\u001b[30G(saved as\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5\u001b[26G\u001b[39mand\u001b[30Gsaved\u001b[36Gas\u001b[39Gyour\u001b[44Gdefault\u001b[52Gfor\u001b[56Gnew\u001b[60Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69G"
+
+===== B5 /model sonnet (back) — after `/model sonnet` =====
+[cursor] x=2 y=36
+--- screen ---
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model bogus-model-xyz 
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+     
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== B5 /model sonnet (back) — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mHaiku 4.5 · Claude Max\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[12G\u001b[38;2;153;153;153m/private/tmp/sonata-sync-2026-09/switch-receipts/session\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel 'bogus-model-xyz' not found\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[1B     testing and documentation\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\u001b[116G\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to low (saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel 'bogus-model-xyz' not found\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69Gnew\u001b[73Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mFable 5.1\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[1B     testing and documentation\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to low (saved as your default for new sessions): Quick, straightforward implementation with\u001b[K\r\u001b[1B     minimal overhead\u001b[23G\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B        \u001b[10G      \u001b[17G     \u001b[23G  \u001b[26G   \u001b[30G      \u001b[37G  \u001b[40G    \u001b[45G       \u001b[53G   \u001b[57G   \u001b[61G          \u001b[72G      \u001b[79G               \u001b[95G         \u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m        \u001b[10G     \u001b[16G  \u001b[19G         \u001b[29G   \u001b[33G     \u001b[39G  \u001b[42G    \u001b[47G       \u001b[55G   \u001b[59G   \u001b[63G        \u001b[116G\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== B5 /model sonnet (back) — verdict =====
+{
+  "label": "B5 /model sonnet (back)",
+  "command": "/model sonnet",
+  "kind": "model",
+  "parserVerdict": "settled",
+  "verdictChunk": 3,
+  "parserVerdictWholeDelta": "failed",
+  "receiptLines": [
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Sonnet 5",
+    "modelId": "claude-sonnet-5",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": "sonnet",
+    "effortLevel": "medium"
+  },
+  "cacheMissDialogOpen": false
+}
+
+===== B5 /model sonnet (back) — the window that produced the verdict =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[10G\u001b[39msonnet\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;16H\u001b[?25h\u001b[?25l\u001b[H\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mHaiku 4.5 · Claude Max\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[12G\u001b[38;2;153;153;153m/private/tmp/sonata-sync-2026-09/switch-receipts/session\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gw"
+
+===== C1 picker Enter — picker focused on target =====
+[cursor] x=3 y=31
+--- screen ---
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model 
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+   ❯ 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet ✔               Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Low effort ←/→ to adjust
+                                                                                                                   
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== C1 picker Enter — after "\r" =====
+[cursor] x=2 y=36
+--- screen ---
+
+  ⎿  Model 'bogus-model-xyz' not found
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+   
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+   
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== C1 picker Enter — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5\u001b[26G\u001b[39mand\u001b[30Gsaved\u001b[36Gas\u001b[39Gyour\u001b[44Gdefault\u001b[52Gfor\u001b[56Gnew\u001b[60Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69Gnew\u001b[73Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mFable 5.1\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mS\u001b[8Gt effort level to high (saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[1B\u001b[39m                                       \u001b[38;2;177;185;249mtech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\u001b[39m\u001b[K\r\u001b[1B  \u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most work sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[3C\u001b[36Bm\u001b[40;1H\u001b[37;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Sonnet 5)\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\u001b[40;1H\u001b[37;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[36Bo\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Sonnet 5)\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[36Bd\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Sonnet 5)\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[36Be\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[30B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[30B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet \u001b[11Godel to \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69Gnew\u001b[73Gsessions\r\u001b[9C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mfable\u001b[39m          \u001b[26G                                                                                               \r\u001b[5C\u001b[1B\u001b[49mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m a\u001b[31Gd saved as\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[9C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mhaiku\r\u001b[18C\u001b[1B\u001b[49m\u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved\u001b[39Gas your default for new \u001b[64Gessions\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255meffort high\u001b[39m   \r\u001b[9C\u001b[1B\u001b[49meffort level to high (saved as your def\u001b[50Gult for new sessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[1B\u001b[39m   \u001b[38;2;177;185;249m\u001b[1mSelect model\u001b[17G\u001b[22m\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[3C\u001b[1Bspecify with --model.\r\u001b[2C\u001b[1B\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m1. \u001b[39mDefault (recommended)  \u001b[38;2;153;153;153mOpus\u001b[37G5\u001b[39Gwith 1M \u001b[48Gontext · Best for everyday, complex tasks\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m2. \u001b[39mOpus\u001b[14G(1M\u001b[18Gcontext)\u001b[32G\u001b[38;2;153;153;153mOpus 5 wi\u001b[42Gh 1M context · B\u001b[59Gst for\u001b[66Gev\u001b[69Gryday, \u001b[77Gomplex tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m3.\u001b[9G\u001b[39mFable                  \u001b[38;2;215;119;87mFable 5.1\u001b[38;2;153;153;153m ·\u001b[44GMost capable for your hardest and longest-running\u001b[94Gtasks\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[6G\u001b[38;2;153;153;153m4. \u001b[38;2;78;186;101mSonnet\u001b[16G✔\u001b[32G\u001b[38;2;153;153;153mSonnet 5 · Efficie\u001b[52G for routine\u001b[66Gasks\u001b[39m\u001b[K\r\u001b[1B     \u001b[38;2;153;153;153m5. \u001b[39mHaiku                  \u001b[38;2;153;153;153mHaiku 4.5 · Fastest for quick answers\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m○\u001b[38;2;153;153;153m Low effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[40;1H\u001b[35;4H\u001b[H\r\u001b[3C\u001b[34B \r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[9GHaiku\r\u001b[3C\u001b[2B\u001b[38;2;80;80;80m○ Effort not\u001b[17Gsupporte\u001b[26G for Haiku\u001b[39m\u001b[40;1H\u001b[36;4H\u001b[H\r\u001b[3C\u001b[31B\u001b[38;2;177;185;249m❯\u001b[9GDefault (recommended)\r\u001b[3C\u001b[4B\u001b[39m \u001b[9GHaiku\r\u001b[3C\u001b[2B\u001b[38;2;215;119;87m○\u001b[38;2;153;153;153m Low effort\u001b[17G\u001b[38;2;80;80;80m←/→ to a\u001b[26Gjust\u001b[39m\u001b[K\u001b[40;1H\u001b[32;4H\u001b[H\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel 'bogus-model-xyz' not found\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[1B     testing and documentation\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[3C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[3C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet mod\u001b[14Gl\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context) (default)\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[5C\u001b[1B         \u001b[16G \u001b[32G                                      \u001b[104G\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== C1 picker Enter — verdict =====
+{
+  "label": "C1 picker Enter",
+  "opened": true,
+  "from": "4. Sonnet ✔ Sonnet 5 · Efficient for routine tasks",
+  "target": "1. Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks",
+  "key": "\"\\r\"",
+  "parserVerdict": "failed",
+  "receiptLines": [
+    "⎿  Model 'bogus-model-xyz' not found",
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Opus 5 (1M context)",
+    "modelId": "claude-opus-5[1m]",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": null,
+    "effortLevel": "medium"
+  },
+  "stillOpen": false
+}
+
+===== C2 picker s — picker focused on target =====
+[cursor] x=3 y=32
+--- screen ---
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended) ✔  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context)        Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                    Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                   Sonnet 5 · Efficient for routine tasks
+     5. Haiku                    Haiku 4.5 · Fastest for quick answers
+
+   ○ Low effort ←/→ to adjust
+                                                                                                                   
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== C2 picker s — after "s" =====
+[cursor] x=2 y=36
+--- screen ---
+
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ /model opus[1m]                                                                                                       
+  ⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions
+
+❯ /model fable                                                                                                          
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+   
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions
+     
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== C2 picker s — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model bogus-model-xyz\u001b[39m \u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mModel\u001b[12G'bogus-model-xyz'\u001b[30Gnot\u001b[34Gfound\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5\u001b[26G\u001b[39mand\u001b[30Gsaved\u001b[36Gas\u001b[39Gyour\u001b[44Gdefault\u001b[52Gfor\u001b[56Gnew\u001b[60Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mand\u001b[43Gsaved\u001b[49Gas\u001b[52Gyour\u001b[57Gdefault\u001b[65Gfor\u001b[69Gnew\u001b[73Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mFable 5.1\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mS\u001b[8Gt effort level to high (saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[1B\u001b[39m                                       \u001b[38;2;177;185;249mtech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\u001b[39m\u001b[K\r\u001b[1B  \u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most work sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\r\u001b[3C\u001b[2Bm\u001b[40;1H\u001b[37;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[36Bo\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[36Bd\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[36Be\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[30B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[30B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[9C\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mfable\u001b[39m          \u001b[26G                                                                                               \r\u001b[5C\u001b[1B\u001b[49mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m a\u001b[31Gd saved as\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[9C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mhaiku\r\u001b[18C\u001b[1B\u001b[49m\u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved\u001b[39Gas your default for new \u001b[64Gessions\r\u001b[3C\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;255;255;255meffort high\u001b[39m   \r\u001b[9C\u001b[1B\u001b[49meffort level to high (saved as your def\u001b[50Gult for new sessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet \u001b[11Godel to \u001b[38;2;177;185;249mOpus 5 (1M context) (default)\u001b[49G\u001b[39mand\u001b[53Gsaved\u001b[59Gas\u001b[62Gyour\u001b[67Gdefault\u001b[75Gfor\u001b[79Gnew\u001b[83Gsessions\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[1B\u001b[39m   \u001b[38;2;177;185;249m\u001b[1mSelect model\u001b[22m\u001b[39m\u001b[K\r\u001b[1B   \u001b[38;2;153;153;153mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, \r\u001b[3C\u001b[1Bspecify with --model.\r\u001b[2C\u001b[1B\u001b[39m\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;177;185;249m❯\u001b[39m \u001b[38;2;153;153;153m1. \u001b[38;2;78;186;101mDefault (recommended)\u001b[39m \u001b[38;2;78;186;101m✔\u001b[39m  \u001b[38;2;153;153;153mOpus\u001b[39G5 with 1M context · Best for everyday, complex tasks\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m2. \u001b[39mOpus\u001b[14G(1M\u001b[18Gcontext)\u001b[34G\u001b[38;2;153;153;153mOpus 5 with 1M context · Best for \u001b[69Gveryday, complex tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;2;153;153;153m3.\u001b[9G\u001b[39mFable                    \u001b[38;2;215;119;87mFable 5.1\u001b[44G\u001b[38;2;153;153;153m·\u001b[46GMost capable for your hardest and lo\u001b[84Gest-running tasks\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;2;153;153;153m4. \u001b[39mSonnet\u001b[34G\u001b[38;2;153;153;153mSonnet 5 ·\u001b[45GEfficient for routine tasks\u001b[39m\u001b[K\r\u001b[1B     \u001b[38;2;153;153;153m5. \u001b[39mHaiku                    \u001b[38;2;153;153;153mHaiku 4.5 · Fastest for quick answers\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;2;215;119;87m○\u001b[38;2;153;153;153m Low effort\u001b[38;2;80;80;80m ←/→ to adjust\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to set\u001b[17Gas default · s to use this session only · Esc to cancel\u001b[39m\u001b[40;1H\u001b[32;4H\u001b[H\r\u001b[3C\u001b[31B \r\u001b[3C\u001b[1B\u001b[38;2;177;185;249m❯\u001b[9GOpus (1M context)\u001b[39m\u001b[40;1H\u001b[33;4H\u001b[H\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[1B     testing and documentation\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[3C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context) (default)\u001b[49G\u001b[39mand\u001b[53Gsaved\u001b[59Gas\u001b[62Gyour\u001b[67Gdefault\u001b[75Gfor\u001b[79Gnew\u001b[83Gsessions\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet mod\u001b[14Gl\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m for this session only\u001b[K\r\u001b[5C\u001b[1B         \u001b[34G                                      \u001b[104G\u001b[38;2;153;153;153m○ low · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[115C\u001b[1B\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode\u001b[17Gon\u001b[20G· ← for\u001b[28Gagen\u001b[33Gs\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== C2 picker s — verdict =====
+{
+  "label": "C2 picker s",
+  "opened": true,
+  "from": "1. Default (recommended) ✔ Opus 5 with 1M context · Best for everyday, complex tasks",
+  "target": "2. Opus (1M context) Opus 5 with 1M context · Best for everyday, complex tasks",
+  "key": "\"s\"",
+  "parserVerdict": "failed",
+  "receiptLines": [
+    "⎿  Set model to Opus 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) and saved as your default for new sessions",
+    "⎿  Set model to Fable 5.1 and saved as your default for new sessions",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with",
+    "⎿  Set model to Haiku 4.5 and saved as your default for new sessions",
+    "⎿  Set model to Sonnet 5 and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions",
+    "⎿  Set model to Opus 5 (1M context) for this session only"
+  ],
+  "effortHint": "○ low",
+  "mirror": {
+    "displayName": "Opus 5 (1M context)",
+    "modelId": "claude-opus-5[1m]",
+    "effort": "low"
+  },
+  "userSettings": {
+    "model": null,
+    "effortLevel": "medium"
+  },
+  "stillOpen": false
+}
+
+===== D — after one real turn =====
+[cursor] x=2 y=36
+--- screen ---
+
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ Reply with exactly: ok                                                                                                
+
+⏺ ok
+
+✻ Brewed for 1s · done 6:49 PM
+                                                                       
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== D — turn RAW delta =====
+"H\r\u001b[33B\u001b[38;2;215;119;87m✽\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mFable 5.1\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[1B     testing and documentation\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context) (default)\u001b[49G\u001b[39mand\u001b[53Gsaved\u001b[59Gas\u001b[62Gyour\u001b[67Gdefault\u001b[75Gfor\u001b[79Gnew\u001b[83Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mfor\u001b[43Gthis\u001b[48Gsession\u001b[56Gonly\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯ \u001b[38;2;255;255;255mReply with exactly: ok\u001b[39m                                                                                                \r\u001b[2B\u001b[49m\u001b[38;2;255;255;255m⏺\u001b[39m ok\u001b[K\r\u001b[2C\u001b[2B\u001b[38;2;228;144;112mDiscombobulating…\u001b[21G\u001b[38;2;153;153;153m(running stop hooks… 0/2)\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[33B\u001b[38;2;225;139;107mDiscombobulating…\u001b[45G\u001b[38;2;153;153;153m · 1s · ↓\u001b[55G2 tokens)\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[41C\u001b[33B\u001b[38;2;153;153;153m1\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b]0;✳ Reply confirmation\u0007\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;153;153;153m✻\u001b[3GBrewed for 1s · done 6:49 PM\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[103C\u001b[34B\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== D — after `/model opus` on a session WITH history =====
+[cursor] x=2 y=36
+--- screen ---
+
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+     
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ Reply with exactly: ok                                                                                                
+
+⏺ ok
+
+✻ Brewed for 1s · done 6:49 PM
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== D — RAW delta =====
+"\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mFable 5.1\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mS\u001b[8Gt effort level to high (saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[5C\u001b[1Btesting\u001b[14Gand\u001b[18Gdocumentation\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[5C\u001b[1Bminimal\u001b[14Goverhead\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context) (default)\u001b[49G\u001b[39mand\u001b[53Gsaved\u001b[59Gas\u001b[62Gyour\u001b[67Gdefault\u001b[75Gfor\u001b[79Gnew\u001b[83Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mfor\u001b[43Gthis\u001b[48Gsession\u001b[56Gonly\r\u001b[1B\u001b[K\r\u001b[2B \u001b[3G\u001b[38;2;177;185;249m/orchestration                       Delegation discipline for orchestrator sessions working with the\r\u001b[39C\u001b[1Btech-researcher, top-notch-eng, and top-notch-reviewer sub-agents. Manual-only…\r\u001b[1B\u001b[39m \u001b[3G\u001b[38;2;153;153;153m/architect\u001b[14G  \u001b[17G \u001b[19G    \u001b[24G    \u001b[29G           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[39C\u001b[1B(Design, Engineering, Product Will). The default mode for most work sessions: …\r\u001b[2C\u001b[2B\u001b[39m/\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;4H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mm\u001b[22mcp                                 \u001b[1mM\u001b[22manage MCP servers\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model                               Set the AI \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153model for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B/\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153memory                              Edit CLAUDE.\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153md files and memory settings\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile   \u001b[40GShow QR code to download the Claude \u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153mobile app\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/plugin (\u001b[39m\u001b[1mm\u001b[22m\u001b[38;2;153;153;153marketplace)                \u001b[39m\u001b[1mM\u001b[22m\u001b[38;2;153;153;153manage Claude Code plugins\u001b[39m\u001b[K\r\u001b[3C\u001b[2Bm\u001b[40;1H\u001b[37;5H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[36Bo\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;177;185;249m/\u001b[1mmo\u001b[22mdel                               Set the AI \u001b[1mmo\u001b[22mdel for Claude Code (currently Opus 5 (1M context))\r\u001b[4C\u001b[1B\u001b[39m\u001b[1mo\u001b[22m\u001b[38;2;153;153;153mbile\u001b[40GShow\u001b[45GQR code to downloa\u001b[65Gthe Claude \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mbile app\r\u001b[3C\u001b[1Barchitect\u001b[40GIntegrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmo\u001b[22m\u001b[38;2;153;153;153mde for most work sessions: …\u001b[39m\u001b[40;1H\u001b[37;6H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[5C\u001b[36Bd\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mmod\u001b[22mel                               Set the AI \u001b[1mmod\u001b[22mel for Claude Code (currently Opus 5 (1M context))\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m/architect                           Integrated product/design/engineering worldview — three-forces convergence\r\u001b[2C\u001b[1B\u001b[39m                                     \u001b[38;2;153;153;153m(Design, Engineering, Product Will). The default \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153me for most work sessions: …\r\u001b[3C\u001b[1Bclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmod\u001b[22m\u001b[38;2;153;153;153mel migration. TR\u001b[39m\u001b[40;1H\u001b[37;7H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[36Be\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[6C\u001b[30B\u001b[38;2;177;185;249m\u001b[1me\u001b[54Ge\r\u001b[91C\u001b[2B\u001b[39me\r\u001b[4C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mode-review\u001b[40G3 \u001b[43Gre\u001b[46G /ultrareview · R\u001b[64Gview\u001b[69Gthe cu\u001b[76Grent\u001b[81Gdiff,\u001b[87Gor a PR number/branch/p\u001b[111Gth\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[38;2;153;153;153mta\u001b[43Gget, for c\u001b[54Grrectness bugs and reuse/simplificatio\u001b[93G/efficiency\u001b[105Gcleanups at t\u001b[39m\u001b[40;1H\u001b[37;8H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[38;2;177;185;249m/model\u001b[39m\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[7C\u001b[30B\u001b[38;2;177;185;249m\u001b[1ml\u001b[55Gl\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;2;153;153;153mclaude-api\u001b[40GRef\u001b[44Grenc\u001b[49G fo\u001b[53G the Claude API / Anthropic SDK — \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m ids, pricing, params,\r\u001b[39C\u001b[1Bstreaming, tool use, MCP, agents, caching, token\u001b[89Gcounting, \u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m migration. TR\r\u001b[3C\u001b[1Bl\u001b[6Gop       \u001b[40GRun a prompt or slash\u001b[62Gcommand on\u001b[73Ga \u001b[76Gecurring interval (e.g. /loop 5m /foo).\r\u001b[39C\u001b[1BOmit \u001b[46Ghe interval \u001b[59Go let the\u001b[69G\u001b[39m\u001b[1mmodel\u001b[22m\u001b[38;2;153;153;153m self-pace.\u001b[39m\u001b[K\u001b[40;1H\u001b[37;9H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive\u001b[K\r\u001b[1B     t\u001b[8Gsting and documentation\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to low (saved as your default for new sessions): Quick, straightforward implementation with\u001b[K\r\u001b[1B     minimal overhead\u001b[23G\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context) (default)\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m for this session only\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯ \u001b[38;2;255;255;255mReply with exactly: ok\u001b[39m                                                                                                \r\u001b[2C\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;255;255;255m⏺\u001b[3G\u001b[39mok\u001b[K\r\u001b[39C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m✻\u001b[3GBrewed\u001b[10Gfor\u001b[14G1s\u001b[17G·\u001b[19Gdone\u001b[24G6:49\u001b[29GPM\u001b[39m\u001b[K\r\u001b[39C\u001b[1B\u001b[K\r\u001b[10C\u001b[2B\u001b[38;2;153;153;153m[model]\u001b[39m\u001b[40;1H\u001b[37;10H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[9C\u001b[36Bo\u001b[K\u001b[40;1H\u001b[37;11H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[10C\u001b[36Bp\u001b[40;1H\u001b[37;12H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[11C\u001b[36Bu\u001b[40;1H\u001b[37;13H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[12C\u001b[36Bs\u001b[40;1H\u001b[37;14H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus[1m]\u001b[39m                                                                                                       \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model fable\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mFable 5.1\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[1B     testing and documentation\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mSonnet 5\u001b[28G\u001b[39mand\u001b[32Gsaved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Glow\u001b[30G(saved\u001b[37Gas\u001b[40Gyour\u001b[45Gdefault\u001b[53Gfor\u001b[57Gnew\u001b[61Gsessions):\u001b[72GQuick,\u001b[79Gstraightforward\u001b[95Gimplementation\u001b[110Gwith\r\u001b[1B     minimal overhead\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mOpus 5 (1M context) (default)\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[2B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mfor\u001b[43Gthis\u001b[48Gsession\u001b[56Gonly\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯ \u001b[38;2;255;255;255mReply with exactly: ok\u001b[39m                                                                                                \r\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;255;255;255m⏺\u001b[39m ok\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m✻\u001b[3GBrewed for 1s · done 6:49 PM\u001b[116G\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[39m\u001b[40;1H\u001b[H\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mHaiku 4.5\u001b[29G\u001b[39mand\u001b[33Gsaved\u001b[39Gas\u001b[42Gyour\u001b[47Gdefault\u001b[55Gfor\u001b[59Gnew\u001b[63Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort high\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Geffort\u001b[17Glevel\u001b[23Gto\u001b[26Ghigh\u001b[31G(saved\u001b[38Gas\u001b[41Gyour\u001b[46Gdefault\u001b[54Gfor\u001b[58Gnew\u001b[62Gsessions):\u001b[73GComprehensive\u001b[87Gimplementation\u001b[102Gwith\u001b[107Gextensive\r\u001b[1B     testing and documentation\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/effort low\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet effort level to low (saved as your default for new sessions): Quick, straightforward implementation with\u001b[K\r\u001b[1B     minimal overhead\u001b[23G\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model haiku\u001b[39m                                                                                                          \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mHaiku 4.5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model sonnet\u001b[39m                                                                                                         \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet model to \u001b[38;2;177;185;249mSonnet 5\u001b[39m and saved as your default for new sessions\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context) (default)\u001b[49G\u001b[39mand\u001b[53Gsaved\u001b[59Gas\u001b[62Gyour\u001b[67Gdefault\u001b[75Gfor\u001b[79Gnew\u001b[83Gsessions\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model\u001b[39m                                                                                                                \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5 (1M context)\u001b[39G\u001b[39mfor\u001b[43Gthis\u001b[48Gsession\u001b[56Gonly\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯ \u001b[38;2;255;255;255mReply with exactly: ok\u001b[39m                                                                                                \r\u001b[2B\u001b[49m\u001b[38;2;255;255;255m⏺\u001b[39m ok\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m✻\u001b[3GBrewed for 1s · done 6:49 PM\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯\u001b[39m \u001b[38;2;255;255;255m/model opus\u001b[39m                                                                                                           \r\u001b[1B\u001b[49m\u001b[38;2;153;153;153m  ⎿  \u001b[39mSet\u001b[10Gmodel\u001b[16Gto\u001b[19G\u001b[38;2;177;185;249mOpus 5\u001b[26G\u001b[39mand\u001b[30Gsaved\u001b[36Gas\u001b[39Gyour\u001b[44Gdefault\u001b[52Gfor\u001b[56Gnew\u001b[60Gsessions\r\u001b[1B                                                                                                       \u001b[38;2;153;153;153m○ low · /effort\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[K\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m \u001b[3G                            \u001b[116G\u001b[38;2;78;186;101m/rc\r\u001b[1B\u001b[39m  \u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== final — screen at teardown =====
+[cursor] x=2 y=36
+--- screen ---
+
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /effort low                                                                                                           
+  ⎿  Set effort level to low (saved as your default for new sessions): Quick, straightforward implementation with
+     minimal overhead
+     
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) (default) and saved as your default for new sessions
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ Reply with exactly: ok                                                                                                
+
+⏺ ok
+
+✻ Brewed for 1s · done 6:49 PM
+
+❯ /model opus                                                                                                           
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== user state AFTER (the fence) =====
+{
+  "mutated": true,
+  "afterProbe": {
+    "model": "opus",
+    "effortLevel": "medium"
+  },
+  "restored": true,
+  "effortKeys": {
+    "unpinOpus47LaunchEffort": true,
+    "unpinOpus48LaunchEffort": true,
+    "unpinFable5LaunchEffort": true
+  },
+  "claudeJsonChanged": true
+}
+
+===== binary version at probe end =====
+2.1.258 (Claude Code)

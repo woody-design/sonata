@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // ControlSwitchEngine unit tests (consolidation S4). The engine is now
 // constructable on a fake ControlSwitchHost, so its axis state machines are
@@ -15,7 +18,11 @@ import { createRequire } from "node:module";
 //        on a PARSE MISS, not on a byte-empty scan (ask-flows Phase 0 S4): a
 //        chunk-split dialog paint leaves the cursor row only in the snapshot while
 //        cursor-less trailing bytes occupy the freshly reset scan.
+//   SL-4 — a value-axis switch must not be FAILED by a repaint of an earlier
+//        switch's rejection (upstream sync 2026-09-01), driven off the verbatim
+//        pty window that produced the wrong verdict against a live 2.1.258.
 const require = createRequire(import.meta.url);
+const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), "../fixtures");
 const {
   ControlSwitchEngine,
   expectedPermissionLandings,
@@ -666,6 +673,92 @@ await check("B5: after a press, a cursor-less frame WAITS — the snapshot never
       [ARROW_UP],
       "the arrow is the ONLY byte the relay put on the wire — no blind Enter into the composer",
     );
+  } finally {
+    engine.clear();
+  }
+});
+
+// ── SL-4: a transcript repaint must not fail the switch in flight ───────────
+//
+// MEASURED, and this is the whole point of driving it through the ENGINE rather
+// than the parser alone: the fixture is the VERBATIM 4096-char window
+// `detectControlSwitchReceipt` was holding when a live claude 2.1.258 answered a
+// `/model haiku` that SUCCEEDED — and the engine emitted `failed`, because the
+// alternate-screen full-transcript redraw that the switch itself provoked
+// replayed an earlier arm's `Model 'bogus-model-xyz' not found` into the window
+// (spikes/upstream-sync-2026-09/claude, q13 arm B4). The user would have been
+// told Claude rejected a model it had just accepted.
+const STALE_FAILURE_WINDOW = readFileSync(
+  resolve(FIXTURES, "claude-midsession/stale-failure-repaint-2.1.258.txt"),
+  "utf8",
+);
+
+// WHAT THIS FIXTURE DOES AND DOES NOT PROVE — read before editing the messages.
+// The window carries the earlier arm's rejection AND replayed success lines for
+// `Opus 5` / `Opus 5 (1M context)`. It carries NO `Set model to Haiku`: the
+// receipt for the switch that actually succeeded is not in the slice. So the
+// `settled` below is produced by a REPLAYED success line naming a DIFFERENT
+// model — it is the value-anchored FAILURE needle doing its job (the rejection
+// no longer wins) sitting on top of the un-anchored SUCCESS needle's known
+// residual. Claiming this settles "on its own receipt" would describe the
+// exposure as if it were correct attribution, so the assertions say what is
+// actually true and the residual is pinned separately, below.
+await check("SL-4: a repainted OLD rejection does not FAIL the switch in flight", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    assert.equal(engine.injectClaudeControlSwitch("model", "haiku").ok, true, "the switch started");
+    engine.ingest(STALE_FAILURE_WINDOW);
+    const last = lastEvent(host.events);
+    assert.equal(
+      last.phase,
+      "settled",
+      "not `failed` — the replayed rejection names another value (it settles on a REPLAYED success: see the residual pin)",
+    );
+    assert.equal(last.value, "haiku", "…and the event still reports the value this switch asked for");
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("SL-4 KNOWN RESIDUAL: a replayed success settles a switch whose receipt is absent", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    // `fable` was never switched to in the session this window came from, so no
+    // `Set model to Fable 5.1` line exists anywhere in it. The engine settles
+    // anyway, on a replayed `Set model to Opus 5`. This is the documented
+    // trade-off, pinned as what it IS rather than left for a future reader to
+    // discover: the success needle cannot be value-anchored (the receipt names
+    // the model's DISPLAY name, not the alias — anchoring it would fail CLOSED
+    // into needs-attention on every upstream rename), the switch does complete,
+    // and the statusline mirror — not this scrape — is the state SSOT. The
+    // structural fix is mirror-based confirmation (D-1), registered not taken.
+    assert.equal(engine.injectClaudeControlSwitch("model", "fable").ok, true, "the switch started");
+    engine.ingest(STALE_FAILURE_WINDOW);
+    assert.equal(
+      lastEvent(host.events).phase,
+      "settled",
+      "EXPOSURE, pinned deliberately: a replayed success line for ANOTHER model settles this switch",
+    );
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("SL-4: …while the switch that WAS rejected still fails, on the same bytes", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    assert.equal(
+      engine.injectClaudeControlSwitch("model", "bogus-model-xyz").ok,
+      true,
+      "the switch started",
+    );
+    engine.ingest(STALE_FAILURE_WINDOW);
+    const last = lastEvent(host.events);
+    assert.equal(last.phase, "failed", "the rejection is still recognized");
+    assert.match(last.error, /bogus-model-xyz/, "…and names the value Claude rejected");
   } finally {
     engine.clear();
   }

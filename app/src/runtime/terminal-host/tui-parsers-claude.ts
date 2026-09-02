@@ -40,37 +40,135 @@ export function findRemoteControlUrl(raw: string): string | null {
 // Mid-session Claude model/effort switch receipt detection (pure; unit-tested
 // in tests/smoke/midsession-receipt.mjs). Sonata injects `/model <id>` /
 // `/effort <level>` as typed text and watches the pty stream for the CLI's own
-// receipt line (probe-verified verbatim, claude 2.1.214 — spikes/midsession-
-// switch-probe/findings.md):
-//   model  success → `⎿ Set model to Sonnet 5 and saved as your default …`
-//   effort success → `⎿ Set effort level to low (saved as your default …)`
-//   model  failure → `⎿ Model 'bogus-model-xyz' not found`
+// receipt line. RE-MEASURED VERBATIM at claude 2.1.258 (upstream sync
+// 2026-09-01, SL-4 — probes q13/q14/q16, findings F16/F17/F19); the 2.1.214
+// forms this parser was written against are noted where they moved:
+//
+//   model  success → `⎿ Set model to Sonnet 5 and saved as your default for new
+//                       sessions`                        (tail gained "for new sessions")
+//   model  success → `⎿ Set model to Opus 5 (1M context) (default) and saved as
+//                       your default for new sessions`   (the picker's Default row)
+//   model  success → `⎿ Set model to Opus 5 (1M context) for this session only`
+//                                                        (the picker's `s` key — NEW shape)
+//   model  failure → `⎿ Model 'bogus-model-xyz' not found`            (unchanged)
+//   effort success → `⎿ Set effort level to low (saved as your default for new
+//                       sessions): Quick, straightforward implementation with…`
+//                                                        (gained a description tail)
+//   effort success → `⎿ Set effort level to max (this session only): …`
+//                                                        (max does not persist)
+//   effort failure → `⎿ Invalid argument: bogus-tier. Valid options are: low,
+//                       medium, high, xhigh, max, ultracode, auto`     (NEW — see below)
+//
 // The receipt is WORD-POSITIONED — claude lays it out with cursor moves
 // (`\x1b[NG`), not spaces — so stripping ANSI glues the words
 // ("Set model to" → "Setmodelto"). We therefore match the COMPACTED form
 // (escapes + ALL whitespace removed) on the accumulated RAW tail, exactly like
 // the Remote Control detector, so a split landing inside an escape reassembles
-// first. Screen text is a choreography RECEIPT only — the statusline mirror
-// stays the model SSOT.
+// first. (2.1.248 started rendering model NAMES as code; re-verified — the SGR
+// around the name lands between the anchor words and the compaction removes it,
+// so the needles are unaffected.) Screen text is a choreography RECEIPT only —
+// the statusline mirror stays the model SSOT.
+//
+// ── WHY THE FAILURE NEEDLES ARE ANCHORED ON THE VALUE WE ASKED FOR ──────────
+//
+// Because the scan window is a byte window over a stream that REPAINTS HISTORY.
+// Since 2.1.252 claude renders in the alternate screen, and a switch that
+// changes the banner's shape forces a FULL TRANSCRIPT REDRAW — so every receipt
+// the session ever printed re-enters the pty stream, inside the window
+// `detectControlSwitchReceipt` opened for the CURRENT switch.
+//
+// MEASURED (q13 arm B4, at production's exact arming point — one pty write for
+// the command, arm, `\r` 120ms later, rolling 4096-char window, first verdict
+// wins): `/model haiku` SUCCEEDED — the receipt said so and the statusline
+// mirror moved to Haiku 4.5 — and the parser returned `failed`, because the
+// redraw the switch itself provoked carried this session's earlier
+// `Model'bogus-model-xyz'notfound` line into the window. Sonata would have told
+// the user Claude rejected a model it had just accepted.
+//
+// An un-anchored needle cannot tell a receipt for THIS switch from a repaint of
+// an old one. The pending VALUE can: the failure line echoes the exact string we
+// asked for (measured — `/model bogus-model-xyz` → `Model 'bogus-model-xyz' not
+// found`; `/effort bogus-tier` → `Invalid argument: bogus-tier.`). So the caller
+// passes it and the needle is built around it. If a future release ever
+// normalises the name in the failure line, this needle misses and the switch
+// falls to its existing timeout → needs-attention: an honest "I could not tell",
+// which is the correct direction to fail in. Claiming a rejection that did not
+// happen is not.
+//
+// RESIDUAL, and why it is not fixed here. The SUCCESS needle cannot be anchored
+// the same way: the receipt names the model's DISPLAY name ("Sonnet 5"), not the
+// alias we sent ("sonnet"), and mapping one to the other means trusting exactly
+// the label table this sync had to correct — a needle that fails CLOSED on every
+// upstream rename would turn a working switch into needs-attention, which is
+// worse than what it fixes.
+//
+// So a replayed `Set model to …` can still settle a switch it does not belong
+// to. Be precise about the size of that, because the fixture that proves the
+// failure fix also demonstrates this: in the MEASURED window pinned as
+// `stale-failure-repaint-2.1.258.txt` there is NO `Set model to Haiku` at all —
+// the succeeding switch's own receipt is outside the slice — and the parser
+// settles on a replayed `Set model to Opus 5`. It would settle the same way for
+// a pending `fable`, whose receipt is nowhere in that window either. So this is
+// not merely "a beat early" (q13 arm B5, settled on chunk 3 on a window whose
+// only success line was a repaint); it is "settled on someone else's receipt".
+//
+// It is accepted anyway, on the harm direction: the CLI DID apply the switch in
+// every measured instance, the statusline mirror — not this scrape — is the
+// state SSOT and corrects the display on the next tick, and the early settle
+// only releases the pending affordance sooner. The alternative fails the other
+// way, and a false "Claude rejected it" is the mistake worth spending a
+// signature change on. The structural fix is to confirm a switch against the
+// MIRROR rather than the stream (D-1: a "did the model change" question is a
+// STATE query), which is a redesign of the choreography and is registered, not
+// taken here. Both shapes are pinned in tests/smoke/midsession-receipt.mjs.
 export const CONTROL_SWITCH_SCAN_LIMIT = 4096;
 const CONTROL_SWITCH_MODEL_OK_RE = /Setmodelto/;
 const CONTROL_SWITCH_EFFORT_OK_RE = /Seteffortlevelto/;
-const CONTROL_SWITCH_MODEL_FAIL_RE = /Model'[^']*'notfound/;
 
+/** Prepare a pending value for embedding in a needle.
+ *
+ *  Whitespace is stripped FIRST so both sides of the comparison live in the same
+ *  space: the haystack is fully compacted, so a value carrying a space would be
+ *  spaceless in the receipt and spaced in the needle, and could never match its
+ *  own rejection. Sonata's own aliases have no spaces, but the asymmetry would be
+ *  a trap for the next value someone adds.
+ *
+ *  Then the regex metacharacters are escaped. This is not hypothetical: `opus[1m]`
+ *  is a real alias (`MODEL_OPTIONS.claude`), and unescaped its brackets become a
+ *  character class, so the needle would match `Model 'opus1' not found` and miss
+ *  the rejection it was built for. This parser is also the seam an IPC-supplied
+ *  string reaches, which is the second reason it is escaped rather than trusted. */
+function valueNeedle(value: string): string {
+  return value.replace(/\s+/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The verdict on a pending mid-session model/effort switch, read off the
+ * accumulated RAW tail. `value` is the value the pending switch ASKED FOR — it
+ * is what makes a failure receipt attributable to this switch rather than to a
+ * repaint of an older one (see the block comment above).
+ */
 export function parseClaudeControlReceipt(
   rawScan: string,
   kind: "model" | "effort",
+  value: string,
 ): "settled" | "failed" | null {
   const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
+  // Both axes check failure FIRST: neither failure line can contain its axis's
+  // success anchor, so the ordering is safe, and reading a rejection as a
+  // success would be the worse mistake.
   if (kind === "effort") {
-    // No failure receipt is probed for `/effort` (its levels come from a curated
-    // list, so a "not found" is unreachable); an unrecognized outcome times out
-    // to needs-attention rather than being guessed as a failure here.
+    // `Invalid argument: <tier>. Valid options are: …` — MEASURED at 2.1.258
+    // (q16). The old comment here asserted a `/effort` failure was unreachable
+    // "because its levels come from a curated list"; that reasoning covered only
+    // the values SONATA sends, and the receipt exists, so the switch used to sit
+    // pending for the full timeout instead of failing honestly.
+    if (new RegExp(`Invalidargument:${valueNeedle(value)}\\.`).test(compact)) {
+      return "failed";
+    }
     return CONTROL_SWITCH_EFFORT_OK_RE.test(compact) ? "settled" : null;
   }
-  // Failure first: a `Model '<x>' not found` line never contains `Set model to`,
-  // so checking failure ahead of success is the safe ordering.
-  if (CONTROL_SWITCH_MODEL_FAIL_RE.test(compact)) {
+  if (new RegExp(`Model'${valueNeedle(value)}'notfound`).test(compact)) {
     return "failed";
   }
   return CONTROL_SWITCH_MODEL_OK_RE.test(compact) ? "settled" : null;

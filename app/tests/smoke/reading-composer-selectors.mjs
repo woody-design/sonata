@@ -411,10 +411,17 @@ const run = (status, extra = {}) => ({
     ],
     "codex model list follows the current native order and slugs",
   );
+  // Re-walked against the live `/model` picker at claude 2.1.258 (upstream sync
+  // 2026-09-01, SL-4 — probes q12/q13). The LABELS are the load-bearing half:
+  // `sessionModelValue` maps the statusline `model.display_name` back to an alias
+  // BY LABEL, so a label that is not the CLI's display name silently marks no
+  // current model at all. Each label below is the display name the CLI itself
+  // reported after switching to that alias.
   assert.deepEqual(
     CFG.MODEL_OPTIONS.claude.map(({ label, value }) => ({ label, value })),
     [
-      { label: "Fable 5", value: "fable" },
+      { label: "Fable 5.1", value: "fable" },
+      { label: "Opus 5 (1M context)", value: "opus[1m]" },
       { label: "Opus 5", value: "opus" },
       { label: "Sonnet 5", value: "sonnet" },
       { label: "Haiku 4.5", value: "haiku" },
@@ -422,6 +429,30 @@ const run = (status, extra = {}) => ({
     ],
     "claude model list follows the current native order while retaining stable aliases",
   );
+  // The label→alias round trip `sessionModelValue` performs, pinned on the
+  // MEASURED display names (q13: each is what the statusline payload carried
+  // after `/model <alias>` settled). A relabel that breaks the round trip is the
+  // exact regression this slice found and fixed, so it is tested as a round trip
+  // rather than as a list.
+  for (const [displayName, alias] of [
+    ["Fable 5.1", "fable"],
+    ["Opus 5 (1M context)", "opus[1m]"],
+    ["Opus 5", "opus"],
+    ["Sonnet 5", "sonnet"],
+    ["Haiku 4.5", "haiku"],
+  ]) {
+    const match = CFG.MODEL_OPTIONS.claude.find((option) => option.label === displayName);
+    assert.equal(
+      match?.value,
+      alias,
+      `the live statusline display name ${JSON.stringify(displayName)} maps back to ${alias}`,
+    );
+    assert.equal(
+      CFG.modelValueLabel("claude", alias),
+      displayName,
+      `…and ${alias} renders as the CLI's own display name`,
+    );
+  }
   assert.deepEqual(
     CFG.reasoningOptionsForModel("codex", "gpt-5.6-sol").map(({ label, value }) => ({
       label,
@@ -466,14 +497,22 @@ const run = (status, extra = {}) => ({
   assert.equal(CFG.SPEED_OPTIONS[0].label, "Standard", "default speed label follows Codex");
 
   // Launch Speed gate (S3). Claude native fast mode is Opus-only, so Fast is
-  // offered ONLY on Opus; every other Claude model (and Native Default, whose
-  // account model we can't know) collapses to Standard alone. Codex has no
+  // offered ONLY on the Opus rows; every other Claude model (and Native Default,
+  // whose account model we can't know) collapses to Standard alone. Codex has no
   // per-model gate — Fast is offered for every model. Pinning the full matrix
   // means dropping Fast from Opus OR leaking it onto a non-Opus Claude model
   // fails here (not just a spot-check).
+  // `opus[1m]` joined the gate on MEASUREMENT (SL-4 probe q15): at 2.1.258 it
+  // draws the same fast-mode acknowledgement from the CLI as plain `opus`, while
+  // `haiku` + fastMode draws none at all.
   const speedValues = (provider, model) =>
     CFG.speedOptionsForModel(provider, model).map(({ value }) => value);
   assert.deepEqual(speedValues("claude", "opus"), ["default", "fast"], "Claude Opus offers Fast");
+  assert.deepEqual(
+    speedValues("claude", "opus[1m]"),
+    ["default", "fast"],
+    "Claude Opus (1M context) offers Fast too",
+  );
   for (const model of ["fable", "sonnet", "haiku", null]) {
     assert.deepEqual(
       speedValues("claude", model),
@@ -555,14 +594,18 @@ const run = (status, extra = {}) => ({
     "5.6 Sol Ultra",
     "new Codex model and Ultra labels",
   );
+  // The display name here is MEASURED (claude 2.1.258 — the statusline payload
+  // for `claude-opus-5[1m]`), not invented. The fixture used to read "Fable 5",
+  // a name the CLI has never emitted, which is part of why the label drift this
+  // slice fixed went unseen for a whole release train.
   assert.equal(
     C.sessionModelSummaryLabel(
       view({
         task: task({ model: "opus", reasoningEffort: "low" }),
-        usageSnapshot: { modelDisplayName: "Fable 5", reasoningEffort: "high" },
+        usageSnapshot: { modelDisplayName: "Opus 5 (1M context)", reasoningEffort: "high" },
       }),
     ),
-    "Fable 5 High",
+    "Opus 5 (1M context) High",
     "live statusline outranks spawn settings",
   );
   assert.equal(
