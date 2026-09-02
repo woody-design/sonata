@@ -11,6 +11,18 @@ import path from "node:path";
  * and large payloads (e.g. Stop's last_assistant_message) exceed the atomic
  * append size, so per-file writes are the race-free choice. The watcher consumes
  * and deletes them. Exit 0 always — observation must never block the CLI's turn.
+ *
+ * STDOUT CONTRACT: this script writes NOTHING to stdout, ever, on any path —
+ * which is what makes it immune to the CLI's hook-output parser. AUDITED SL-9
+ * (probe `spikes/upstream-sync-2026-09/claude/h2-hook-stdout-audit.mjs`, part B):
+ * nine paths — normal payload, empty stdin, whitespace-only stdin, malformed
+ * stdin, missing argv, ENOTDIR target, EACCES parent, a 1 MB payload, invalid
+ * UTF-8 — measured at ZERO stdout bytes under BOTH interpreters (plain node and
+ * the production `ELECTRON_RUN_AS_NODE=1` shape). Keep it that way: at claude
+ * 2.1.258 a hook that prints `{`-leading text which ends in `}` and does not
+ * parse is a `validationError`, and one CLI call site `throw`s on that. There is
+ * no reason to print here — the watcher reads FILES — so the rule is simply
+ * "never write stdout", pinned by `tests/smoke/hook-stdout-contract.mjs`.
  */
 
 const outputDirectory = process.argv[2];

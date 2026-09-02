@@ -1,0 +1,1016 @@
+# H2 — claude hook STDOUT strict-JSON audit (SL-9)
+
+binary: 2.1.258 (Claude Code) (re-pinned at probe end)
+sink:   $HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js
+broker: $HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/approval-broker.js
+
+## A — the parse contract at 2.1.258, verbatim from the binary
+
+```js
+function I5e(e){let n=e.trim();if(!n.startsWith("{"))return t("Hook output does not start with {, treating as plain text"),{plainText:e};if(Xgn(e))return{json:{async:!0}};try{let r=Snr(n);if("json"in r)return r;let o=`${r.validationError}
+
+Expected schema:
+${Vtr()}`;return t(o),{plainText:e,validationError:o}}catch(r){if(!n.endsWith("}"))return t(`Hook output starts with { but is not a JSON object, treating as plain text: ${l(r)}`),{plainText:e};if(wJo(n))return t("Hook output is several JSON documents, treating as plain text"),{plainText:e};let o=`Hook output looks like a JSON object but is not valid JSON \u2014 ${l(r)}. Emit the payload with a JSON encoder (jq, ConvertTo-Json, json.dumps) rather than string concatenation so backslashes and quotes inside strings are escaped.`;return t(o),{plainText:e,validationError:o}}}
+```
+
+Reading it: `t(...)` is a debug log, not a failure. `validationError` is the ONLY
+hard signal — set on (a) valid JSON that fails the hook-output schema, or (b)
+`{`-leading text that ends with `}`, is not valid JSON, and is not JSON-lines.
+Everything else degrades to `{plainText}` with a debug line.
+
+## B — every byte Sonata's two hook commands can emit
+
+| interpreter | command | case | exit | stdout bytes | verdict |
+|---|---|---|---|---|---|
+| node | hook-sink.js | normal payload | 0 | 0 | plainText |
+| node | hook-sink.js | empty stdin | 0 | 0 | plainText |
+| node | hook-sink.js | whitespace-only stdin | 0 | 0 | plainText |
+| node | hook-sink.js | malformed stdin (not JSON) | 0 | 0 | plainText |
+| node | hook-sink.js | no argv (outputDirectory missing) | 0 | 0 | plainText |
+| node | hook-sink.js | ENOTDIR output path | 0 | 0 | plainText |
+| node | hook-sink.js | EACCES output parent (mode 0500) | 0 | 0 | plainText |
+| node | hook-sink.js | 1 MB payload | 0 | 0 | plainText |
+| node | hook-sink.js | invalid UTF-8 bytes in stdin | 0 | 0 | plainText |
+| node | approval-broker.js | no argv (controlDir missing) | 0 | 0 | plainText |
+| node | approval-broker.js | AskUserQuestion (undecided exit) | 0 | 0 | plainText |
+| node | approval-broker.js | empty stdin → timeout/expire | 0 | 0 | plainText |
+| node | approval-broker.js | malformed stdin → timeout/expire | 0 | 0 | plainText |
+| node | approval-broker.js | unwritable controlDir (0500) | 0 | 0 | plainText |
+| node | approval-broker.js | timeout with no reply | 0 | 0 | plainText |
+| node | approval-broker.js | reply: allow (production shape) | 0 | 92 | json |
+| node | approval-broker.js | reply: deny (production shape) | 0 | 91 | json |
+| node | approval-broker.js | reply: approve-always (updatedPermissions) | 0 | 229 | json |
+| node | approval-broker.js | reply: 4 MB (stdout flush stress) | 0 | 65536 | plainText |
+| electron-as-node | hook-sink.js | normal payload | 0 | 0 | plainText |
+| electron-as-node | hook-sink.js | empty stdin | 0 | 0 | plainText |
+| electron-as-node | hook-sink.js | whitespace-only stdin | 0 | 0 | plainText |
+| electron-as-node | hook-sink.js | malformed stdin (not JSON) | 0 | 0 | plainText |
+| electron-as-node | hook-sink.js | no argv (outputDirectory missing) | 0 | 0 | plainText |
+| electron-as-node | hook-sink.js | ENOTDIR output path | 0 | 0 | plainText |
+| electron-as-node | hook-sink.js | EACCES output parent (mode 0500) | 0 | 0 | plainText |
+| electron-as-node | hook-sink.js | 1 MB payload | 0 | 0 | plainText |
+| electron-as-node | hook-sink.js | invalid UTF-8 bytes in stdin | 0 | 0 | plainText |
+| electron-as-node | approval-broker.js | no argv (controlDir missing) | 0 | 0 | plainText |
+| electron-as-node | approval-broker.js | AskUserQuestion (undecided exit) | 0 | 0 | plainText |
+| electron-as-node | approval-broker.js | empty stdin → timeout/expire | 0 | 0 | plainText |
+| electron-as-node | approval-broker.js | malformed stdin → timeout/expire | 0 | 0 | plainText |
+| electron-as-node | approval-broker.js | unwritable controlDir (0500) | 0 | 0 | plainText |
+| electron-as-node | approval-broker.js | timeout with no reply | 0 | 0 | plainText |
+| electron-as-node | approval-broker.js | reply: allow (production shape) | 0 | 92 | json |
+| electron-as-node | approval-broker.js | reply: deny (production shape) | 0 | 91 | json |
+| electron-as-node | approval-broker.js | reply: approve-always (updatedPermissions) | 0 | 229 | json |
+| electron-as-node | approval-broker.js | reply: 4 MB (stdout flush stress) | 0 | 65536 | plainText |
+
+### part B detail
+
+```json
+[
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "normal payload",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 42
+  },
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "empty stdin",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 43
+  },
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "whitespace-only stdin",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 43
+  },
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "malformed stdin (not JSON)",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 42
+  },
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "no argv (outputDirectory missing)",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 42
+  },
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "ENOTDIR output path",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 41
+  },
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "EACCES output parent (mode 0500)",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 42
+  },
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "1 MB payload",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 43
+  },
+  {
+    "interpreter": "node",
+    "command": "hook-sink.js",
+    "case": "invalid UTF-8 bytes in stdin",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 43
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "no argv (controlDir missing)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 42
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "AskUserQuestion (undecided exit)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 41
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "empty stdin → timeout/expire",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 1567
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "malformed stdin → timeout/expire",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 1596
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "unwritable controlDir (0500)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 61
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "timeout with no reply",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 1586
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "reply: allow (production shape)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": 92,
+    "stdoutBytes": 92,
+    "stdoutIsVerbatimReply": true,
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "ms": 166
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "reply: deny (production shape)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": 91,
+    "stdoutBytes": 91,
+    "stdoutIsVerbatimReply": true,
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"deny\"}}}",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "ms": 158
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "reply: approve-always (updatedPermissions)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": 229,
+    "stdoutBytes": 229,
+    "stdoutIsVerbatimReply": true,
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\",\"updatedPermissions\":[{\"type\":\"addRules\",\"rules\":[{\"toolName\":\"Bash\",\"ruleContent\":\"ls *\"}],\"behavior\":\"allow\",\"destination\":\"session\"}]}}}",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "ms": 156
+  },
+  {
+    "interpreter": "node",
+    "command": "approval-broker.js",
+    "case": "reply: 4 MB (stdout flush stress)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": 4000102,
+    "stdoutBytes": 65536,
+    "stdoutIsVerbatimReply": false,
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\",\"note\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…[65536 chars]…yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "starts with { but does not end with }"
+    },
+    "ms": 156
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "normal payload",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 62
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "empty stdin",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 53
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "whitespace-only stdin",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 53
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "malformed stdin (not JSON)",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 53
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "no argv (outputDirectory missing)",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 52
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "ENOTDIR output path",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 52
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "EACCES output parent (mode 0500)",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 53
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "1 MB payload",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 53
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "hook-sink.js",
+    "case": "invalid UTF-8 bytes in stdin",
+    "exit": 0,
+    "signal": null,
+    "stdoutBytes": 0,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 53
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "no argv (controlDir missing)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 51
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "AskUserQuestion (undecided exit)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 52
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "empty stdin → timeout/expire",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 1585
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "malformed stdin → timeout/expire",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 1601
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "unwritable controlDir (0500)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 70
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "timeout with no reply",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": null,
+    "stdoutBytes": 0,
+    "stdoutIsVerbatimReply": null,
+    "stdout": "",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "ms": 1591
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "reply: allow (production shape)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": 92,
+    "stdoutBytes": 92,
+    "stdoutIsVerbatimReply": true,
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "ms": 175
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "reply: deny (production shape)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": 91,
+    "stdoutBytes": 91,
+    "stdoutIsVerbatimReply": true,
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"deny\"}}}",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "ms": 165
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "reply: approve-always (updatedPermissions)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": 229,
+    "stdoutBytes": 229,
+    "stdoutIsVerbatimReply": true,
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\",\"updatedPermissions\":[{\"type\":\"addRules\",\"rules\":[{\"toolName\":\"Bash\",\"ruleContent\":\"ls *\"}],\"behavior\":\"allow\",\"destination\":\"session\"}]}}}",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "ms": 166
+  },
+  {
+    "interpreter": "electron-as-node",
+    "command": "approval-broker.js",
+    "case": "reply: 4 MB (stdout flush stress)",
+    "exit": 0,
+    "signal": null,
+    "replyBytesWritten": 4000102,
+    "stdoutBytes": 65536,
+    "stdoutIsVerbatimReply": false,
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\",\"note\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…[65536 chars]…yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "stderrExcerpt": "",
+    "verdict": {
+      "verdict": "plainText",
+      "why": "starts with { but does not end with }"
+    },
+    "ms": 169
+  }
+]
+```
+
+## C — what 2.1.258 actually does with each class (LIVE, `claude -p`)
+
+| class | emitted | predicted (from A) | CLI exit | hook messages in the stream |
+|---|---|---|---|---|
+| empty | `(empty)` | plainText | 0 | 5 |
+| whitespace | `  \n ` | plainText | 0 | 5 |
+| plain-text | `hello from a hook` | plainText | 0 | 5 |
+| brace-unclosed | `{"hookSpecificOutput":{"hookEventName":"SessionStart"` | plainText | 0 | 5 |
+| brace-closed-invalid | `{"hookSpecificOutput":{"hookEventName":"SessionStart"}` | HARD | 0 | 5 |
+| valid-unknown-fields | `{"sonata":"observer","note":1}` | json | 0 | 5 |
+| valid-schema-shape | `{"continue":true,"suppressOutput":true}` | json | 0 | 5 |
+| json-lines | `{"continue":true}\n{"continue":true}` | HARD | 0 | 5 |
+
+### part C detail
+
+```json
+[
+  {
+    "class": "empty",
+    "why": "the sink's normal output (it never writes stdout)",
+    "emitted": "",
+    "predicted": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "exit": 0,
+    "signal": null,
+    "streamLines": 8,
+    "hookMessages": [
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"225f924b-83ed-4dd4-ac91-d23ef0f81a79\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"bbe352b7-84f7-4db4-bcbb-ad82c437e048\",\"session_id\":\"0ce60e9b-08d1-4ee5-a08a-4624d3f80cc4\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"ce473b7a-9f1b-4c75-8d6e-de0171312596\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"5d06ba9e-d21e-42ec-81c7-7a111cdce96c\",\"session_id\":\"0ce60e9b-08d1-4ee5-a08a-4624d3f80cc4\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"225f924b-83ed-4dd4-ac91-d23ef0f81a79\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"a6a1be07-e89d-4577-b1f7-99398543ed2d\",\"session_id\":\"0ce60e9b-08d1-4ee5-a08a-4624d3f80cc4\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"ce473b7a-9f1b-4c75-8d6e-de0171312596\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"ba6c4b4e-3e0b-47d9-865a-391915faadad\",\"session_id\":\"0ce60e9b-08d1-4ee5-a08a-4624d3f80cc4\"}",
+      "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/private/tmp/sonata-sync-2026-09/hook-stdout-audit/live/empty\",\"session_id\":\"0ce60e9b-08d1-4ee5-a08a-4624d3f80cc4\",\"tools\":[\"Task\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterWorktree\",\"ExitWorktree\",\"ListAgents\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ReportFindings\",\"ScheduleWakeup\",\"SendMessage\",\"Skill\",\"TaskOutput\",\"TaskStop\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\",\"mcp__claude_ai_Gmail__apply_sensitive_message_label\",\"mcp__claude_ai_Gmail__apply_sensitive_thread_label\",\"mcp__claude_ai_Gmail__create_draft\",\"mcp__claude_ai_Gmail__create_label\",\"mcp__claude_ai_Gmail__delete_label\","
+    ],
+    "stderrExcerpt": "",
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "OK"
+    }
+  },
+  {
+    "class": "whitespace",
+    "why": "trailing newline only",
+    "emitted": "  \\n ",
+    "predicted": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "exit": 0,
+    "signal": null,
+    "streamLines": 8,
+    "hookMessages": [
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"d54a5809-6ad2-40ee-a574-7b9aa22aa51b\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"9b59422f-ddc4-412f-93d7-ac2f0a1b0a04\",\"session_id\":\"70442dd3-a71c-4428-9356-6c3acb495d5a\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"4f98169c-2fba-4c4e-bce9-125428186565\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"6b3f201f-7007-4b68-90f8-83539378ce09\",\"session_id\":\"70442dd3-a71c-4428-9356-6c3acb495d5a\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"d54a5809-6ad2-40ee-a574-7b9aa22aa51b\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"  \\n \",\"stdout\":\"  \\n \",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"f57e5046-b764-4cbf-b3b0-628ee866447f\",\"session_id\":\"70442dd3-a71c-4428-9356-6c3acb495d5a\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"4f98169c-2fba-4c4e-bce9-125428186565\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"073705d2-cf88-4674-99ab-6a53bf4e3932\",\"session_id\":\"70442dd3-a71c-4428-9356-6c3acb495d5a\"}",
+      "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/private/tmp/sonata-sync-2026-09/hook-stdout-audit/live/whitespace\",\"session_id\":\"70442dd3-a71c-4428-9356-6c3acb495d5a\",\"tools\":[\"Task\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterWorktree\",\"ExitWorktree\",\"ListAgents\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ReportFindings\",\"ScheduleWakeup\",\"SendMessage\",\"Skill\",\"TaskOutput\",\"TaskStop\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\",\"mcp__claude_ai_Gmail__apply_sensitive_message_label\",\"mcp__claude_ai_Gmail__apply_sensitive_thread_label\",\"mcp__claude_ai_Gmail__create_draft\",\"mcp__claude_ai_Gmail__create_label\",\"mcp__claude_ai_Gmail__delete_la"
+    ],
+    "stderrExcerpt": "",
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "OK"
+    }
+  },
+  {
+    "class": "plain-text",
+    "why": "no leading brace",
+    "emitted": "hello from a hook",
+    "predicted": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "exit": 0,
+    "signal": null,
+    "streamLines": 8,
+    "hookMessages": [
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"740e3097-f11b-45e4-bd30-97dd00732396\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"ab308a57-117e-405e-819d-dc72d441566e\",\"session_id\":\"8d90e476-c168-450c-baa3-9c0fad6508f8\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"59c81e66-25d6-450d-a211-92806e7f5d17\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"3e391a60-ab9a-463d-a770-a486d012e539\",\"session_id\":\"8d90e476-c168-450c-baa3-9c0fad6508f8\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"740e3097-f11b-45e4-bd30-97dd00732396\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"hello from a hook\",\"stdout\":\"hello from a hook\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"a86b1425-ae7e-4e78-9d6b-cc5e43f4a339\",\"session_id\":\"8d90e476-c168-450c-baa3-9c0fad6508f8\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"59c81e66-25d6-450d-a211-92806e7f5d17\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"adc2bf55-da6a-4eaa-b799-71a80e997d64\",\"session_id\":\"8d90e476-c168-450c-baa3-9c0fad6508f8\"}",
+      "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/private/tmp/sonata-sync-2026-09/hook-stdout-audit/live/plain-text\",\"session_id\":\"8d90e476-c168-450c-baa3-9c0fad6508f8\",\"tools\":[\"Task\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterWorktree\",\"ExitWorktree\",\"ListAgents\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ReportFindings\",\"ScheduleWakeup\",\"SendMessage\",\"Skill\",\"TaskOutput\",\"TaskStop\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\",\"mcp__claude_ai_Gmail__apply_sensitive_message_label\",\"mcp__claude_ai_Gmail__apply_sensitive_thread_label\",\"mcp__claude_ai_Gmail__create_draft\",\"mcp__claude_ai_Gmail__create_label\",\"mcp__claude_ai_Gmail__delete_la"
+    ],
+    "stderrExcerpt": "",
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "OK"
+    }
+  },
+  {
+    "class": "brace-unclosed",
+    "why": "a TRUNCATED decision — starts with { , does NOT end with }",
+    "emitted": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\"",
+    "predicted": {
+      "verdict": "plainText",
+      "why": "starts with { but does not end with }"
+    },
+    "exit": 0,
+    "signal": null,
+    "streamLines": 8,
+    "hookMessages": [
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"057a3fa5-252d-4eb3-90b7-6a8fce4ccaaf\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"aaeefc95-5c02-4750-89a7-e1cc0e257463\",\"session_id\":\"12ea23b7-1037-412f-a82d-c3c5b30a9b08\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"85314462-5d68-4e20-919a-015dca35263c\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"626ec161-b60c-44ae-940f-e4312a23c450\",\"session_id\":\"12ea23b7-1037-412f-a82d-c3c5b30a9b08\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"057a3fa5-252d-4eb3-90b7-6a8fce4ccaaf\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\"\",\"stdout\":\"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"0ccacd88-2e08-4703-8033-5c06eadd9696\",\"session_id\":\"12ea23b7-1037-412f-a82d-c3c5b30a9b08\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"85314462-5d68-4e20-919a-015dca35263c\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"a08e6c53-80f1-4f47-bf42-c5f5486306ab\",\"session_id\":\"12ea23b7-1037-412f-a82d-c3c5b30a9b08\"}",
+      "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/private/tmp/sonata-sync-2026-09/hook-stdout-audit/live/brace-unclosed\",\"session_id\":\"12ea23b7-1037-412f-a82d-c3c5b30a9b08\",\"tools\":[\"Task\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterWorktree\",\"ExitWorktree\",\"ListAgents\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ReportFindings\",\"ScheduleWakeup\",\"SendMessage\",\"Skill\",\"TaskOutput\",\"TaskStop\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\",\"mcp__claude_ai_Gmail__apply_sensitive_message_label\",\"mcp__claude_ai_Gmail__apply_sensitive_thread_label\",\"mcp__claude_ai_Gmail__create_draft\",\"mcp__claude_ai_Gmail__create_label\",\"mcp__claude_ai_Gmail__delet"
+    ],
+    "stderrExcerpt": "",
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "OK"
+    }
+  },
+  {
+    "class": "brace-closed-invalid",
+    "why": "a truncation that happens to end with } — the predicted HARD path",
+    "emitted": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\"}",
+    "predicted": {
+      "verdict": "HARD",
+      "why": "starts with { and ends with } but is not valid JSON → validationError"
+    },
+    "exit": 0,
+    "signal": null,
+    "streamLines": 8,
+    "hookMessages": [
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"09d045bb-839e-4ba1-886a-0d796f0a7090\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"68ba1628-3a40-4e08-b947-d8d5905412dc\",\"session_id\":\"de0c5be4-e84f-42dd-9eaa-672cc1b0be5f\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"324de7da-b7ac-4a86-8cf8-1afe7a7a1c7d\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"ea63af07-fdf1-4875-bdb0-ef429e1e2661\",\"session_id\":\"de0c5be4-e84f-42dd-9eaa-672cc1b0be5f\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"09d045bb-839e-4ba1-886a-0d796f0a7090\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\"}\",\"stdout\":\"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\"}\",\"stderr\":\"Hook output looks like a JSON object but is not valid JSON — JSON Parse error: Expected '}'. Emit the payload with a JSON encoder (jq, ConvertTo-Json, json.dumps) rather than string concatenation so backslashes and quotes inside strings are escaped.\",\"exit_code\":0,\"outcome\":\"error\",\"uuid\":\"b8d85bdf-e904-4c54-a6cb-ea78f98ddc6c\",\"session_id\":\"de0c5be4-e84f-42dd-9eaa-672cc1b0be5f\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"324de7da-b7ac-4a86-8cf8-1afe7a7a1c7d\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"9c9905c1-11af-4bad-8669-891992161b2e\",\"session_id\":\"de0c5be4-e84f-42dd-9eaa-672cc1b0be5f\"}",
+      "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/private/tmp/sonata-sync-2026-09/hook-stdout-audit/live/brace-closed-invalid\",\"session_id\":\"de0c5be4-e84f-42dd-9eaa-672cc1b0be5f\",\"tools\":[\"Task\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterWorktree\",\"ExitWorktree\",\"ListAgents\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ReportFindings\",\"ScheduleWakeup\",\"SendMessage\",\"Skill\",\"TaskOutput\",\"TaskStop\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\",\"mcp__whoop__whoop_get_body_measurements\",\"mcp__whoop__whoop_get_cycles\",\"mcp__whoop__whoop_get_health_overview\",\"mcp__whoop__whoop_get_profile\",\"mcp__whoop__whoop_get_recovery\",\"mcp__whoop__whoop_get_sl"
+    ],
+    "stderrExcerpt": "",
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "OK"
+    }
+  },
+  {
+    "class": "valid-unknown-fields",
+    "why": "valid JSON, no field the schema knows",
+    "emitted": "{\"sonata\":\"observer\",\"note\":1}",
+    "predicted": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "exit": 0,
+    "signal": null,
+    "streamLines": 8,
+    "hookMessages": [
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"5e9f3ef9-26ac-4b54-b2b1-b007a2aedc6f\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"450d41aa-a92c-48f2-a29d-0a44aaf151c6\",\"session_id\":\"29e7076f-31ac-442b-a479-b5f5e6a9b9af\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"6cf55a3d-054b-421b-8084-0b63fa5a4dcc\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"9ede9504-eade-431e-b8d8-6f4efd09841c\",\"session_id\":\"29e7076f-31ac-442b-a479-b5f5e6a9b9af\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"5e9f3ef9-26ac-4b54-b2b1-b007a2aedc6f\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"{\\\"sonata\\\":\\\"observer\\\",\\\"note\\\":1}\",\"stdout\":\"{\\\"sonata\\\":\\\"observer\\\",\\\"note\\\":1}\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"00b1388b-cfc5-4883-9caa-8c5c7e2ea8a8\",\"session_id\":\"29e7076f-31ac-442b-a479-b5f5e6a9b9af\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"6cf55a3d-054b-421b-8084-0b63fa5a4dcc\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"e207e270-7543-4e77-964b-4070556fd420\",\"session_id\":\"29e7076f-31ac-442b-a479-b5f5e6a9b9af\"}",
+      "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/private/tmp/sonata-sync-2026-09/hook-stdout-audit/live/valid-unknown-fields\",\"session_id\":\"29e7076f-31ac-442b-a479-b5f5e6a9b9af\",\"tools\":[\"Task\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterWorktree\",\"ExitWorktree\",\"ListAgents\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ReportFindings\",\"ScheduleWakeup\",\"SendMessage\",\"Skill\",\"TaskOutput\",\"TaskStop\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\",\"mcp__claude_ai_Gmail__apply_sensitive_message_label\",\"mcp__claude_ai_Gmail__apply_sensitive_thread_label\",\"mcp__claude_ai_Gmail__create_draft\",\"mcp__claude_ai_Gmail__create_label\",\"mcp__claude_ai_Gmail_"
+    ],
+    "stderrExcerpt": "",
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "OK"
+    }
+  },
+  {
+    "class": "valid-schema-shape",
+    "why": "valid JSON in the documented shape",
+    "emitted": "{\"continue\":true,\"suppressOutput\":true}",
+    "predicted": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "exit": 0,
+    "signal": null,
+    "streamLines": 8,
+    "hookMessages": [
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"cfeef41f-60e5-46c2-9ee8-abab258969c5\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"e3f36ffc-0a84-432a-b8c9-afb2fa9446a1\",\"session_id\":\"207ee56c-c18c-45c2-ad20-9b4a02dec3d1\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"999d8342-5523-403d-a8b2-9352804607f9\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"39aea5bb-4b3a-424f-9eda-c19b6f8f8f81\",\"session_id\":\"207ee56c-c18c-45c2-ad20-9b4a02dec3d1\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"cfeef41f-60e5-46c2-9ee8-abab258969c5\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"{\\\"continue\\\":true,\\\"suppressOutput\\\":true}\",\"stdout\":\"{\\\"continue\\\":true,\\\"suppressOutput\\\":true}\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"1313be02-d593-46e8-b6cf-0e39eeac9a8b\",\"session_id\":\"207ee56c-c18c-45c2-ad20-9b4a02dec3d1\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"999d8342-5523-403d-a8b2-9352804607f9\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"37debe05-6c56-43a8-8308-c14b874295a7\",\"session_id\":\"207ee56c-c18c-45c2-ad20-9b4a02dec3d1\"}",
+      "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/private/tmp/sonata-sync-2026-09/hook-stdout-audit/live/valid-schema-shape\",\"session_id\":\"207ee56c-c18c-45c2-ad20-9b4a02dec3d1\",\"tools\":[\"Task\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterWorktree\",\"ExitWorktree\",\"ListAgents\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ReportFindings\",\"ScheduleWakeup\",\"SendMessage\",\"Skill\",\"TaskOutput\",\"TaskStop\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\",\"mcp__claude_ai_Gmail__apply_sensitive_message_label\",\"mcp__claude_ai_Gmail__apply_sensitive_thread_label\",\"mcp__claude_ai_Gmail__create_draft\",\"mcp__claude_ai_Gmail__create_label\",\"mcp__claude_ai_Gmail__d"
+    ],
+    "stderrExcerpt": "",
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "OK"
+    }
+  },
+  {
+    "class": "json-lines",
+    "why": "several JSON documents",
+    "emitted": "{\"continue\":true}\\n{\"continue\":true}",
+    "predicted": {
+      "verdict": "HARD",
+      "why": "starts with { and ends with } but is not valid JSON → validationError"
+    },
+    "exit": 0,
+    "signal": null,
+    "streamLines": 8,
+    "hookMessages": [
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"2c7ca20e-4e47-4d0e-ab85-2a26a5f165f7\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"7082043a-40a8-40c6-a781-ba83e03f1b4c\",\"session_id\":\"12b70bf1-6edf-49e3-ab70-92465d608688\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_started\",\"hook_id\":\"163bccb4-29d8-4f63-8f92-053695655acc\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"uuid\":\"b8150c05-50fe-449d-915c-570a5687fe78\",\"session_id\":\"12b70bf1-6edf-49e3-ab70-92465d608688\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"2c7ca20e-4e47-4d0e-ab85-2a26a5f165f7\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"{\\\"continue\\\":true}\\n{\\\"continue\\\":true}\",\"stdout\":\"{\\\"continue\\\":true}\\n{\\\"continue\\\":true}\",\"stderr\":\"Hook output looks like a JSON object but is not valid JSON — JSON Parse error: Unable to parse JSON string. Emit the payload with a JSON encoder (jq, ConvertTo-Json, json.dumps) rather than string concatenation so backslashes and quotes inside strings are escaped.\",\"exit_code\":0,\"outcome\":\"error\",\"uuid\":\"26240f17-0ceb-4b1a-917c-20d11424b6b0\",\"session_id\":\"12b70bf1-6edf-49e3-ab70-92465d608688\"}",
+      "{\"type\":\"system\",\"subtype\":\"hook_response\",\"hook_id\":\"163bccb4-29d8-4f63-8f92-053695655acc\",\"hook_name\":\"SessionStart:startup\",\"hook_event\":\"SessionStart\",\"output\":\"\",\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0,\"outcome\":\"success\",\"uuid\":\"708a3290-95f9-4574-9944-cc5da4be87ae\",\"session_id\":\"12b70bf1-6edf-49e3-ab70-92465d608688\"}",
+      "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/private/tmp/sonata-sync-2026-09/hook-stdout-audit/live/json-lines\",\"session_id\":\"12b70bf1-6edf-49e3-ab70-92465d608688\",\"tools\":[\"Task\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterWorktree\",\"ExitWorktree\",\"ListAgents\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ReportFindings\",\"ScheduleWakeup\",\"SendMessage\",\"Skill\",\"TaskOutput\",\"TaskStop\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\",\"mcp__claude_ai_Gmail__apply_sensitive_message_label\",\"mcp__claude_ai_Gmail__apply_sensitive_thread_label\",\"mcp__claude_ai_Gmail__create_draft\",\"mcp__claude_ai_Gmail__create_label\",\"mcp__claude_ai_Gmail__delete_la"
+    ],
+    "stderrExcerpt": "",
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "OK"
+    }
+  }
+]
+```
+
+## D — the same classes on the PermissionRequest channel (where the broker lives)
+
+UNREPRODUCED (note added after the run; the probe source now emits this header
+itself, so a re-render carries it). `claude -p` does NOT run PermissionRequest
+hooks: every arm below — the valid `allow` included — shows zero hook_response
+messages for the event and no file written, i.e. the hook never fired and print
+mode denied the tool on its own. Nothing about the decision channel can be read
+off this table; `predicted` is the static classifier's opinion, not a
+measurement. The decision channel is measured in `h1-hook-census.mjs` arm
+`c2-approval-decision` (real interactive session, PRODUCTION broker, ground
+truth = did the file get written).
+
+| class | predicted | CLI exit | hook outcome(s) | tool actually ran? | final |
+|---|---|---|---|---|---|
+| pr-valid-allow | json | 0 | — | no | success |
+| pr-valid-deny | json | 0 | — | no | success |
+| pr-always-rule | json | 0 | — | no | success |
+| pr-truncated-brace | HARD | 0 | — | no | success |
+| pr-empty | plainText | 0 | — | no | success |
+
+### part D detail
+
+```json
+[
+  {
+    "class": "pr-valid-allow",
+    "why": "Sonata's production allow, byte-for-byte",
+    "emitted": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}",
+    "predicted": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "exit": 0,
+    "hookResponses": [],
+    "fileWritten": false,
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "The write to `hello.txt` needs your permission — it wasn't granted, so the file wasn't created. Grant the permission and I'll create it."
+    },
+    "stderrExcerpt": ""
+  },
+  {
+    "class": "pr-valid-deny",
+    "why": "Sonata's production deny, byte-for-byte",
+    "emitted": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"deny\"}}}",
+    "predicted": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "exit": 0,
+    "hookResponses": [],
+    "fileWritten": false,
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "The write was denied — I don't have permission to create `hello.txt` in that directory, so the file wasn't created."
+    },
+    "stderrExcerpt": ""
+  },
+  {
+    "class": "pr-always-rule",
+    "why": "Sonata's approve-always shape — does updatedPermissions still validate at 2.1.258?",
+    "emitted": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\",\"updatedPermissions\":[{\"type\":\"addRules\",\"rules\":[{\"toolName\":\"Write\"}],\"behavior\":\"allow\",\"destination\":\"session\"}]}}}",
+    "predicted": {
+      "verdict": "json",
+      "why": "valid JSON object (schema decided live in part C)"
+    },
+    "exit": 0,
+    "hookResponses": [],
+    "fileWritten": false,
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "I need permission to write that file — the write was denied. Please grant it (or approve the retry) and I'll create it."
+    },
+    "stderrExcerpt": ""
+  },
+  {
+    "class": "pr-truncated-brace",
+    "why": "the MEASURED truncation shape that ends on a } — the predicted hard path, on the decision channel",
+    "emitted": "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}",
+    "predicted": {
+      "verdict": "HARD",
+      "why": "starts with { and ends with } but is not valid JSON → validationError"
+    },
+    "exit": 0,
+    "hookResponses": [],
+    "fileWritten": false,
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "I need permission to write hello.txt — the write was denied. Grant access and I'll retry."
+    },
+    "stderrExcerpt": ""
+  },
+  {
+    "class": "pr-empty",
+    "why": "the broker's timeout/undecided path (no stdout) → native panel",
+    "emitted": "",
+    "predicted": {
+      "verdict": "plainText",
+      "why": "does not start with {"
+    },
+    "exit": 0,
+    "hookResponses": [],
+    "fileWritten": false,
+    "finalResult": {
+      "subtype": "success",
+      "is_error": false,
+      "result": "Write permission for hello.txt wasn't granted, so the file wasn't created. Grant it and I'll proceed."
+    },
+    "stderrExcerpt": ""
+  }
+]
+```

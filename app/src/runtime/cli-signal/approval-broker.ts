@@ -27,7 +27,25 @@ import {
  *  - `reply-<id>.json`   : the decision JSON (Sonata writes it; broker emits it).
  *  - `expired-<id>.json` : `{}` — broker gave up; native panel took over.
  *  - `answered-<id>.json`: the decision the broker actually emitted (audit).
+ *
+ * STDOUT CONTRACT (audited SL-9 against claude 2.1.258, probe
+ * `spikes/upstream-sync-2026-09/claude/h2-hook-stdout-audit.mjs`). The CLI parses
+ * this stream: output that does not start with `{` degrades to plain text
+ * harmlessly, but `{`-leading text that ENDS with `}` and does not parse — or
+ * parses and fails the hook-output schema — sets `validationError`, which one CLI
+ * call site reports as a non-blocking hook error and another `throw`s on. So the
+ * only safe emissions are "nothing at all" and "one complete, schema-valid JSON
+ * object", and the broker must never emit a PARTIAL object. Every path here was
+ * measured for stdout bytes; the only writer is `answer()`.
  */
+
+// A dead read end (the CLI killed the hook, the pty went away) makes the stdout
+// write emit `error` instead of throwing. Unhandled, that is a crash with stderr
+// noise on a channel this broker promises never to write to. Swallow it and exit
+// clean: a broker failure must never block or corrupt the CLI's turn.
+process.stdout.on("error", () => {
+  process.exit(0);
+});
 
 const controlDir = process.argv[2];
 // Fallback mirrors the injected production hold (claude-runtime-settings) so a
@@ -90,7 +108,7 @@ process.stdin.on("end", () => {
       return null;
     }
   };
-  const answer = (decision: string): never => {
+  const answer = (decision: string): void => {
     // The ask cleanup MUST be independent of the audit write: if writeAtomic
     // throws (ENOSPC), a nested rmSync would be skipped → the ask-<id>.json
     // lingers and Sonata's card never clears. Each step gets its own try.
@@ -109,8 +127,22 @@ process.stdin.on("end", () => {
     } catch {
       // best-effort
     }
+    // NOT `process.stdout.write(d); process.exit(0)`. On macOS a pipe write is
+    // ASYNC, and exiting before it drains TRUNCATES the decision — MEASURED at
+    // exactly 65536 bytes (one pipe buffer) under BOTH interpreters, plain node
+    // and the production `ELECTRON_RUN_AS_NODE=1` shape (SL-9, h2 part B). A
+    // truncation that happens to land on a `}` is the CLI's hard `validationError`
+    // path; one that does not is silently discarded as plain text and the user's
+    // answer is simply lost. Today's decisions are ~100–250 bytes so the bug is
+    // latent, but `updatedPermissions` is an unbounded list and the failure mode
+    // is silent, which is the combination worth closing.
+    //
+    // The fix is to stop exiting early: the poll interval is already cleared and
+    // stdin has ended by every call site, so the pending stdout write is the ONLY
+    // thing left holding the event loop — Node exits on its own the moment it
+    // drains, with the exit code set here.
+    process.exitCode = 0;
     process.stdout.write(decision);
-    process.exit(0);
   };
 
   const deadline = Date.now() + timeoutMs;
@@ -119,6 +151,11 @@ process.stdin.on("end", () => {
     if (decision !== null) {
       clearInterval(timer);
       answer(decision);
+      // `answer` no longer exits the process (it must let the stdout write
+      // drain), so both call sites have to return themselves — falling through
+      // to the deadline branch would write `expired-<id>.json` over an answer
+      // the CLI is about to receive.
+      return;
     }
     if (Date.now() > deadline) {
       clearInterval(timer);
@@ -128,6 +165,7 @@ process.stdin.on("end", () => {
       const late = readReply();
       if (late !== null) {
         answer(late);
+        return;
       }
       // Cleanup independent of the marker write (see answer()): the ask must be
       // removed even if writeAtomic throws, or the card never clears.

@@ -1,0 +1,912 @@
+# H1 — claude hook-event CENSUS under production injection (SL-9)
+
+binary: 2.1.258 (Claude Code) (re-pinned at probe end)
+spawn: production TerminalHost from dist/, --permission-mode default, injected --settings
+declared events in this binary (33): PreToolUse, PostToolUse, PostToolUseFailure, PostToolBatch, Notification, UserPromptSubmit, UserPromptExpansion, SessionStart, SessionEnd, Stop, StopFailure, SubagentStart, SubagentStop, PreCompact, PostCompact, PreModelSwitch, PostModelSwitch, PermissionRequest, PermissionDenied, Setup, TeammateIdle, TaskCreated, TaskCompleted, Elicitation, ElicitationResult, ConfigChange, WorktreeCreate, WorktreeRemove, InstructionsLoaded, CwdChanged, FileChanged, DirectoryAdded, MessageDisplay
+
+## which declared events actually fire
+
+| event | fired? | first payload keys |
+|---|---|---|
+| PreToolUse | **yes** @6833ms | cwd, effort, hook_event_name, permission_mode, prompt_id, scratchpad_dir, session_id, tool_input, tool_name, tool_use_id, transcript_path |
+| PostToolUse | no | — |
+| PostToolUseFailure | **yes** @6934ms | cwd, duration_ms, effort, error, hook_event_name, is_interrupt, permission_mode, prompt_id, scratchpad_dir, session_id, tool_input, tool_name, tool_use_id, transcript_path |
+| PostToolBatch | **yes** @6934ms | cwd, effort, hook_event_name, permission_mode, prompt_id, scratchpad_dir, session_id, tool_calls, transcript_path |
+| Notification | no | — |
+| UserPromptSubmit | **yes** @4201ms | cwd, hook_event_name, permission_mode, prompt, prompt_id, scratchpad_dir, session_id, transcript_path |
+| UserPromptExpansion | no | — |
+| SessionStart | **yes** @1451ms | cwd, hook_event_name, model, scratchpad_dir, session_id, source, transcript_path |
+| SessionEnd | no | — |
+| Stop | **yes** @7846ms | background_tasks, cwd, effort, hook_event_name, last_assistant_message, permission_mode, prompt_id, scratchpad_dir, session_crons, session_id, stop_hook_active, transcript_path |
+| StopFailure | no | — |
+| SubagentStart | no | — |
+| SubagentStop | **yes** @9475ms | agent_id, agent_transcript_path, agent_type, background_tasks, cwd, effort, hook_event_name, last_assistant_message, permission_mode, prompt_id, scratchpad_dir, session_crons, session_id, stop_hook_active, transcript_path |
+| PreCompact | no | — |
+| PostCompact | no | — |
+| PreModelSwitch | **yes** @12319ms | cache_ttl, context_tokens, cwd, estimated_cache_write_usd, from_model, hook_event_name, pricing, prompt_cache_warm, prompt_id, requested_model, scratchpad_dir, session_id, source, to_model, transcript_path |
+| PostModelSwitch | **yes** @21581ms | cache_ttl, context_tokens, cwd, estimated_cache_write_usd, from_model, hook_event_name, pricing, prompt_cache_warm, prompt_id, requested_model, scratchpad_dir, session_id, source, to_model, transcript_path |
+| PermissionRequest | no | — |
+| PermissionDenied | no | — |
+| Setup | no | — |
+| TeammateIdle | no | — |
+| TaskCreated | no | — |
+| TaskCompleted | no | — |
+| Elicitation | no | — |
+| ElicitationResult | no | — |
+| ConfigChange | no | — |
+| WorktreeCreate | no | — |
+| WorktreeRemove | no | — |
+| InstructionsLoaded | **yes** @1552ms | cwd, file_path, hook_event_name, load_reason, memory_type, scratchpad_dir, session_id, transcript_path |
+| CwdChanged | no | — |
+| FileChanged | no | — |
+| DirectoryAdded | no | — |
+| MessageDisplay | **yes** @7846ms | cwd, delta, final, hook_event_name, index, message_id, prompt_id, scratchpad_dir, session_id, transcript_path, turn_id |
+
+## per-arm detail
+
+### c1-census
+
+```json
+{
+  "scenario": "c1-census",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "ConfigChange",
+    "CwdChanged",
+    "DirectoryAdded",
+    "Elicitation",
+    "ElicitationResult",
+    "FileChanged",
+    "InstructionsLoaded",
+    "MessageDisplay",
+    "Notification",
+    "PermissionDenied",
+    "PermissionRequest",
+    "PostCompact",
+    "PostModelSwitch",
+    "PostToolBatch",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "PreCompact",
+    "PreModelSwitch",
+    "PreToolUse",
+    "SessionEnd",
+    "SessionStart",
+    "Setup",
+    "Stop",
+    "StopFailure",
+    "SubagentStart",
+    "SubagentStop",
+    "TaskCompleted",
+    "TaskCreated",
+    "TeammateIdle",
+    "UserPromptExpansion",
+    "UserPromptSubmit",
+    "WorktreeCreate",
+    "WorktreeRemove"
+  ],
+  "hookOrder": [
+    "SessionStart@1451",
+    "InstructionsLoaded@1552",
+    "UserPromptSubmit@4201",
+    "PreToolUse@6833",
+    "PostToolUseFailure@6934",
+    "PostToolBatch@6934",
+    "MessageDisplay@7846",
+    "Stop@7846",
+    "SubagentStop@9475",
+    "PreModelSwitch@12319",
+    "PreModelSwitch@12422",
+    "PostModelSwitch@21581"
+  ],
+  "eventsSeen": [
+    "SessionStart",
+    "InstructionsLoaded",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUseFailure",
+    "PostToolBatch",
+    "MessageDisplay",
+    "Stop",
+    "SubagentStop",
+    "PreModelSwitch",
+    "PostModelSwitch"
+  ],
+  "shapes": [
+    {
+      "event": "SessionStart",
+      "atMs": 1451,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "hook_event_name": "SessionStart",
+        "source": "startup",
+        "model": "claude-opus-5[1m]"
+      }
+    },
+    {
+      "event": "InstructionsLoaded",
+      "atMs": 1552,
+      "keys": [
+        "cwd",
+        "file_path",
+        "hook_event_name",
+        "load_reason",
+        "memory_type",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "hook_event_name": "InstructionsLoaded",
+        "file_path": "$HOME/.claude/CLAUDE.md",
+        "memory_type": "User",
+        "load_reason": "session_start"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "atMs": 4201,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Use the Read tool once on ./README-none.txt (it does not exist; do not create it, do not retry, do not use any other tool). Then reply with exactly: DONE"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "atMs": 6833,
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/private/tmp/sonata-sync-2026-09/hook-census/c1-census/ws/README-none.txt\"}",
+        "tool_use_id": "<tool_use_id:30ch>"
+      }
+    },
+    {
+      "event": "PostToolUseFailure",
+      "atMs": 6934,
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "error",
+        "hook_event_name",
+        "is_interrupt",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PostToolUseFailure",
+        "tool_name": "Read",
+        "tool_input": "{\"file_path\":\"/private/tmp/sonata-sync-2026-09/hook-census/c1-census/ws/README-none.txt\"}",
+        "tool_use_id": "<tool_use_id:30ch>",
+        "error": "File does not exist. Note: your current working directory is /private/tmp/sonata-sync-2026-09/hook-census/c1-census/ws.",
+        "is_interrupt": false,
+        "duration_ms": 4
+      }
+    },
+    {
+      "event": "PostToolBatch",
+      "atMs": 6934,
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_calls",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PostToolBatch",
+        "tool_calls": "[{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"/private/tmp/sonata-sync-2026-09/hook-census/c1-census/ws/README-none.txt\"},\"tool_use_id\":\"toolu_014CAvKou9z6gk5B9GHFee1W\",\"tool_response\":\"File does not exist. Note: your current working directory is /private/tmp/sonata-sync-2026-09/hook-census/c1-cen…[310ch]"
+      }
+    },
+    {
+      "event": "MessageDisplay",
+      "atMs": 7846,
+      "keys": [
+        "cwd",
+        "delta",
+        "final",
+        "hook_event_name",
+        "index",
+        "message_id",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "MessageDisplay",
+        "turn_id": "<turn_id:36ch>",
+        "message_id": "419a5b11-2690-4682-a9a7-6bd7abd581bf",
+        "index": 0,
+        "final": true,
+        "delta": "DONE"
+      }
+    },
+    {
+      "event": "Stop",
+      "atMs": 7846,
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "DONE",
+        "background_tasks": "[]",
+        "session_crons": "[]"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "atMs": 9475,
+      "keys": [
+        "agent_id",
+        "agent_transcript_path",
+        "agent_type",
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "agent_id": "<agent_id:17ch>",
+        "agent_type": "",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "SubagentStop",
+        "stop_hook_active": false,
+        "agent_transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/subagents/agent-a1c648db17ff187d6.jsonl",
+        "last_assistant_message": "Now do the same with ./notes-none.md",
+        "background_tasks": "[]",
+        "session_crons": "[]"
+      }
+    },
+    {
+      "event": "PreModelSwitch",
+      "atMs": 12319,
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "PreModelSwitch",
+        "from_model": "claude-opus-5[1m]",
+        "to_model": "claude-haiku-4-5-20251001",
+        "requested_model": "haiku",
+        "source": "command",
+        "context_tokens": 46502,
+        "prompt_cache_warm": true,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0.093,
+        "pricing": "catalog"
+      }
+    },
+    {
+      "event": "PostModelSwitch",
+      "atMs": 21581,
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "PostModelSwitch",
+        "from_model": "claude-opus-5[1m]",
+        "to_model": "claude-haiku-4-5-20251001",
+        "requested_model": "haiku",
+        "source": "command",
+        "context_tokens": 46502,
+        "prompt_cache_warm": true,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0.093,
+        "pricing": "catalog"
+      }
+    }
+  ],
+  "notes": [
+    "trust dialog answered at 334ms",
+    "ready=true at 1397ms",
+    "slash \"/model haiku\" on the composer before CR: true",
+    "slash \"/model opus[1m]\" on the composer before CR: false"
+  ],
+  "events": [
+    {
+      "atMs": 3,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 30,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 320,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "workspace-trust",
+        "source": "native Claude PTY approval screen"
+      }
+    },
+    {
+      "atMs": 1038,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "approve",
+        "encodedAs": "grid-verified Arrow + CR"
+      }
+    },
+    {
+      "atMs": 3899,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 3899,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    }
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n   \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "turnOver": true,
+  "afterTurnMs": 7989,
+  "slashLanded": true,
+  "sessionStartPayload": {
+    "atMs": 1451,
+    "event": "SessionStart",
+    "keys": [
+      "cwd",
+      "hook_event_name",
+      "model",
+      "scratchpad_dir",
+      "session_id",
+      "source",
+      "transcript_path"
+    ],
+    "payload": {
+      "session_id": "<session_id:36ch>",
+      "transcript_path": "<transcript_path:132ch>",
+      "cwd": "<cwd:57ch>",
+      "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+      "hook_event_name": "SessionStart",
+      "source": "startup",
+      "model": "claude-opus-5[1m]"
+    }
+  },
+  "modelSwitchHooks": [
+    {
+      "atMs": 12319,
+      "event": "PreModelSwitch",
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "PreModelSwitch",
+        "from_model": "claude-opus-5[1m]",
+        "to_model": "claude-haiku-4-5-20251001",
+        "requested_model": "haiku",
+        "source": "command",
+        "context_tokens": 46502,
+        "prompt_cache_warm": true,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0.093,
+        "pricing": "catalog"
+      }
+    },
+    {
+      "atMs": 12422,
+      "event": "PreModelSwitch",
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:132ch>",
+        "cwd": "<cwd:57ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c1-census-ws/b9535e46-42b1-4dd3-99cd-79c402e52551/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "PreModelSwitch",
+        "from_model": "claude-opus-5[1m]",
+        "to_model": "claude-sonnet-5",
+        "requested_model": "haiku",
+        "source": "command",
+        "context_tokens": 46502,
+        "prompt_cache_warm": true,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0.186,
+        "pricing": "catalog"
+      }
+    }
+  ],
+  "declared": [
+    "PreToolUse",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "PostToolBatch",
+    "Notification",
+    "UserPromptSubmit",
+    "UserPromptExpansion",
+    "SessionStart",
+    "SessionEnd",
+    "Stop",
+    "StopFailure",
+    "SubagentStart",
+    "SubagentStop",
+    "PreCompact",
+    "PostCompact",
+    "PreModelSwitch",
+    "PostModelSwitch",
+    "PermissionRequest",
+    "PermissionDenied",
+    "Setup",
+    "TeammateIdle",
+    "TaskCreated",
+    "TaskCompleted",
+    "Elicitation",
+    "ElicitationResult",
+    "ConfigChange",
+    "WorktreeCreate",
+    "WorktreeRemove",
+    "InstructionsLoaded",
+    "CwdChanged",
+    "FileChanged",
+    "DirectoryAdded",
+    "MessageDisplay"
+  ],
+  "neverFired": [
+    "PostToolUse",
+    "Notification",
+    "UserPromptExpansion",
+    "SessionEnd",
+    "StopFailure",
+    "SubagentStart",
+    "PreCompact",
+    "PostCompact",
+    "PermissionRequest",
+    "PermissionDenied",
+    "Setup",
+    "TeammateIdle",
+    "TaskCreated",
+    "TaskCompleted",
+    "Elicitation",
+    "ElicitationResult",
+    "ConfigChange",
+    "WorktreeCreate",
+    "WorktreeRemove",
+    "CwdChanged",
+    "FileChanged",
+    "DirectoryAdded"
+  ],
+  "verdict": "11/33 declared events fired",
+  "ranAt": "2026-09-02T05:21:58.543Z"
+}
+```
+
+### c2-approval-decision
+
+```json
+{
+  "scenario": "c2-approval-decision",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@2059",
+    "UserPromptSubmit@4708",
+    "PreToolUse@7645",
+    "PostToolUse@7949",
+    "Stop@9262"
+  ],
+  "eventsSeen": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Stop"
+  ],
+  "shapes": [
+    {
+      "event": "SessionStart",
+      "atMs": 2059,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:143ch>",
+        "cwd": "<cwd:68ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c2-approval-decision-ws/fc3da21e-06d5-4080-a6f9-41c256cfbad6/scratchpad",
+        "hook_event_name": "SessionStart",
+        "source": "startup",
+        "model": "claude-haiku-4-5-20251001"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "atMs": 4708,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:143ch>",
+        "cwd": "<cwd:68ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c2-approval-decision-ws/fc3da21e-06d5-4080-a6f9-41c256cfbad6/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Create a file named hello.txt in the current directory containing the single word hi. Then reply with exactly: DONE"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "atMs": 7645,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:143ch>",
+        "cwd": "<cwd:68ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c2-approval-decision-ws/fc3da21e-06d5-4080-a6f9-41c256cfbad6/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Write",
+        "tool_input": "{\"file_path\":\"/private/tmp/sonata-sync-2026-09/hook-census/c2-approval-decision/ws/hello.txt\",\"content\":\"hi\"}",
+        "tool_use_id": "<tool_use_id:30ch>"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "atMs": 7949,
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:143ch>",
+        "cwd": "<cwd:68ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c2-approval-decision-ws/fc3da21e-06d5-4080-a6f9-41c256cfbad6/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Write",
+        "tool_input": "{\"file_path\":\"/private/tmp/sonata-sync-2026-09/hook-census/c2-approval-decision/ws/hello.txt\",\"content\":\"hi\"}",
+        "tool_response": "{\"type\":\"create\",\"filePath\":\"/private/tmp/sonata-sync-2026-09/hook-census/c2-approval-decision/ws/hello.txt\",\"content\":\"hi\",\"structuredPatch\":[],\"originalFile\":null,\"userModified\":false}",
+        "tool_use_id": "<tool_use_id:30ch>",
+        "duration_ms": 12
+      }
+    },
+    {
+      "event": "Stop",
+      "atMs": 9262,
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:143ch>",
+        "cwd": "<cwd:68ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-hook-census-c2-approval-decision-ws/fc3da21e-06d5-4080-a6f9-41c256cfbad6/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "DONE",
+        "background_tasks": "[]",
+        "session_crons": "[]"
+      }
+    }
+  ],
+  "notes": [
+    "trust dialog answered from the grid at 1588ms",
+    "ready=true at 1991ms"
+  ],
+  "events": [
+    {
+      "atMs": 4,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 27,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 4495,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 4495,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 9262,
+      "type": "run:reconciled",
+      "payload": {}
+    }
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "turnOver": true,
+  "asksAnswered": [
+    {
+      "atMs": 7740,
+      "tool": "Write",
+      "decisionBytes": 209,
+      "decision": {
+        "hookSpecificOutput": {
+          "hookEventName": "PermissionRequest",
+          "decision": {
+            "behavior": "allow",
+            "updatedPermissions": [
+              {
+                "type": "addRules",
+                "rules": [
+                  {
+                    "toolName": "Write"
+                  }
+                ],
+                "behavior": "allow",
+                "destination": "session"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "answeredMarkers": 1,
+  "fileWritten": true,
+  "fileContents": "hi",
+  "verdict": "ACCEPTED — 1 approve-always decision(s) with updatedPermissions, tool ran",
+  "ranAt": "2026-09-02T05:25:00.317Z"
+}
+```

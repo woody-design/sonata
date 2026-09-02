@@ -136,6 +136,8 @@
     "smoke:notification-controller": "npm run build:main && node tests/smoke/notification-controller.mjs",
     "smoke:session-title-policy": "npm run build:main && node tests/smoke/session-title-policy.mjs",
     "smoke:cli-hook-sink": "npm run build:main && node tests/smoke/cli-hook-sink.mjs",
+    "smoke:hook-stdout-contract": "npm run build:main && node tests/smoke/hook-stdout-contract.mjs",
+    "smoke:interrupt-hook-pending-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/interrupt-hook-pending-approval.mjs",
     "smoke:option-prompt-parse": "npm run build:main && node tests/smoke/option-prompt-parse.mjs",
     "smoke:delivery-repump": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-repump.mjs",
     "smoke:transcript-reconcile": "npm run build:main && node tests/smoke/transcript-reconcile.mjs",

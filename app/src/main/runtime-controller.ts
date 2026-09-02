@@ -300,6 +300,27 @@ export class RuntimeController {
     string,
     { taskId: TaskId; payload: HookPayload; event: RuntimeEvent }
   >();
+  /**
+   * Runs whose completion is being driven by a codex `Interrupt` hook (SL-9,
+   * review round 1 / B1). Read-and-DELETE at the turn-terminal gate below, so an
+   * entry is consumed exactly once by the `run:updated` it belongs to.
+   *
+   * WHY A SIDE CHANNEL AND NOT THE EVENT'S OWN `completionSource`. The honest
+   * shape is a distinct `"hook-interrupt"` source stamped by
+   * `TerminalHost.completeRunFromTurnEnd`, which needs `CompletionSource`
+   * (shared/types/domain.ts) and terminal-host.ts — both outside SL-9's declared
+   * file boundary. Not a technical obstacle: a process one, and it is recorded
+   * as such rather than dressed up as a design preference.
+   *
+   * This latch reaches the SAME invariant by the property that actually matters:
+   * the gate's release list stays SINGLE-SOURCED, so a fourth release added to
+   * that block is picked up by interrupts for free. It is keyed by run IDENTITY
+   * rather than by timing, so it does not depend on `emitEvent` being
+   * synchronous, and it is read-and-delete, so exactly one completion can claim
+   * it. **Registered follow-up for whoever owns terminal-host next: stamp the
+   * typed source, add it to `isPendingTurnEnd`, and delete this map.**
+   */
+  private readonly interruptDrivenRunIds = new Set<RunId>();
   /** Per task, the broker approvalId whose card is currently shown — enforces
    *  one card at a time; the rest queue (P3). */
   private readonly shownBrokerApproval = new Map<TaskId, string>();
@@ -1961,9 +1982,21 @@ export class RuntimeController {
     // quiescence), so it must also fire on a hook-Stop completion (the retired
     // scrape was these asks' only clearer — S4 event-flow gap).
     if (eventRuntime) {
+      // A codex `Interrupt`-driven completion is the THIRD pending-turn-end shape
+      // (SL-9 B1). It arrives stamped `hook-stop` — the host has one completion
+      // path and terminal-host is fenced out of this slice — so the gate cannot
+      // read it off the event and instead consumes the run-id marker the
+      // Interrupt branch set. Read-and-delete: exactly one completion can claim
+      // it. See `interruptDrivenRunIds` for why this is a side channel and what
+      // replaces it.
+      const interruptDriven =
+        event.type === "run:updated" &&
+        event.payload.status === "completed" &&
+        this.interruptDrivenRunIds.delete(event.payload.id);
       const isPendingTurnEnd =
         event.type === "run:stopped" ||
         event.type === "pty:exit" ||
+        interruptDriven ||
         (event.type === "run:updated" &&
           (event.payload.status === "stopped" ||
             (event.payload.status === "completed" &&
@@ -2766,6 +2799,57 @@ export class RuntimeController {
       // which turn's stragglers to settle; Claude's file-derived roster is
       // untouched (no turn_id on its Stop, and the guard gates it out anyway).
       if (provider === "codex" && typeof payload.turn_id === "string" && payload.turn_id) {
+        active.providerTranscript.settleSubagentTurn(payload.turn_id);
+      }
+    }
+
+    // `Interrupt` is the turn's other honest ending on CODEX: the user
+    // interrupted it, so the model never finished and `Stop` never fires (SL-9,
+    // MEASURED at 0.152.1 — the hook lands ~140ms after the key, no Stop follows).
+    // Same consumer as `Stop`, and NOT an error: an interrupted turn ended by the
+    // human's own choice, exactly like Sonata's own stop button ends one. If
+    // Sonata initiated the stop, `stopRun` has already finished the run locally
+    // and this is a no-op. The measured delta is modest and stated as such in
+    // `codex-runtime-settings`: without this the scrape closed the same run at
+    // +2019ms; with it, +253ms on the event channel instead of a repaint.
+    // Claude has no counterpart (a claude user-Esc fires NOTHING, SL-2b), so
+    // `stoplessTurnEndConfirmed` still carries that side and is untouched here.
+    if (provider === "codex" && event === "Interrupt") {
+      // B1 (review round 1, MEASURED — probe h3 arm `d4-interrupt-under-hold`).
+      // An interrupt is a PENDING turn end, not a `Stop`-shaped one, and the
+      // difference is load-bearing. `isPendingTurnEnd` excludes hook-stop
+      // completions on the invariant "a live holding hook blocks the turn, so a
+      // hook-Stop cannot coexist with a pending broker ask" — TRUE for Stop,
+      // FALSE here: the interrupt KILLS the holding PermissionRequest hook, which
+      // is the very reason `abortPendingBrokerApprovals` exists. Measured at
+      // codex 0.152.1 with the production broker holding a real ask: Ctrl+C →
+      // `Interrupt` at +131ms, NO `Stop`, and the `ask-<id>.json` still on disk
+      // 25s later with no reply and no expiry marker. Left on the hook-stop
+      // route those ids would sit in `pendingBrokerApprovals` forever and
+      // `canDeliver()` would read false until the pty died — an invisible
+      // permanent hold, and one the pre-SL-9 scrape closer (a
+      // `terminal-idle-heuristic` completion, which IS a pending turn end) used
+      // to release at ~+2s. Marking the run here is what keeps this slice from
+      // preempting that release.
+      const interruptedRunId = active.terminalHost.activeRunId();
+      if (interruptedRunId) {
+        this.interruptDrivenRunIds.add(interruptedRunId);
+      }
+      const finished = active.terminalHost.completeRunFromTurnEnd();
+      if (interruptedRunId && !finished) {
+        // No run was actually completed (already closed, or a status the host
+        // guards): consume the marker now so it can never be claimed by some
+        // later completion of a re-used id.
+        this.interruptDrivenRunIds.delete(interruptedRunId);
+      }
+      // Same straggler cleanup `Stop` does, for the same reason: codex subagents
+      // are awaited WITHIN their launch turn, so none can legitimately outlive a
+      // turn that just ended — and an interrupt is precisely when a `SubagentStop`
+      // is most likely to be dropped. Declared as a SYMMETRY argument, not a
+      // measurement: SL-9 did not run a subagent through an interrupt. Without it
+      // the settle is per-`turn_id`, so a later turn's `Stop` would never clear
+      // these rows and the status strip would show a subagent running forever.
+      if (typeof payload.turn_id === "string" && payload.turn_id) {
         active.providerTranscript.settleSubagentTurn(payload.turn_id);
       }
     }

@@ -48,6 +48,22 @@ function newModel() {
   assert.equal(model.current().activity, "turn-ended", "StopFailure → turn-ended");
 }
 
+// 2c) An INTERRUPTED turn (codex) ends via Interrupt — Stop never fires for it
+// either (SL-9, MEASURED at codex 0.152.1: the hook lands ~140ms after the
+// interrupt and no Stop follows). Same requirement as 2b: busy must not linger
+// until the `task:ready` quiescence net catches up. The model is deliberately
+// provider-agnostic, so this asserts the transition, not a provider gate.
+{
+  const { model } = newModel();
+  model.applyHook({ hook_event_name: "UserPromptSubmit" });
+  model.applyHook({ hook_event_name: "PreToolUse", tool_name: "shell" });
+  assert.equal(model.current().activity, "busy", "the interrupted turn was busy");
+  model.applyHook({ hook_event_name: "Interrupt", turn_id: "t-1", model: "gpt-5.6-sol" });
+  assert.equal(model.current().activity, "turn-ended", "Interrupt → turn-ended");
+  assert.equal(model.current().tool, null, "Interrupt clears the tool");
+  assert.equal(model.current().source, "hook:Interrupt", "the transition names its source");
+}
+
 // 3) Idempotency: re-applying the same activity does not emit.
 {
   const { model, changes } = newModel();

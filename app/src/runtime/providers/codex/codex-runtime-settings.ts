@@ -130,13 +130,48 @@ export function codexProfilePath(): string {
  *  like every other event. Sonata does NOT consume them today — the Reading
  *  compaction marker is TRANSCRIPT-derived (the rollout's `compacted` record), so
  *  it survives resume/replay where an ephemeral hook could not. `Notification` /
- *  `StopFailure` stay unregistered (Claude-only, no Codex equivalent). */
+ *  `StopFailure` stay unregistered (Claude-only, no Codex equivalent).
+ *
+ *  `Interrupt` (0.150.0+, #40511) is the run-lifecycle spine's SIXTH member as of
+ *  SL-9, and it is registered for a measured consumer need, not for completeness.
+ *  MEASURED at 0.152.1 through the production spawn (probe
+ *  `spikes/upstream-sync-2026-09/codex/h3-hook-census-interrupt.mjs`): a genuine
+ *  mid-turn interrupt fires `Interrupt` ~140ms later and codex then fires NO
+ *  `Stop` for that turn at all. Its consumer is therefore the one `Stop` already
+ *  has — `TerminalHost.completeRunFromTurnEnd`.
+ *
+ *  What it is NOT, measured by the same probe's A/B (arm d3, the identical spawn
+ *  with and without this line): an interrupted codex run was NOT wedged before.
+ *  The BEFORE arm still closed, at +2019ms, on the terminal-idle heuristic —
+ *  codex paints "Conversation interrupted" and returns to a composer, and the
+ *  scrape reads that. So the gain is not "a stuck run gets unstuck"; it is that a
+ *  turn ending Sonata was INFERRING from a repaint is now READ from the event
+ *  that states it — +253ms instead of +2019ms, on the event channel where D-1
+ *  says an event question belongs, and off the scrape leg SL-2b measured to be a
+ *  coin flip on repaint order (F12). Small, and honest about being small.
+ *
+ *  Two things were checked before registering it, because both could have made it
+ *  a regression rather than a fix. (1) codex parses Interrupt-hook stdout
+ *  STRICTLY ("Interrupt hook returned non-JSON stdout" is in the binary) — the
+ *  sink writes ZERO bytes to stdout and a live interrupt with the sink registered
+ *  painted no warning anywhere in the scrollback. (2) adding an event rewrites
+ *  this profile, which is safe for exactly the reason the header states (D4:
+ *  `--dangerously-bypass-hook-trust`, so a changed hook-trust hash never
+ *  re-prompts). It does not touch the hooks-liveness handshake either, which arms
+ *  on the first `prompt:submitted` and is satisfied by `SessionStart`.
+ *
+ *  Codex declares TWELVE events (`HookEventsToml`, 0.152.1); the ONLY one still
+ *  unregistered after this is `SessionEnd`, which stays a documented capability
+ *  (its codex-side firing is UNPROBED — SL-9's teardown arm never got `/quit`
+ *  submitted). Codex declares no `PostToolUseFailure` and no `PermissionDenied`:
+ *  both of those are claude-side facts and have no codex counterpart to wire. */
 const SINK_EVENTS = [
   "SessionStart",
   "UserPromptSubmit",
   "PreToolUse",
   "PostToolUse",
   "Stop",
+  "Interrupt",
   "SubagentStart",
   "SubagentStop",
   "PreCompact",
@@ -482,7 +517,10 @@ process.stdin.on("end", function () {
  *  exists in `$SONATA_RUNTIME_DIR/approvals/`), it surfaces `ask-<id>.json`, holds
  *  the CLI polling for `reply-<id>.json`, and prints the decision JSON to stdout
  *  on reply (Codex's structured answer channel) — the exact protocol of
- *  `cli-signal/approval-broker.ts`, but keyed by env (task-invariant argv). On
+ *  `cli-signal/approval-broker.ts` INCLUDING its stdout contract (drain before
+ *  exit, EPIPE-safe — SL-9 review M1 mirrored that fix here once the claude
+ *  twin's 64 KiB truncation was measured), but keyed by env (task-invariant
+ *  argv). On
  *  timeout it writes `expired-<id>.json` and exits 0 with NO output → Codex
  *  renders its native card (graceful fallback, probe-verified). Absent marker →
  *  exit 0 immediately (instant native card, zero stall). Never writes stderr; a
@@ -498,6 +536,11 @@ const BROKER_SHIM_SOURCE = `"use strict";
 // Sonata at spawn-prep.
 const fs = require("node:fs");
 const path = require("node:path");
+// A dead read end (codex killed the hook, the pty went away) makes the stdout
+// write emit an error EVENT instead of throwing (no backticks in here: these
+// bytes live inside a TS template literal). Unhandled that is a crash
+// with stderr noise on a channel this broker promises never to write to.
+process.stdout.on("error", function () { process.exit(0); });
 const runtimeDir = process.env.SONATA_RUNTIME_DIR;
 const POLL_MS = ${APPROVAL_POLL_MS};
 const holdMs = Math.min(
@@ -545,8 +588,14 @@ process.stdin.on("end", function () {
     try { writeAtomic(answeredPath, decision); } catch (_e) { /* audit best-effort */ }
     try { fs.rmSync(replyPath, { force: true }); } catch (_e) { /* best-effort */ }
     try { fs.rmSync(askPath, { force: true }); } catch (_e) { /* best-effort */ }
+    // NOT write-then-exit: on macOS a pipe write is ASYNC and exiting before it
+    // drains TRUNCATES the decision at one pipe buffer (MEASURED at exactly
+    // 65536 bytes on the claude broker, SL-9 h2 part B — this shim carried the
+    // byte-identical defect). Clearing the interval above leaves the pending
+    // write as the only thing holding the event loop, so the process exits on
+    // its own the moment it drains, with the exit code set here.
+    process.exitCode = 0;
     process.stdout.write(decision);
-    process.exit(0);
   }
   try {
     fs.mkdirSync(controlDir, { recursive: true });
@@ -561,6 +610,10 @@ process.stdin.on("end", function () {
     if (decision !== null) {
       clearInterval(timer);
       answer(decision);
+      // answer() no longer exits (it must let the stdout write drain), so the
+      // call sites return — falling through would write expired-<id>.json over
+      // an answer codex is about to receive.
+      return;
     }
     if (Date.now() > deadline) {
       clearInterval(timer);
@@ -568,7 +621,7 @@ process.stdin.on("end", function () {
       // still win, else Sonata records an answer the CLI never received and the turn
       // wedges (reviewer C2). Mirrors approval-broker.ts.
       const late = readReply();
-      if (late !== null) { answer(late); }
+      if (late !== null) { answer(late); return; }
       // Cleanup independent of the marker write (see answer()): the ask must be
       // removed even if writeAtomic throws, or the card never clears.
       try { writeAtomic(expiredPath, "{}"); } catch (_e) { /* best-effort */ }

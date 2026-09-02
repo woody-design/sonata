@@ -86,12 +86,16 @@ check("profile carries the consumed hook set in the probe-verified shape", () =>
   // in their own rollouts, so the hooks are the only source). PreCompact/
   // PostCompact are registered for signal completeness (they flow to the sink);
   // Sonata does not consume them — the compaction marker is transcript-derived.
+  // `Interrupt` (SL-9) is part of the SPINE, not completeness: codex fires it
+  // instead of `Stop` when a turn is interrupted (MEASURED 0.152.1), and it
+  // routes to the same `completeRunFromTurnEnd` consumer `Stop` does.
   for (const event of [
     "SessionStart",
     "UserPromptSubmit",
     "PreToolUse",
     "PostToolUse",
     "Stop",
+    "Interrupt",
     "SubagentStart",
     "SubagentStop",
     "PreCompact",
@@ -102,8 +106,10 @@ check("profile carries the consumed hook set in the probe-verified shape", () =>
   }
   assert.ok(toml.includes("[[hooks.PermissionRequest]]"), "PermissionRequest present");
   assert.ok(toml.includes("timeout = 120"), "broker timeout frozen at 120s");
-  // Unregistered: Claude-only events with no Codex equivalent.
-  for (const absent of ["Notification", "StopFailure"]) {
+  // Unregistered: Claude-only events with no Codex equivalent, plus the one
+  // codex event Sonata knows about and deliberately still does not take
+  // (`SessionEnd` — a documented capability whose codex-side firing is UNPROBED).
+  for (const absent of ["Notification", "StopFailure", "SessionEnd"]) {
     assert.ok(!toml.includes(`[[hooks.${absent}]]`), `${absent} must NOT be registered`);
     assert.ok(!toml.includes(`hooks.${absent}.hooks`), `${absent}.hooks must NOT be registered`);
   }

@@ -1209,3 +1209,330 @@ vocabulary addition:
 gitignores — they need `git add -f`. Every capture is routed through
 `driver.mjs`'s `sanitize()` ($HOME, the munged `-Users-<user>-` form, the bare
 username, JWT/API-key/e-mail shapes).
+
+---
+
+# SL-9 — hooks re-verify, CODEX side (probed 2026-09-02, binary 0.152.1)
+
+Binary pinned `codex-cli 0.152.1` at probe start and end. Probe
+`h3-hook-census-interrupt.mjs` (production `TerminalHost` through `CodexBoot`,
+isolated `CODEX_HOME` under `/private/tmp`, pre-trusted via Sonata's own ledger,
+production run-lifecycle dispatch replayed). Capture
+`h3-hook-census-interrupt.capture.txt`.
+
+## C15 — the declared event set, and what it does NOT contain
+
+`HookEventsToml`, read out of the binary each run (never hand-copied), declares
+**twelve** events at 0.152.1:
+
+```
+PreToolUse  PermissionRequest  PostToolUse  PreCompact  PostCompact
+SessionStart  SessionEnd  UserPromptSubmit  SubagentStart  SubagentStop
+Stop  Interrupt
+```
+
+Sonata registered nine + `PermissionRequest`, so exactly two were unregistered:
+`SessionEnd` and `Interrupt`.
+
+**Codex declares no `PostToolUseFailure` and no `PermissionDenied` — the needles
+are absent from the binary entirely.** Both SL-2b register items are therefore
+CLAUDE-ONLY facts with no codex counterpart to wire: on codex a failed tool is an
+ordinary `PostToolUse`, and there is no denial event of any kind. That closes
+both register lines for this provider rather than leaving them open.
+
+## C16 — `Interrupt` fires, and the payload matches codex's own embedded schema
+
+Codex embeds a draft-07 JSON schema per hook event in the binary. The
+`interrupt.command.input` schema requires exactly seven keys and forbids extras
+(`additionalProperties: false`): `cwd`, `hook_event_name`, `model`,
+`permission_mode`, `session_id`, `transcript_path`, `turn_id`.
+
+MEASURED payload from a live interrupt, checked field-for-field against that
+schema: **zero missing required keys, zero unexpected keys.** So the brief's
+"return unresolved if the shape is undocumented AND unstable" exit does not
+apply — it is documented by the vendor's own embedded schema and it matches.
+
+Timing: the hook landed **+141ms** after the interrupt, and **no `Stop` ever
+followed for that turn**. `Interrupt` REPLACES `Stop`, exactly as `StopFailure`
+does on claude.
+
+Codex parses Interrupt-hook stdout strictly (*"Interrupt hook returned non-JSON
+stdout"*, *"hook returned invalid interrupt hook JSON output"* are both in the
+binary). Sonata's sink writes ZERO bytes, and a live interrupt with the sink
+registered on the event painted **no hook warning anywhere in the scrollback** —
+checked before registering it, because an error line per interrupt would have
+made this a regression rather than a fix.
+
+## C17 — the interrupt key MOVED, and Sonata's stop button no longer stops codex
+
+This is the loud one, and it is not a hooks finding — it belongs to the stop
+encoding in `terminal-host.ts`, which SL-9's boundary excludes. Flagged, not
+fixed.
+
+Four rounds against a live 400-line turn, each verified live at the moment the
+key was sent (the screen still growing, no `Stop` yet):
+
+| round | how the interrupt was sent | turn interrupted? | `Interrupt` hook |
+|---|---|---|---|
+| 0 | human Esc — `host.writeUserInput("\x1b")` | **no**, ran to completion | none |
+| 1 | **production `host.stopRun()`** (Sonata's stop button) | **no**, ran to completion | none |
+| 2 | human Esc, ~3s after `UserPromptSubmit` | **no**, ran to completion | none |
+| 3 | **Ctrl+C** — `host.writeUserInput("\x03")` | **YES** — `■ Conversation interrupted` | **fired, +141ms** |
+
+Rounds 0–2 each closed with an ordinary `Stop`, i.e. the model finished the turn
+the user tried to stop.
+
+The mechanism is visible in the binary: 0.152.1 ships a **configurable keymap**
+(`TuiChatKeymap`) in which `interrupt_turn` is a named, rebindable action, and Esc
+at the composer is now bound to backtrack-edit (*"When the composer is empty,
+press Esc to step back and edit your last message"*, and the TUI's own
+`esc again to edit previous message` hint appeared in an earlier arm). Sonata's
+stop writes a bare `ESC` (`terminal-host.ts`, `stopRun` → `writeRaw(ESC)`).
+
+Consequence, MEASURED: **a user pressing Sonata's stop button on a codex session
+at 0.152.1 does not stop the turn.** The `/stop` follow-up `inspectSlashStop`
+sends is conditional (background-terminal hint / command-approval run), so the
+common case is an Esc that does nothing. Not probed further: whether the binding
+is user-configurable back to Esc, and what Ctrl+C does to the pty wrapper vs the
+TUI in Sonata's spawn shape. → a terminal-host slice, urgently.
+
+## C18 — what SL-9 changed, and the A/B that keeps the claim honest
+
+`Interrupt` joins codex's `SINK_EVENTS` and routes to the SAME consumer `Stop`
+has (`TerminalHost.completeRunFromTurnEnd`, plus `CliStateModel` → `turn-ended`).
+Named consumer, existing need — no new surface.
+
+The A/B (arm `d3`, two spawns of the identical production shape differing only in
+whether the `Interrupt` block is in the profile, both driven through the
+production run-lifecycle dispatch, both interrupted with Ctrl+C mid-turn):
+
+| | `Interrupt` in profile | hook | run closed |
+|---|---|---|---|
+| before | no | never arrived | **+2019ms** |
+| after | yes | **+141ms** | **+253ms** |
+
+**The BEFORE arm was NOT wedged.** It closed at +2s on the terminal-idle
+heuristic — codex paints "Conversation interrupted" and returns to a composer,
+and the scrape reads that. This falsifies the pre-probe expectation (carried into
+this slice's first draft comments, since corrected) that an interrupted codex run
+would sit `active` until `stoplessTurnEndConfirmed` inferred the ending ~32.5s
+later.
+
+So the honest claim is smaller than the one the wiring was proposed on: the gain
+is **channel and confidence, not a rescued wedge** — a turn ending Sonata was
+INFERRING from a repaint is now READ from the event that states it, off the
+scrape leg SL-2b measured to be a coin flip on repaint order (F12), and onto the
+event channel D-1 says an event question belongs on. Taken on those grounds, and
+the code comments say exactly this.
+
+## C19 — Sonata's injected hook config parses cleanly at 0.152.1 (brief objective 4)
+
+`HookHandlerConfig` is an internally-tagged enum on `type`. MEASURED vocabulary
+(by feeding codex a bad tag and reading its refusal):
+
+```
+Error loading config.toml: unknown variant `mcp`,
+expected one of `command`, `mcp_tool`, `prompt`, `agent`
+```
+
+— i.e. an unknown handler type is a **hard config-load failure**, not a skip.
+The four variants and their measured status:
+
+| variant | fields (from the binary's struct tables) | status at 0.152.1 |
+|---|---|---|
+| `command` | `command`, `commandWindows`, `timeout`, `async`, `statusMessage`, `additionalContextLimit` | supported — Sonata uses this |
+| `mcp_tool` | `server`, `tool`, `input`, `timeout`, `statusMessage` | supported, but `server`/`tool` must be non-empty |
+| `prompt` | `prompt` | **parsed then SKIPPED** — *"prompt hooks are not supported yet"* |
+| `agent` | `agent` | **parsed then SKIPPED** — *"agent hooks are not supported yet"* |
+
+Driving a deliberately-broken profile produced these warnings **on the CLI's own
+stderr / in the TUI stream**, not in the log DB:
+
+```
+warning: skipping MCP tool hook in …/sonata.config.toml: server and tool must not be empty
+warning: skipping prompt hook in …/sonata.config.toml: prompt hooks are not supported yet
+warning: ignoring additionalContextLimit for Stop hook in …: this event cannot emit additionalContext
+```
+
+Worth knowing on its own: a malformed Sonata hook config would print warning
+lines **into the user's CLI pane**, not into a log nobody reads.
+
+Sonata's REAL generated profile (all 12 event blocks, `type = "command"`,
+`timeout = 120` on the broker) run through the same path: **zero warnings, zero
+errors.** And the `timeout` clamp the binary can emit (*"clamping … hook timeout
+to …s"*) did NOT fire — not at Sonata's 120, and not even at a deliberate
+`timeout = 999999`. The broker's 100s hold ceiling is therefore safe at 0.152.1.
+
+What the new variants would OFFER (report-only, per the brief): `async: true` on
+a `command` hook would let the sink return immediately instead of holding the
+turn — Sonata's sink already exits in milliseconds, so there is nothing to buy.
+`mcp_tool` would let a hook call an MCP tool instead of a subprocess, which would
+replace Sonata's shim + interpreter-prefix machinery with an MCP server Sonata
+would have to run and keep alive — strictly more moving parts for the same
+file-drop. Neither is worth a slice today; both are recorded so the question is
+not re-opened blind.
+
+`additionalContextLimit` (brief objective 5, codex half): the key exists as a
+`command`-handler field, Sonata sets it nowhere, and codex warns when it is set
+on an event that cannot emit `additionalContext`. Nothing to do.
+
+## C20 — codex `SessionStart` is still LAZY (SL-6's premise HOLDS)
+
+The brief asked for a flag if the census contradicted this. It does not.
+MEASURED at 0.152.1: readiness at 250ms, then **twelve seconds at an idle
+composer with NO `SessionStart` hook**; the handshake arrived at 12699ms, at the
+moment the first prompt was submitted. SL-6's boot-latch ranking rests on this
+and is unaffected. Payload: `{session_id, transcript_path, cwd, hook_event_name,
+model:"gpt-5.6-sol", permission_mode:"default", source:"startup"}` — note codex
+DOES carry `permission_mode` on `SessionStart` where claude 2.1.258 no longer
+does (claude F34).
+
+## C21 — codex `SessionEnd` remains UNPROBED (honest gap)
+
+The teardown arm's `/quit` never left the composer (its Enter was swallowed, the
+same first-submission behaviour C22 describes), so the pty never exited and no
+`SessionEnd` could fire. This is UNREPRODUCED, **not** measured-absent. codex
+`SessionEnd` stays a documented, unregistered capability; the claude half is
+measured (SL-2b, `reason: "prompt_input_exit"`).
+
+## C22 — probe-method note: the first codex submission needs an Enter retry
+
+Recorded because it cost three probe runs. `TerminalHost.submitPrompt` pastes and
+writes ONE `CSI-u Enter` at +120ms; in production the `DeliveryController` owns
+the retry ladder when that Enter is swallowed. A probe driving the host directly
+has no ladder, and at 0.152.1 the first submission of a session — whose boot
+painted the `--dangerously-bypass-hook-trust` warning and a usage-limit notice —
+**left the text sitting in the composer with no submission at all**, indefinitely
+(180s watched). `h3`'s `submitAndConfirm` adds a grid-verified retry (only while
+the text is demonstrably still in the composer, never a blind Enter) and every
+arm now reports how many retries it needed; one CR retry was needed on every
+first submission and zero thereafter.
+
+Whether the production ladder covers this cleanly is not something this probe
+measured — it is a delivery question, and the observation is filed rather than
+chased.
+
+## C23 — the codex broker shim carries the claude broker's stdout-flush defect
+
+Claude-side F37 measured `process.stdout.write(decision); process.exit(0)`
+truncating a large decision at exactly 65536 bytes on macOS. `BROKER_SHIM_SOURCE`
+in `codex-runtime-settings.ts` has the byte-identical shape:
+
+```js
+function answer(decision) {
+  … cleanup …
+  process.stdout.write(decision);
+  process.exit(0);
+}
+```
+
+**FIXED in review round 1 (M1).** The fence was extended to the
+`BROKER_SHIM_SOURCE` region for that round, so the twin no longer diverges.
+The mirrored change is exactly what was prescribed here:
+
+- `answer()` → `process.exitCode = 0; process.stdout.write(decision);` (drop the
+  `process.exit(0)`), and `return` after each of the two `answer(...)` call sites
+  (the reply branch and the deadline's late-reply branch), or the deadline branch
+  will write `expired-<id>.json` over an answer codex is about to receive;
+- a `process.stdout.on("error", () => process.exit(0))` guard at the top, so a
+  dead read end cannot become stderr noise.
+
+Reachability on codex is even LOWER than on claude — `codexBrokerDecisionJson`
+emits a fixed ~90-byte object with no `updatedPermissions` — so this was a
+correctness-parity item, not an incident. It is now pinned like its twin:
+`hook-stdout-contract.mjs` MATERIALIZES both codex shims through the production
+`ensureCodexRuntimeSettings` (isolated `CODEX_HOME`) and runs the same cases
+against all FOUR shipped commands. A/B against the pre-fix shim:
+
+```
+AssertionError: codex: a 4000102-byte decision arrives COMPLETE
+  (got 65536; 65536 means the stdout flush regressed)
+```
+
+— the codex shim truncated at the identical 65536 bytes, and passes after.
+
+## C24 — evidence files
+
+`h3-hook-census-interrupt.mjs` (arms d1–d4; d4 is the B1 premise) +
+`h3-hook-census-interrupt.capture.txt`, under
+`spikes/` (gitignored by the code repo — needs `git add -f`). Captures are routed
+through `driver.mjs`'s `sanitize()` (`$HOME` and the munged `-Users-<user>-`
+form). Probe cwds and the isolated `CODEX_HOME`s are under
+`/private/tmp/sonata-sync-2026-09/`.
+
+## C25 — B1: `Interrupt` fires WHILE a broker hook is holding, and that broke the release path
+
+Review round 1 caught a defect this slice introduced. Recorded in full because
+the wrong half of it was an UNMEASURED premise I shipped on.
+
+**The defect.** `Interrupt` completes the run through
+`TerminalHost.completeRunFromTurnEnd`, which stamps `completionSource:
+"hook-stop"`. `RuntimeController`'s `isPendingTurnEnd` deliberately EXCLUDES
+hook-stop completions, on the invariant *"a live holding hook blocks the turn, so
+a hook-Stop completion cannot coexist with a pending broker ask"*. That invariant
+is `Stop`'s and it is TRUE for `Stop`. It is FALSE for an interrupt, which KILLS
+the holding PermissionRequest hook — which is the exact reasoning
+`abortPendingBrokerApprovals`'s own header gives for why that function exists.
+
+**MEASURED** (probe `h3` arm `d4-interrupt-under-hold`, production broker armed
+with the answering marker, a real held ask):
+
+```
+ask surfaced        16624ms   ["answering-enabled","ask-mtjqaxcp-…json"]
+Ctrl+C              18126ms   (ask still pending, never replied, never expired)
+Interrupt hook      18257ms   (+131ms)
+Stop                never
+approvals dir 25s later:  ["answering-enabled","ask-mtjqaxcp-…json"]   ← still there
+```
+
+The broker process died with the turn. Nothing will ever write that ask a reply
+or an expiry marker. Left on the hook-stop route its id sits in
+`pendingBrokerApprovals` forever, `DeliveryController.pendingApprovalKeys` keeps
+the gate shut, and every later send wedges until the pty dies — INVISIBLY, since
+the reducer has already retracted the card. **Pre-SL-9 the ~+2s
+`terminal-idle-heuristic` closer (which IS a pending turn end) released it; the
+hook preempted that release permanently.** So the slice turned a 2-second
+inference into a permanent hold, in exactly the case it never probed.
+
+Method note worth keeping: the FIRST attempt at this arm did not reproduce the
+hold at all. It tried to escalate by writing outside the workspace, to a path
+under `/private/tmp` — and codex ran it unattended, because its own turn log
+shows `WorkspaceWrite { exclude_slash_tmp: false, exclude_tmpdir_env_var: false }`,
+i.e. **/tmp is inside the sandbox**. NETWORK is the reliable escalation
+(`network_access: false`) and has no filesystem effect, which matters for a
+command the arm deliberately never approves.
+
+**The fix, and why it is not the shape the reviewer preferred.** The honest shape
+is a distinct `completionSource: "hook-interrupt"` added to `isPendingTurnEnd`;
+that needs `CompletionSource` (shared/types/domain.ts) and
+`TerminalHost.completeRunFromTurnEnd`, and terminal-host.ts is held by a
+concurrent slice and fenced out of SL-9. Shipped instead: an
+`interruptDrivenRunIds` set on the controller, added before the completion call
+and READ-AND-DELETED at the gate, so the gate's release list stays SINGLE-SOURCED
+(the property that matters — a fourth release added to that block is picked up by
+interrupts for free). Keyed by run identity, not by timing, so it does not depend
+on `emitEvent` being synchronous. **Registered follow-up: whoever owns
+terminal-host next should replace it with the typed source and delete the map.**
+
+Ripple checked: `isExpiredTurnEnd` is `isPendingTurnEnd || (completed &&
+hook-stop)`, and an interrupt-driven completion already satisfied its second arm,
+so widening the first changes nothing there. The option-prompt release in the
+same block now also runs for interrupts — a no-op today (`pendingOptionPrompt` is
+claude-only) and correct if codex ever grows one.
+
+**Pinned** by `tests/smoke/interrupt-hook-pending-approval.mjs` on the REAL
+controller (real ApprovalWatcher, real HookWatcher, real dispatch). A/B:
+
+```
+pre-fix   FAILED: timed out waiting for the Interrupt releasing the pending broker ask
+          decisions=[]   runTrail=["completed/hook-stop"]
+post-fix  interrupt-hook-pending-approval: OK
+```
+
+Two assertions in that test were rewritten after they passed for the wrong
+reason, which is worth recording: `canDeliver() === false` while the ask is held
+is ALSO false because the run is live, so it isolates nothing; and
+`deliverable === true` after the release never arrives, because with an empty
+queue no fresh `delivery:state` is emitted at all. The release is proved instead
+by a real send LEAVING the queue once the run is closed — at which point a
+still-held approval key is the only thing that could have pinned it.

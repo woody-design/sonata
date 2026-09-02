@@ -12,7 +12,9 @@ import type {
  *
  *  - PRIMARY: standard-contract hooks (Claude Code today, Codex on the same
  *    schema) — `UserPromptSubmit`/`PreToolUse`→busy, `PermissionRequest`→
- *    waiting-approval (names the tool), `Stop`→turn-ended.
+ *    waiting-approval (names the tool), `Stop`→turn-ended, plus the two
+ *    provider-specific turn endings that fire INSTEAD of `Stop`:
+ *    `StopFailure` (claude, API error) and `Interrupt` (codex, user interrupt).
  *  - SAFETY NET: existing terminal-host signals — `prompt:submitted`→busy,
  *    `approval:detected`→waiting-approval, `approval:decision`→busy,
  *    `task:ready`→turn-ended (fallback if the Stop hook is absent), `pty:exit`
@@ -69,6 +71,15 @@ export class CliStateModel {
         // Stop does not fire in this case, so without this the state sat
         // busy until the quiescence fallback.
         this.set("turn-ended", { tool: null, approvalKind: null }, "hook:StopFailure");
+        break;
+      case "Interrupt":
+        // The turn ended by being INTERRUPTED (codex only, MEASURED 0.152.1 —
+        // SL-9). Same shape as StopFailure: codex fires no `Stop` for an
+        // interrupted turn, so without this the activity sat `busy` until the
+        // `task:ready` quiescence fallback caught up. This model is
+        // provider-agnostic by design and claude never emits the event, so no
+        // provider gate is needed.
+        this.set("turn-ended", { tool: null, approvalKind: null }, "hook:Interrupt");
         break;
       case "Notification": {
         const kind = typeof payload.notification_type === "string" ? payload.notification_type : "";

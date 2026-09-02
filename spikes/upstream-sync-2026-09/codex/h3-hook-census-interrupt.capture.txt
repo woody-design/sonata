@@ -1,0 +1,589 @@
+# H3 — codex hook-event CENSUS + `Interrupt` (SL-9)
+
+binary: codex-cli 0.152.1 (pinned 0.152.1, re-pinned at probe end)
+spawn: production TerminalHost from dist/, `codex -p sonata`, isolated CODEX_HOME, pre-trusted ledger
+declared events in this binary (12, HookEventsToml): PreToolUse, PermissionRequest, PostToolUse, PreCompact, PostCompact, SessionStart, SessionEnd, UserPromptSubmit, SubagentStart, SubagentStop, Stop, Interrupt
+
+## which declared events fired
+
+| event | in Sonata's profile? | fired in this probe? |
+|---|---|---|
+| PreToolUse | yes | **yes** |
+| PermissionRequest | yes | no |
+| PostToolUse | yes | **yes** |
+| PreCompact | yes | no |
+| PostCompact | yes | no |
+| SessionStart | yes | **yes** |
+| SessionEnd | yes | no |
+| UserPromptSubmit | yes | **yes** |
+| SubagentStart | yes | no |
+| SubagentStop | yes | no |
+| Stop | yes | **yes** |
+| Interrupt | yes | **yes** |
+
+## the embedded `interrupt.command.input` schema (documentation half)
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "Interrupt",
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "session_id",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "interrupt.command.input",
+  "type": "object"
+}
+```
+
+## per-arm detail
+
+### d1-interrupt
+
+```json
+{
+  "arm": "d1-interrupt",
+  "version": "codex-cli 0.152.1",
+  "profileHookEvents": [
+    "Interrupt",
+    "PermissionRequest",
+    "PostCompact",
+    "PostToolUse",
+    "PreCompact",
+    "PreToolUse",
+    "SessionEnd",
+    "SessionStart",
+    "Stop",
+    "SubagentStart",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@3166",
+    "UserPromptSubmit@3166",
+    "Stop@5299",
+    "UserPromptSubmit@8655",
+    "Stop@25392",
+    "UserPromptSubmit@42670",
+    "Stop@58991",
+    "UserPromptSubmit@76681",
+    "Stop@92918",
+    "UserPromptSubmit@108980",
+    "Interrupt@113839"
+  ],
+  "eventsSeen": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop",
+    "Interrupt"
+  ],
+  "hookLog": [
+    "<no log dir>"
+  ],
+  "scrollbackHookNoise": [
+    "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+    "gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d1-interrupt/ws"
+  ],
+  "notes": [
+    "ready=true at 146ms",
+    "submit retry 1 (CR) at 2647ms",
+    "warm-up submitted: true (1 Enter retries)",
+    "warm-up turn closed: true at 5392ms",
+    "round 0 (human Esc (writeUserInput)): turnStarted=true grew=true stoppedAlready=false; Esc at 13400ms",
+    "round 1 (production stopRun()): turnStarted=true grew=true stoppedAlready=false; Esc at 47407ms",
+    "round 2 (human Esc, 0.8s after UserPromptSubmit): turnStarted=true grew=true stoppedAlready=false; Esc at 79716ms",
+    "round 3 (Ctrl+C mid-turn): turnStarted=true grew=true stoppedAlready=false; Esc at 113720ms"
+  ],
+  "screenTail": "  13\n  14\n  15\n  16\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d1-interrupt/ws",
+  "rounds": [
+    {
+      "round": 0,
+      "via": "human Esc (writeUserInput)",
+      "turnStarted": true,
+      "streamingWhenEscSent": true,
+      "escAtMs": 13400,
+      "hooksAfterEsc": [
+        "Stop@25392"
+      ],
+      "reached400": true,
+      "interrupt": null,
+      "interruptSchemaCheck": null
+    },
+    {
+      "round": 1,
+      "via": "production stopRun()",
+      "turnStarted": true,
+      "streamingWhenEscSent": true,
+      "escAtMs": 47407,
+      "hooksAfterEsc": [
+        "Stop@58991"
+      ],
+      "reached400": true,
+      "interrupt": null,
+      "interruptSchemaCheck": null
+    },
+    {
+      "round": 2,
+      "via": "human Esc, 0.8s after UserPromptSubmit",
+      "turnStarted": true,
+      "streamingWhenEscSent": true,
+      "escAtMs": 79716,
+      "hooksAfterEsc": [
+        "Stop@92918"
+      ],
+      "reached400": true,
+      "interrupt": null,
+      "interruptSchemaCheck": null
+    },
+    {
+      "round": 3,
+      "via": "Ctrl+C mid-turn",
+      "turnStarted": true,
+      "streamingWhenEscSent": true,
+      "escAtMs": 113720,
+      "hooksAfterEsc": [
+        "Interrupt@113839"
+      ],
+      "reached400": true,
+      "interrupt": {
+        "atMs": 113839,
+        "msAfterEsc": 119,
+        "keys": [
+          "cwd",
+          "hook_event_name",
+          "model",
+          "permission_mode",
+          "session_id",
+          "transcript_path",
+          "turn_id"
+        ],
+        "payload": {
+          "session_id": "<session_id:36ch>",
+          "turn_id": "<turn_id:36ch>",
+          "transcript_path": "<transcript_path:165ch>",
+          "cwd": "<cwd:66ch>",
+          "hook_event_name": "Interrupt",
+          "model": "gpt-5.6-sol",
+          "permission_mode": "default"
+        }
+      },
+      "interruptSchemaCheck": {
+        "checked": true,
+        "missingRequired": [],
+        "unexpectedKeys": [],
+        "matches": true
+      }
+    }
+  ],
+  "interruptSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "definitions": {
+      "NullableString": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "properties": {
+      "cwd": {
+        "type": "string"
+      },
+      "hook_event_name": {
+        "const": "Interrupt",
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "permission_mode": {
+        "enum": [
+          "default",
+          "acceptEdits",
+          "plan",
+          "dontAsk",
+          "bypassPermissions"
+        ],
+        "type": "string"
+      },
+      "session_id": {
+        "type": "string"
+      },
+      "transcript_path": {
+        "$ref": "#/definitions/NullableString"
+      },
+      "turn_id": {
+        "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "cwd",
+      "hook_event_name",
+      "model",
+      "permission_mode",
+      "session_id",
+      "transcript_path",
+      "turn_id"
+    ],
+    "title": "interrupt.command.input",
+    "type": "object"
+  },
+  "declared": [
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "SubagentStart",
+    "SubagentStop",
+    "Stop",
+    "Interrupt"
+  ],
+  "neverFired": [
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "SessionEnd",
+    "SubagentStart",
+    "SubagentStop"
+  ],
+  "verdict": "Interrupt fired in 1/4 genuinely-interrupted rounds — UNSTABLE",
+  "ranAt": "2026-09-02T05:51:40.839Z"
+}
+```
+
+### d2-teardown
+
+```json
+{
+  "arm": "d2-teardown",
+  "version": "codex-cli 0.152.1",
+  "profileHookEvents": [
+    "Interrupt",
+    "PermissionRequest",
+    "PostCompact",
+    "PostToolUse",
+    "PreCompact",
+    "PreToolUse",
+    "SessionEnd",
+    "SessionStart",
+    "Stop",
+    "SubagentStart",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@12699",
+    "UserPromptSubmit@12801",
+    "Stop@15028"
+  ],
+  "eventsSeen": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop"
+  ],
+  "hookLog": [
+    "<no log dir>"
+  ],
+  "scrollbackHookNoise": [
+    "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+    "gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d2-teardown/ws"
+  ],
+  "notes": [
+    "ready=true at 250ms",
+    "prompt submitted: true (0 Enter retries)"
+  ],
+  "screenTail": "\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› /quit\n \n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d2-teardown/ws",
+  "readyAtMs": 250,
+  "sessionStartBeforePrompt": false,
+  "sessionStartAtMs": 12699,
+  "sessionStartPayload": {
+    "session_id": "<session_id:36ch>",
+    "transcript_path": "<transcript_path:164ch>",
+    "cwd": "<cwd:65ch>",
+    "hook_event_name": "SessionStart",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "source": "startup"
+  },
+  "quitAtMs": 18119,
+  "sessionEnd": [],
+  "verdict": "SessionStart LAZY (not before the first prompt); SessionEnd DID NOT FIRE",
+  "ranAt": "2026-09-02T05:52:33.041Z"
+}
+```
+
+### d3-interrupt-ab
+
+```json
+{
+  "arm": "d3-interrupt-ab",
+  "version": "codex-cli 0.152.1",
+  "phases": [
+    {
+      "arm": "d3-before",
+      "version": "codex-cli 0.152.1",
+      "profileHookEvents": [
+        "PermissionRequest",
+        "PostCompact",
+        "PostToolUse",
+        "PreCompact",
+        "PreToolUse",
+        "SessionStart",
+        "Stop",
+        "SubagentStart",
+        "SubagentStop",
+        "UserPromptSubmit"
+      ],
+      "hookOrder": [
+        "SessionStart@2966",
+        "UserPromptSubmit@3068",
+        "Stop@7734",
+        "UserPromptSubmit@11083"
+      ],
+      "eventsSeen": [
+        "SessionStart",
+        "UserPromptSubmit",
+        "Stop"
+      ],
+      "hookLog": [
+        "<no log dir>"
+      ],
+      "scrollbackHookNoise": [
+        "│ directory: /private/tmp/…/codex-hook-census/d3-before/ws │",
+        "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d3-before/ws"
+      ],
+      "notes": [
+        "ready=true at 147ms",
+        "submit retry 1 (CR) at 2650ms",
+        "Ctrl+C at 15819ms (live=true, run={\"id\":\"run-1788329224172-2\",\"status\":\"active\",\"lifecyclePhase\":\"active\"})"
+      ],
+      "screenTail": "  25\n  26\n  27\n  28\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d3-before/ws",
+      "phase": "before",
+      "profileHasInterrupt": false,
+      "liveAtInterrupt": true,
+      "runBefore": {
+        "id": "run-1788329224172-2",
+        "status": "active",
+        "lifecyclePhase": "active"
+      },
+      "interruptAtMs": 15819,
+      "interruptHookAtMs": null,
+      "msInterruptToHook": null,
+      "closedAtMs": 17838,
+      "msInterruptToClose": 2019,
+      "runAtEnd": null,
+      "verdict": "run closed 2019ms after the interrupt (Interrupt hook: never arrived)"
+    },
+    {
+      "arm": "d3-after",
+      "version": "codex-cli 0.152.1",
+      "profileHookEvents": [
+        "Interrupt",
+        "PermissionRequest",
+        "PostCompact",
+        "PostToolUse",
+        "PreCompact",
+        "PreToolUse",
+        "SessionStart",
+        "Stop",
+        "SubagentStart",
+        "SubagentStop",
+        "UserPromptSubmit"
+      ],
+      "hookOrder": [
+        "SessionStart@3559",
+        "UserPromptSubmit@3661",
+        "Stop@5082",
+        "UserPromptSubmit@8535",
+        "Interrupt@13396"
+      ],
+      "eventsSeen": [
+        "SessionStart",
+        "UserPromptSubmit",
+        "Stop",
+        "Interrupt"
+      ],
+      "hookLog": [
+        "<no log dir>"
+      ],
+      "scrollbackHookNoise": [
+        "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "│ directory: /private/tmp/…/codex-hook-census/d3-after/ws │",
+        "gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d3-after/ws"
+      ],
+      "notes": [
+        "ready=true at 248ms",
+        "submit retry 1 (CR) at 2748ms",
+        "Ctrl+C at 13255ms (live=true, run={\"id\":\"run-1788329241453-2\",\"status\":\"active\",\"lifecyclePhase\":\"active\"})"
+      ],
+      "screenTail": "  82\n  83\n  84\n  85\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d3-after/ws",
+      "phase": "after",
+      "profileHasInterrupt": true,
+      "liveAtInterrupt": true,
+      "runBefore": {
+        "id": "run-1788329241453-2",
+        "status": "active",
+        "lifecyclePhase": "active"
+      },
+      "interruptAtMs": 13255,
+      "interruptHookAtMs": 13396,
+      "msInterruptToHook": 141,
+      "closedAtMs": 13508,
+      "msInterruptToClose": 253,
+      "runAtEnd": null,
+      "verdict": "run closed 253ms after the interrupt (Interrupt hook: +141ms)"
+    }
+  ],
+  "eventsSeen": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop",
+    "Interrupt"
+  ],
+  "verdict": "before: run closed 2019ms after the interrupt (Interrupt hook: never arrived) | after: run closed 253ms after the interrupt (Interrupt hook: +141ms)",
+  "ranAt": "2026-09-02T06:07:28.711Z"
+}
+```
+
+### d4-interrupt-under-hold
+
+```json
+{
+  "arm": "d4-interrupt-under-hold",
+  "version": "codex-cli 0.152.1",
+  "profileHookEvents": [
+    "Interrupt",
+    "PermissionRequest",
+    "PostCompact",
+    "PostToolUse",
+    "PreCompact",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "SubagentStart",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@3576",
+    "UserPromptSubmit@3677",
+    "Stop@5202",
+    "UserPromptSubmit@7539",
+    "PreToolUse@10370",
+    "PostToolUse@10471",
+    "PreToolUse@16432",
+    "Interrupt@18257"
+  ],
+  "eventsSeen": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop",
+    "PreToolUse",
+    "PostToolUse",
+    "Interrupt"
+  ],
+  "hookLog": [
+    "<no log dir>"
+  ],
+  "scrollbackHookNoise": [
+    "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+    "gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d4-interrupt-under-hold/ws"
+  ],
+  "notes": [
+    "ready=true at 147ms",
+    "submit retry 1 (CR) at 2650ms",
+    "warm-up closed: true",
+    "ask surfaced: true at 16624ms — [\"answering-enabled\",\"ask-mtjqaxcp-1z8km2h15t-52906.json\"]",
+    "Ctrl+C into a LIVE broker hold at 18126ms"
+  ],
+  "screenTail": "\n\n• Ran curl -sS https://example.com\n  └ curl: (6) Could not resolve host: example.com\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-hook-census/d4-interrupt-under-hold/ws",
+  "approvalsAtHold": [
+    "answering-enabled",
+    "ask-mtjqaxcp-1z8km2h15t-52906.json"
+  ],
+  "approvalsAfterInterrupt": [
+    "answering-enabled",
+    "ask-mtjqaxcp-1z8km2h15t-52906.json"
+  ],
+  "runBefore": {
+    "id": "run-1788331325828-2",
+    "status": "active",
+    "lifecyclePhase": "active"
+  },
+  "interruptAtMs": 18126,
+  "hooksAfterInterrupt": [
+    "Interrupt@18257"
+  ],
+  "interrupt": {
+    "atMs": 18257,
+    "msAfterInterrupt": 131,
+    "keys": [
+      "cwd",
+      "hook_event_name",
+      "model",
+      "permission_mode",
+      "session_id",
+      "transcript_path",
+      "turn_id"
+    ]
+  },
+  "stopAfterInterrupt": null,
+  "askStillPendingAtInterrupt": true,
+  "verdict": "Interrupt FIRES under a broker hold (+131ms), no Stop — the B1 wedge is REACHABLE",
+  "ranAt": "2026-09-02T06:42:41.685Z"
+}
+```

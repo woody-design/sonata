@@ -2039,11 +2039,20 @@ the broker promises never to write. Pinned by
 `app/tests/smoke/hook-stdout-contract.mjs`, whose 4 MB case was A/B-verified:
 **FAILS `65536 !== 4000102` against the pre-fix dist, passes after.**
 
-**NOT FIXED, OUT OF SLICE BOUNDARY**: the codex broker shim
-(`BROKER_SHIM_SOURCE` in `codex-runtime-settings.ts`) carries the byte-identical
-`process.stdout.write(decision); process.exit(0)` shape and the same latent
-truncation. SL-9's file boundary is the `SINK_EVENTS` region of that file. See
-the codex findings' C15 for the exact patch.
+The EPIPE guard is the one path the drain fix CREATES (review round 1, M3): with
+the process no longer exiting before its write completes, a vanished reader now
+surfaces as an `error` event on stdout instead of being outrun. The smoke covers
+it directly — destroy the child's stdout mid-hold, then answer, and assert exit 0
+with empty stderr, for both brokers.
+
+**THE TWIN — fixed in review round 1 (M1).** The codex broker shim
+(`BROKER_SHIM_SOURCE` in `codex-runtime-settings.ts`) carried the byte-identical
+`process.stdout.write(decision); process.exit(0)` shape. It was out of SL-9's
+original file boundary and recorded as a follow-up; the fence was extended for
+the review round and the fix is mirrored. `hook-stdout-contract.mjs` now
+MATERIALIZES both codex shims through the production writer and runs every case
+against all FOUR shipped commands — the codex broker A/B'd at the identical
+65536-byte truncation. Details: codex findings C23.
 
 ## F38 — `updatedPermissions` still validates at 2.1.258 (MEASURED end-to-end)
 
