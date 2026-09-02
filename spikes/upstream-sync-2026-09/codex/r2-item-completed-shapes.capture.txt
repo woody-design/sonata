@@ -1,0 +1,94 @@
+# r2 — item_completed vs legacy conversational events
+codex --version : codex-cli 0.152.0
+expected        : 0.152.0
+captured at     : 2026-09-02T01:46:48.399Z
+
+threads with an on-disk rollout: 1524
+
+## event family by cli_version × history_mode
+cli_version           history_mode files  user_msg  agent_msg  item_started  item_completed  item_updated
+0.142.0               legacy           3         6         26             0               0             0
+0.142.0-alpha.6       legacy           4         8         93             0               0             0
+0.142.2               legacy          18        18         33             0               0             0
+0.142.3               legacy           4        21        113             0               0             0
+0.142.4               legacy           1         1         25             0               0             0
+0.142.5               legacy         212       226        935             0               0             0
+0.144.0-alpha.4       legacy           2        14         63             0               0             0
+0.144.1               legacy          18        18        215             0               0             0
+0.144.2               legacy           2        13         28             0               0             0
+0.144.3               legacy          12        14        358             0               0             0
+0.144.4               legacy          14        23        145             0               0             0
+0.144.5               legacy          58        51        226             0               0             0
+0.144.6               legacy         110       144         71             0               0             0
+0.145.0               legacy         376       403        206             0               0             0
+0.145.0-alpha.18      legacy          16        53        309             0               0             0
+0.145.0-alpha.27      legacy           3        10         38             0               0             0
+0.146.0               legacy         346       349         87             0               0             0
+0.146.0-alpha.3       legacy           3        19         58             0               0             0
+0.146.0-alpha.3.1     legacy          13        30        259             0               0             0
+0.146.0-alpha.9.2     legacy           3         6         18             0               0             0
+0.146.1               legacy         174       188         87             0               0             0
+0.147.0               paginated       67         0          0             0             150             0
+0.147.0-alpha.1.2     legacy           4        10        239             0               0             0
+0.147.0-alpha.6.5     legacy          12        23        589             0               0             0
+0.152.0               paginated       49         0          0             0             122             0
+
+## item.type inventory
+    135  item_completed → UserMessage
+    135  item_completed → AgentMessage
+      2  item_completed → Reasoning
+
+## item fields — AgentMessage
+    135  type: string
+    135  id: string
+    135  content: array
+    135  phase: string
+
+## item fields — Reasoning
+      2  type: string
+      2  id: string
+      2  summary_text: array
+      2  raw_content: array
+
+## item fields — UserMessage
+    135  type: string
+    135  id: string
+    135  content: array
+
+## item.content[] shapes
+    232  UserMessage.content[].type = local_image  keys={path,type}
+    135  UserMessage.content[].type = text  keys={text,text_elements,type}
+    135  AgentMessage.content[].type = Text  keys={text,type}
+
+## thread_settings_applied payloads
+    245  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"on-request","approvals_reviewer":"user","permission_profile":{"type":"managed","file_system":{"type":"restricted","entries":
+    126  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"active_permission_profile":{"id":":danger-full-
+      9  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.5","model_provider_id":"openai","service_tier":"default","approval_policy":"on-request","approvals_reviewer":"user","permission_profile":{"type":"managed","file_system":{"type":"restricted","entries":[{"p
+      9  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"managed","file_system":{"type":"restricted","entries":[{"pa
+      9  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Work/Workspace/Operations/
+      9  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Work/Workspace/Product/sonata-intel","reasoning_eff
+      8  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":{"granular":{"sandbox_approval":false,"rules":false,"skill_approval":false,"request_permissions":true,"mcp_elicitations":true
+      7  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Work/Workspace/Product/BeD
+      7  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Work/Workspace/Product/sonata/dev","reasoning_effor
+      3  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Work/Workspace/Product/due
+      3  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Work/Workspace/Product/sonata-x64","reasoning_effor
+      2  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Documents/Codex/2026-07-14
+      2  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.5","model_provider_id":"openai","service_tier":"default","approval_policy":"on-request","approvals_reviewer":"auto_review","permission_profile":{"type":"managed","file_system":{"type":"restricted","entrie
+      2  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.5","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"active_permission_profile":{"id":":danger-full-acce
+      2  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-luna","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Documents/Codex/2026-07-2
+      2  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Documents/Codex/2026-08-04
+      2  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Work/Workspace/Product/son
+      1  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"priority","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"active_permission_profile":{"id":":danger-full
+      1  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"on-request","approvals_reviewer":"auto_review","permission_profile":{"type":"managed","file_system":{"type":"restricted","en
+      1  keys={thread_settings,type} {"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","model_provider_id":"openai","service_tier":"default","approval_policy":"never","approvals_reviewer":"user","permission_profile":{"type":"disabled"},"cwd":"~/Documents/Codex/2026-07-23
+
+## one sanitized sample per item.type
+### AgentMessage
+{"type":"AgentMessage","id":"msg_0c896225d59e4159016a75bed0bbb481968a7bf32d1a6b6cc6","content":[{"type":"Text","text":"SONATA_CODEX_IMAGE_ATTACHMENT_RECEIPT"}],"phase":"final_answer"}
+
+### Reasoning
+{"type":"Reasoning","id":"rs_00524e627c13fdca016a75c3f8510481959e81b146efa262d7","summary_text":[],"raw_content":[]}
+
+### UserMessage
+{"type":"UserMessage","id":"019fdbf1-52f4-7b50-9f1e-512ac303201f","content":[{"type":"local_image","path":"/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-X6zv8c/codex-image-delivery/red.png"},{"type":"text","text":"[Image #1] Reply exactly SONATA_CODEX_IMAGE_ATTACHMENT_RECEIPT.","text_elements":[{"byte_range":{"start":0,"end":10},"placeholder":"[Image #1]"}]}]}
+

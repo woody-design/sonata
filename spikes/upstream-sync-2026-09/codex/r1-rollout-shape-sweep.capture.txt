@@ -1,0 +1,122 @@
+# r1 — codex rollout shape sweep
+codex --version : codex-cli 0.152.0
+expected        : 0.152.0
+CODEX_HOME      : ~/.codex
+captured at     : 2026-09-02T01:45:53.194Z
+
+## corpus
+cli_version in : 0.152.0
+rollout files  : 49
+
+records parsed : 815
+parse failures : 0
+first-line bytes: min 18543 max 18571 (head scan is 256KiB)
+
+## record types (top level)
+    323  event_msg
+    321  response_item
+     61  world_state
+     61  turn_context
+     49  session_meta
+
+## event_msg payload.type
+    122  item_completed
+     64  task_started
+     61  token_count
+     61  task_complete
+     15  thread_settings_applied
+
+## response_item payload.type
+    321  message
+
+## other record types → payload keys
+     61  world_state → payload keys: full,state
+
+## turn_context field inventory (key: type)
+     61  turn_id: string
+     61  cwd: string
+     61  workspace_roots: array[string]
+     61  current_date: string
+     61  timezone: string
+     61  approval_policy: string
+     61  approvals_reviewer: string
+     61  sandbox_policy: object{type:workspace-write}
+     61  permission_profile: object{type:managed}
+     61  file_system_sandbox_policy: object{type:restricted}
+     61  model: string
+     61  comp_hash: string
+     61  personality: string
+     61  collaboration_mode: object
+     61  multi_agent_version: string
+     61  realtime_active: boolean
+     61  effort: string
+     61  summary: string
+
+## turn_context consumed/adjacent VALUES
+     61  model = "gpt-5.6-sol"
+     61  effort = "high"
+     61  approval_policy = "on-request"
+     61  approvals_reviewer = "user"
+     61  personality = "pragmatic"
+     61  summary = "auto"
+     61  sandbox_policy.type = "workspace-write"
+     61  permission_profile.type = "managed"
+
+## token_count payload keys
+     61  type: string
+     61  info: object
+     61  rate_limits: object
+
+## token_count info.* keys
+     61  total_token_usage: object
+     61  last_token_usage: object
+     61  model_context_window: number
+     61  total_token_usage.*: null
+     61  total_token_usage.input_tokens: number
+     61  total_token_usage.cached_input_tokens: number
+     61  total_token_usage.cache_write_input_tokens: number
+     61  total_token_usage.output_tokens: number
+     61  total_token_usage.reasoning_output_tokens: number
+     61  total_token_usage.total_tokens: number
+     61  last_token_usage.*: null
+     61  last_token_usage.input_tokens: number
+     61  last_token_usage.cached_input_tokens: number
+     61  last_token_usage.cache_write_input_tokens: number
+     61  last_token_usage.output_tokens: number
+     61  last_token_usage.reasoning_output_tokens: number
+     61  last_token_usage.total_tokens: number
+
+## token_count rate_limits keys
+     61  limit_id: string
+     61  limit_name: null
+     61  primary: object
+     61  secondary: object
+     61  credits: object
+     61  individual_limit: null
+     61  spend_control_reached: null
+     61  plan_type: string
+     61  rate_limit_reached_type: null
+
+## model_context_window values
+     61  258400
+
+## session_meta payload keys
+     49  session_id: string
+     49  id: string
+     49  timestamp: string
+     49  cwd: string
+     49  originator: string
+     49  cli_version: string
+     49  source: string
+     49  thread_source: string
+     49  model_provider: string
+     49  base_instructions: object
+     49  history_mode: string
+     49  context_window: object
+
+## compacted replacement_history shapes
+(none)
+
+## token_count readings that would defeat codexContextSnapshot
+(none — every token_count carries a numeric model_context_window > 12000 and a numeric last_token_usage.total_tokens)
+

@@ -15,7 +15,7 @@ const {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtureRoot = path.resolve(__dirname, "../fixtures/usage");
 
-const [codexNormalLine, codexNullInfoLine] = fs
+const [codexNormalLine, codexNullInfoLine, codex0152Line] = fs
   .readFileSync(path.join(fixtureRoot, "codex-token-count.jsonl"), "utf8")
   .trim()
   .split("\n");
@@ -42,6 +42,56 @@ assert.ok(codexNullInfo, "expected Codex rate-limit-only snapshot");
 assert.equal(codexNullInfo.context, null);
 assert.equal(codexNullInfo.limits[0]?.remainingPercent, 82);
 assert.equal(codexNullInfo.limits[1]?.remainingPercent, 77);
+
+// --- codex 0.152.0 vintage (MEASURED, SL-8 r1/r6) -----------------------------
+// Verbatim from a live 0.152.0 rollout (sanitized: only the timestamp is this
+// machine's). Diffed against the 0.146 pin on the first line of this fixture,
+// the genuine deltas are exactly three: `cache_write_input_tokens` is NEW inside
+// both usage objects, `spend_control_reached` is NEW in rate_limits, and
+// `credits` CHANGED TYPE from null to an object
+// (`{has_credits, unlimited, balance}`). `individual_limit`, `limit_id`,
+// `limit_name`, `plan_type` and `rate_limit_reached_type` are NOT new — the
+// 0.146 fixture already carries them. The parser reads
+// `last_token_usage.total_tokens`, `model_context_window`, and
+// primary/secondary only, so additive growth and a type change on an unread
+// field must both pass straight through. Pinned because "tolerant by
+// inspection" is what this row claimed at 0.146 too — this is the measurement
+// behind the claim.
+const codex0152 = parseCodexUsageLine(codex0152Line);
+assert.ok(codex0152, "0.152.0 token_count parses");
+assert.equal(codex0152.context.usedTokens, 15706);
+assert.equal(codex0152.context.windowTokens, 258400);
+assert.equal(codex0152.limits[0]?.label, "5h");
+assert.equal(codex0152.limits[0]?.remainingPercent, 98);
+assert.equal(codex0152.limits[1]?.label, "weekly");
+assert.equal(codex0152.limits[1]?.remainingPercent, 98);
+
+// MEASURED over 16,539 live token_count payloads (SL-8 r6): `model_context_window`
+// is only ever 258400 or 353400 — never zero, never a sub-baseline number. The
+// model-owned-token-budget worry (#35608 / #41803) — that a reserve phase might
+// report a base window small enough to fool the reader — has NO instance in the
+// corpus. This pin states the floor the reader actually depends on: a window at
+// or below the 12k baseline yields NO context rather than a bogus percentage.
+const codexReserveShaped = parseCodexUsageLine(
+  JSON.stringify({
+    timestamp: "2026-09-02T01:05:59.970Z",
+    type: "event_msg",
+    payload: {
+      type: "token_count",
+      info: { last_token_usage: { total_tokens: 400 }, model_context_window: CODEX_CONTEXT_BASELINE_TOKENS },
+      rate_limits: {
+        primary: { used_percent: 2, window_minutes: 300, resets_at: 1788316932 },
+        secondary: { used_percent: 2, window_minutes: 10080, resets_at: 1788883050 },
+      },
+    },
+  }),
+);
+assert.ok(codexReserveShaped, "a sub-baseline window still yields its rate limits");
+assert.equal(
+  codexReserveShaped.context,
+  null,
+  "a window at/below the baseline reports NO context rather than a fabricated percentage",
+);
 
 const [claudeStartupLine, claudeResponseLine] = fs
   .readFileSync(path.join(fixtureRoot, "claude-statusline.jsonl"), "utf8")

@@ -1,0 +1,86 @@
+# r6 — Sonata's built parsers over the live rollout corpus
+codex --version : codex-cli 0.152.0
+expected        : 0.152.0
+dist            : app/dist/runtime/provider-transcript
+captured at     : 2026-09-02T02:25:22.827Z
+
+## CodexRolloutNormalizer over every rollout, by history_mode
+files: 1542   lines: 93118   THROWS: 0
+
+### history_mode = legacy
+  rollouts            : 1408
+  cli versions        : 0.142.0, 0.142.0-alpha.6, 0.142.2, 0.142.3, 0.142.4, 0.142.5, 0.144.0-alpha.4, 0.144.1, 0.144.2, 0.144.3, 0.144.4, 0.144.5, 0.144.6, 0.145.0, 0.145.0-alpha.18, 0.145.0-alpha.27, 0.146.0, 0.146.0-alpha.3, 0.146.0-alpha.3.1, 0.146.0-alpha.9.2, 0.146.1, 0.147.0-alpha.1.2, 0.147.0-alpha.6.5
+  blocks emitted      : 36284
+  rollouts yielding 0 : 191   <-- the reading surface is BLANK for these
+  block kinds         : tool-call×28384, assistant-text×4219, thinking×1933, user-message×1648, compaction×62, system-note×19, plan×19
+
+### history_mode = paginated
+  rollouts            : 134
+  cli versions        : 0.147.0, 0.152.0
+  blocks emitted      : 301
+  rollouts yielding 0 : 21   <-- the reading surface is BLANK for these
+  block kinds         : user-message×153, assistant-text×146, tool-call×2
+
+## parseCodexTokenCountPayload over every live token_count
+  payloads       : 16544
+  parsed         : 16544
+  null / threw   : 0
+  windowTokens observed: 258400×16050, 353400×489, (no context)×5
+
+## assessCodexCompactionIntegrity over every live `compacted` record
+  records: 62
+    summary-present: 62
+  by vintage:
+    0.142.5 / legacy: summary-present×2
+    0.144.0-alpha.4 / legacy: summary-present×1
+    0.144.1 / legacy: summary-present×9
+    0.144.3 / legacy: summary-present×16
+    0.144.4 / legacy: summary-present×2
+    0.144.5 / legacy: summary-present×9
+    0.144.6 / legacy: summary-present×1
+    0.145.0-alpha.18 / legacy: summary-present×7
+    0.146.0-alpha.3 / legacy: summary-present×1
+    0.146.0-alpha.3.1 / legacy: summary-present×1
+    0.147.0-alpha.1.2 / legacy: summary-present×7
+    0.147.0-alpha.6.5 / legacy: summary-present×6
+  NOTE: zero `compacted` records exist in ANY paginated rollout on this
+        machine — the invariant is UNREPRODUCED at history_mode=paginated.
+
+## locateSessionFile at 0.152.0
+  rollout-2026-09-01T22-24-58-01a05fef-1250-7e63-944d-814e36e2f54e.jsonl   [fresh]
+    cwd                  : /var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-codex-smoke-ovsRhV
+    session start        : 2026-09-02T02:24:58.448Z   file mtime: 2026-09-02T02:24:59.691Z
+    id-anchored (prod)   : MATCH
+    providerSessionId    : 01a05fef-1250-7e63-944d-814e36e2f54e
+    recency fallback     : MATCH
+  rollout-2026-09-01T22-22-18-01a05fec-a2ed-7273-9072-38a28c0bf348.jsonl   [fresh]
+    cwd                  : /var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-codex-smoke-211IsB
+    session start        : 2026-09-02T02:22:18.861Z   file mtime: 2026-09-02T02:22:20.098Z
+    id-anchored (prod)   : MATCH
+    providerSessionId    : 01a05fec-a2ed-7273-9072-38a28c0bf348
+    recency fallback     : MATCH
+  rollout-2026-09-01T22-17-05-01a05fe7-dac2-7492-9957-6678c18e55c7.jsonl   [RESUMED — mtime is >2min after session start]
+    cwd                  : /var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-j6zIbp/codex-multi-image
+    session start        : 2026-09-02T02:17:05.474Z   file mtime: 2026-09-02T02:22:07.509Z
+    id-anchored (prod)   : MATCH
+    providerSessionId    : 01a05fe7-dac2-7492-9957-6678c18e55c7
+    recency fallback     : MATCH
+  rollout-2026-09-01T22-15-04-01a05fe6-0365-71d2-ba7a-78a8399b4e60.jsonl   [fresh]
+    cwd                  : /var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-j6zIbp/codex-image-delivery
+    session start        : 2026-09-02T02:15:04.805Z   file mtime: 2026-09-02T02:15:10.341Z
+    id-anchored (prod)   : MATCH
+    providerSessionId    : 01a05fe6-0365-71d2-ba7a-78a8399b4e60
+    recency fallback     : MATCH
+  rollout-2026-09-01T22-12-06-01a05fe3-4b45-7df0-9f16-3107a5adffbd.jsonl   [fresh]
+    cwd                  : /var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-hUXlqZ/codex-ref-file
+    session start        : 2026-09-02T02:12:06.598Z   file mtime: 2026-09-02T02:12:08.937Z
+    id-anchored (prod)   : MATCH
+    providerSessionId    : 01a05fe3-4b45-7df0-9f16-3107a5adffbd
+    recency fallback     : MATCH
+  rollout-2026-09-01T22-12-04-01a05fe3-4282-7453-aab5-3fcf0033e8f4.jsonl   [fresh]
+    cwd                  : /var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-hUXlqZ/codex-spacey-image
+    session start        : 2026-09-02T02:12:04.354Z   file mtime: 2026-09-02T02:12:06.147Z
+    id-anchored (prod)   : MATCH
+    providerSessionId    : 01a05fe3-4282-7453-aab5-3fcf0033e8f4
+    recency fallback     : MATCH
+

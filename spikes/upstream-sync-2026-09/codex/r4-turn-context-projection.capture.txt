@@ -1,0 +1,144 @@
+# r4 — turn_context permission-projection matrix
+codex --version : codex-cli 0.152.0
+expected        : 0.152.0
+captured at     : 2026-09-02T01:50:11.315Z
+
+turn_context records parsed: 1966
+
+## UNIQUE-PROJECTION TEST — (sandbox_policy.type, approval_policy) → reviewer values
+A pair with EXACTLY ONE reviewer value is unambiguous and MAY reconcile.
+A pair with more than one is SHARED and must never overwrite the mirror.
+
+  SHARED  (danger-full-access, never)                n=  472  reviewer: (absent)×94, user×378
+  SHARED  (read-only, never)                         n=  186  reviewer: (absent)×116, user×70
+  UNIQUE  (read-only, on-request)                    n=   61  reviewer: (absent)×61
+  UNIQUE  (workspace-write, never)                   n=   30  reviewer: user×30
+  UNIQUE  (workspace-write, object{granular})        n=    6  reviewer: user×6
+  SHARED  (workspace-write, on-request)              n= 1211  reviewer: (absent)×10, user×1201
+
+## permission_profile.type observed per pair (the #39145 new field)
+  (danger-full-access, never)                disabled×472
+  (read-only, never)                         managed×186
+  (read-only, on-request)                    managed×61
+  (workspace-write, never)                   managed×30
+  (workspace-write, object{granular})        managed×6
+  (workspace-write, on-request)              managed×1211
+
+## full cross-product
+   1201  (workspace-write, on-request) reviewer=user profile=managed
+    378  (danger-full-access, never) reviewer=user profile=disabled
+    116  (read-only, never) reviewer=(absent) profile=managed
+     94  (danger-full-access, never) reviewer=(absent) profile=disabled
+     70  (read-only, never) reviewer=user profile=managed
+     61  (read-only, on-request) reviewer=(absent) profile=managed
+     30  (workspace-write, never) reviewer=user profile=managed
+     10  (workspace-write, on-request) reviewer=(absent) profile=managed
+      6  (workspace-write, object{granular}) reviewer=user profile=managed
+
+## by cli_version / history_mode
+### 0.142.0 / legacy
+      3  (read-only, on-request) reviewer=(absent) profile=managed
+      3  (danger-full-access, never) reviewer=(absent) profile=disabled
+
+### 0.142.0-alpha.6 / legacy
+      7  (danger-full-access, never) reviewer=(absent) profile=disabled
+      1  (workspace-write, on-request) reviewer=(absent) profile=managed
+
+### 0.142.2 / legacy
+     14  (read-only, never) reviewer=(absent) profile=managed
+      2  (read-only, on-request) reviewer=(absent) profile=managed
+      1  (danger-full-access, never) reviewer=(absent) profile=disabled
+      1  (workspace-write, on-request) reviewer=(absent) profile=managed
+
+### 0.142.3 / legacy
+     20  (danger-full-access, never) reviewer=(absent) profile=disabled
+      1  (workspace-write, on-request) reviewer=(absent) profile=managed
+
+### 0.142.4 / legacy
+      1  (danger-full-access, never) reviewer=(absent) profile=disabled
+
+### 0.142.5 / legacy
+    102  (read-only, never) reviewer=(absent) profile=managed
+     62  (danger-full-access, never) reviewer=(absent) profile=disabled
+     56  (read-only, on-request) reviewer=(absent) profile=managed
+      7  (workspace-write, on-request) reviewer=(absent) profile=managed
+
+### 0.144.0-alpha.4 / legacy
+     15  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.144.1 / legacy
+     21  (danger-full-access, never) reviewer=user profile=disabled
+     20  (read-only, never) reviewer=user profile=managed
+
+### 0.144.2 / legacy
+      6  (workspace-write, on-request) reviewer=user profile=managed
+      4  (danger-full-access, never) reviewer=user profile=disabled
+      3  (workspace-write, object{granular}) reviewer=user profile=managed
+
+### 0.144.3 / legacy
+     33  (read-only, never) reviewer=user profile=managed
+     29  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.144.4 / legacy
+     13  (read-only, never) reviewer=user profile=managed
+     13  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.144.5 / legacy
+     31  (danger-full-access, never) reviewer=user profile=disabled
+     30  (workspace-write, on-request) reviewer=user profile=managed
+      2  (read-only, never) reviewer=user profile=managed
+
+### 0.144.6 / legacy
+    130  (workspace-write, on-request) reviewer=user profile=managed
+     15  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.145.0 / legacy
+    371  (workspace-write, on-request) reviewer=user profile=managed
+     28  (workspace-write, never) reviewer=user profile=managed
+      3  (danger-full-access, never) reviewer=user profile=disabled
+      1  (read-only, never) reviewer=user profile=managed
+
+### 0.145.0-alpha.18 / legacy
+     59  (danger-full-access, never) reviewer=user profile=disabled
+      5  (workspace-write, on-request) reviewer=user profile=managed
+      3  (workspace-write, object{granular}) reviewer=user profile=managed
+
+### 0.145.0-alpha.27 / legacy
+     10  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.146.0 / legacy
+    340  (workspace-write, on-request) reviewer=user profile=managed
+      7  (danger-full-access, never) reviewer=user profile=disabled
+      1  (workspace-write, never) reviewer=user profile=managed
+      1  (read-only, never) reviewer=user profile=managed
+
+### 0.146.0-alpha.3 / legacy
+     20  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.146.0-alpha.3.1 / legacy
+     43  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.146.0-alpha.9.2 / legacy
+      6  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.146.1 / legacy
+    184  (workspace-write, on-request) reviewer=user profile=managed
+      4  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.147.0 / paginated
+     74  (workspace-write, on-request) reviewer=user profile=managed
+
+### 0.147.0-alpha.1.2 / legacy
+     49  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.147.0-alpha.6.5 / legacy
+     49  (danger-full-access, never) reviewer=user profile=disabled
+
+### 0.152.0 / paginated
+     61  (workspace-write, on-request) reviewer=user profile=managed
+      1  (workspace-write, never) reviewer=user profile=managed
+
+## consumed fields missing or unreadable
+      3  payload.approval_policy  [0.144.2 / legacy]
+      3  payload.approval_policy  [0.145.0-alpha.18 / legacy]
+

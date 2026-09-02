@@ -1,0 +1,54 @@
+# r3 — deep sweep, history_mode = paginated
+codex --version : codex-cli 0.152.0
+expected        : 0.152.0
+captured at     : 2026-09-02T01:48:38.899Z
+
+## corpus: 117 rollouts with history_mode = paginated
+  0.147.0: 67
+  0.152.0: 50
+
+## record types
+    738  event_msg
+    697  response_item
+    136  turn_context
+    122  world_state
+    117  session_meta
+
+## response_item payload.type (tool/reasoning half)
+    320  message (role=developer)
+    236  message (role=user)
+    137  message (role=assistant)
+      2  reasoning
+      1  custom_tool_call
+      1  custom_tool_call_output
+
+## event_msg payload.type
+    276  item_completed
+    153  task_started
+    137  token_count
+    136  task_complete
+     36  thread_settings_applied
+
+## item_* → item.type [phase]
+    136  item_completed → UserMessage
+    136  item_completed → AgentMessage phase=final_answer
+      2  item_completed → Reasoning
+      1  item_completed → AgentMessage phase=commentary
+      1  item_completed → CommandExecution
+
+## legacy conversational events inside paginated rollouts (double-read risk)
+(none — a paginated rollout carries NO user_message/agent_message event, so
+ handling item_completed alongside them cannot double-emit)
+
+## sanitized AgentMessage samples
+  {"type":"AgentMessage","id":"msg_0c896225d59e4159016a75bed0bbb481968a7bf32d1a6b6cc6","content":[{"type":"Text","text":"SONATA_CODEX_IMAGE_ATTACHMENT_RECEIPT"}],"phase":"final_answer"}
+  {"type":"AgentMessage","id":"msg_043858f3d5c4ebc7016a75bf4712148197a095b23215167b8c","content":[{"type":"Text","text":"SONATA_CODEX_SIX_IMAGE_RECEIPT"}],"phase":"final_answer"}
+  {"type":"AgentMessage","id":"msg_043858f3d5c4ebc7016a75c073d95081979454256689be58d2","content":[{"type":"Text","text":"SONATA_CODEX_CLEAN_SECOND_SEND."}],"phase":"final_answer"}
+  {"type":"AgentMessage","id":"msg_029d03a232803c22016a75c1a2b274819499a64aad6acfa424","content":[{"type":"Text","text":"SONATA_CODEX_SPACEY_IMAGE_RECEIPT"}],"phase":"final_answer"}
+
+## sanitized UserMessage samples
+  {"type":"UserMessage","id":"019fdbf1-52f4-7b50-9f1e-512ac303201f","content":[{"type":"local_image","path":"/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-X6zv8c/codex-image-delivery/red.png"},{"type":"text","text":"[Image #1] Reply exactly SONATA_CODEX_IMAGE_ATTACHMENT_RECEIPT.","text_elements":[{"byte_range":{"start":0,"end":10},"placeholder":"[Image #1]"}]}]}
+  {"type":"UserMessage","id":"019fdbf3-2870-7592-a5cd-b22d96bf1548","content":[{"type":"local_image","path":"/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-X6zv8c/codex-multi-image/multi-1.png"},{"type":"local_image","path":"/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-X6zv8c/codex-multi-image/multi-2.png"},{"type":"local_image","path":"/var/
+  {"type":"UserMessage","id":"019fdbf7-b9af-7572-86be-112573261582","content":[{"type":"text","text":"Reply exactly SONATA_CODEX_CLEAN_SECOND_SEND.","text_elements":[]}]}
+  {"type":"UserMessage","id":"019fdbfc-5d7d-72b3-bb8a-8eddbe4caf3e","content":[{"type":"local_image","path":"/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-X6zv8c/codex-spacey-image/with space/a'b.png"},{"type":"text","text":"[Image #1] Reply exactly SONATA_CODEX_SPACEY_IMAGE_RECEIPT.","text_elements":[{"byte_range":{"start":0,"end":10},"placeholder":"[Image #1]"}]}]}
+

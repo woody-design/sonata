@@ -1385,6 +1385,64 @@ check("codex compaction integrity: unrecognized shapes degrade to no warning", (
   }
 });
 
+// --- The recognized-plain vocabulary grew (SL-8, MEASURED at 0.147.0-alpha.6.5)
+// Re-verifying the 49-record invariant over today's corpus (62 records, twelve
+// CLI versions) turned up a THIRD plain item type: `agent_message`, the
+// multi-agent inter-agent message. Four real records carry it — all four ALSO
+// carry their one healthy `compaction` item, so they are healthy compactions
+// that the original two-word vocabulary read as `unassessable`. That is not a
+// harmless miss: `unassessable` is the "say nothing" verdict, so #36642 had gone
+// silently blind on the newest vintage that compacts at all. These two pins are
+// the amendment and its limit — the alarm's reach is restored, and the alarm
+// itself still requires the summary item to be ABSENT.
+//
+// PROVENANCE (stated precisely — the earlier wording over-claimed): structure,
+// field names and enum values are MEASURED verbatim from a live
+// 0.147.0-alpha.6.5 rollout. The CIPHERTEXT is replaced and the AGENT PATHS are
+// substituted with neutral ones. The `id` is VERBATIM — opaque, and covered by
+// the adjudicated test-fixture UUID allowlist in `.gitleaks.toml`.
+const MEASURED_AGENT_MESSAGE_ITEM = {
+  type: "agent_message",
+  id: "amsg_019fde9c-f34d-7a83-9159-47e7ce528d3b",
+  author: "/root",
+  recipient: "/root/child_agent",
+  content: [
+    { type: "input_text", text: "Message Type: NEW_TASK\nTask name: /root/child_agent\nSender: /root\nPayload:\n" },
+    { type: "encrypted_content", encrypted_content: "gAAAAABqSANITIZEDINTERAGENTPAYLOAD00000000000000000" },
+  ],
+};
+
+check("codex compaction integrity: an agent_message item is plain content, not an unknown shape", () => {
+  const history = [
+    ...HEALTHY_REPLACEMENT_HISTORY.slice(0, -1),
+    MEASURED_AGENT_MESSAGE_ITEM,
+    HEALTHY_REPLACEMENT_HISTORY[HEALTHY_REPLACEMENT_HISTORY.length - 1],
+  ];
+  assert.equal(
+    assessCodexCompactionIntegrity({ replacement_history: history }),
+    "summary-present",
+    "a healthy multi-agent compaction is recognized, not silently abandoned as unassessable",
+  );
+  assert.equal(
+    codexCompactionBlock({ replacement_history: history }).integrity,
+    undefined,
+    "and a healthy record carries no warning",
+  );
+});
+
+check("codex compaction integrity: agent_message items do not mask the #36642 absence", () => {
+  // The amendment's whole point — the alarm must still fire when the summary is
+  // gone from a history that happens to contain inter-agent messages. Without
+  // `agent_message` in the vocabulary this reads `unassessable` (no warning).
+  const history = [...FAILING_REPLACEMENT_HISTORY, MEASURED_AGENT_MESSAGE_ITEM];
+  assert.equal(
+    assessCodexCompactionIntegrity({ replacement_history: history }),
+    "summary-missing",
+    "an absent summary is still the alarm, multi-agent history or not",
+  );
+  assert.equal(codexCompactionBlock({ replacement_history: history }).integrity, "summary-missing");
+});
+
 // MEASURED RECORD ORDERING — the reason the warning needs an in-card placement.
 // Across 49 real `compacted` records in local rollouts (0.142.5 →
 // 0.146.0-alpha.3.1), only 9 are immediately preceded by a `task_started`; the
@@ -1603,6 +1661,360 @@ check("codex: user_message [Image #N] joins the reading display rule", () => {
   assert.equal(display.imageCount, 1, "attachment count drives the chip");
   assert.equal(display.text, "Describe the attached image.", "marker lifted from display text");
   assert.ok(!display.text.includes("[Image #1]"), "no raw marker leaks into the bubble");
+});
+
+// --- Codex PAGINATED rollout vintage (0.147.0+, MEASURED at 0.152.0) ---------
+// Codex 0.147.0 added a per-thread `history_mode`. In "paginated" mode the
+// conversation stops riding `user_message` / `agent_message` events and arrives
+// as `item_completed` wrapping a typed `item`. MEASURED (SL-8 r2, 1,524 local
+// rollouts across 25 CLI versions): the two families are MUTUALLY EXCLUSIVE —
+// a paginated rollout has zero legacy conversational events and vice versa —
+// which is why one reader can serve both without double-emitting.
+//
+// PROVENANCE (stated precisely — the earlier wording over-claimed): record
+// STRUCTURE and every field name/enum below are MEASURED verbatim from live
+// 0.152.0 rollouts (`spikes/upstream-sync-2026-09/codex/
+// r3-paginated-deep-sweep.capture.txt`). PATHS and PROSE are substituted, so
+// the fixture carries no filesystem trace of this machine. The thread/turn/item
+// IDS are VERBATIM — they are opaque, they carry no personal marker, and they
+// fall in the adjudicated test-fixture UUID class allowlisted in
+// `.gitleaks.toml`. Keeping them verbatim is deliberate where an id is the
+// EVIDENCE (see the anti-double-emit fence, whose whole proof is that the
+// `response_item` and its `item_completed` mirror share one reasoning id).
+
+const PAGINATED_TURN_ID = "01a05f9b-af20-76b3-bbc4-9b0b2c49c033";
+
+function paginatedItemLine(item, ts, extra = {}) {
+  return JSON.stringify({
+    timestamp: ts,
+    type: "event_msg",
+    payload: {
+      type: "item_completed",
+      thread_id: "01a05f9b-ae41-7511-a742-7e42fa8d0e08",
+      turn_id: PAGINATED_TURN_ID,
+      item,
+      ...extra,
+    },
+  });
+}
+
+check("codex paginated: item_completed UserMessage carries text + local_image attachments", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const imagePath = "/tmp/work/screenshots/blue square.png";
+  const blocks = [];
+  for (const line of [
+    JSON.stringify({
+      timestamp: "2026-09-02T01:05:56.000Z",
+      type: "event_msg",
+      payload: { type: "task_started", turn_id: PAGINATED_TURN_ID },
+    }),
+    paginatedItemLine(
+      {
+        // MEASURED: images come FIRST, the single text entry last, and its type
+        // is lowercase `text` on a UserMessage (capital `Text` on an
+        // AgentMessage — an upstream asymmetry the reader must tolerate).
+        type: "UserMessage",
+        id: "019fdbf1-52f4-7b50-9f1e-512ac303201f",
+        content: [
+          { type: "local_image", path: imagePath },
+          {
+            type: "text",
+            text: "[Image #1] Describe the attached image.",
+            text_elements: [{ byte_range: { start: 0, end: 10 }, placeholder: "[Image #1]" }],
+          },
+        ],
+      },
+      "2026-09-02T01:05:57.000Z",
+    ),
+  ]) {
+    blocks.push(...normalizer.consumeLine(line));
+  }
+  const userBlock = blocks.find((block) => block.kind === "user-message");
+  assert.ok(userBlock, "a paginated UserMessage item emits a user-message block");
+  assert.equal(userBlock.turnKey, PAGINATED_TURN_ID, "it adopts the task_started turn like the legacy event does");
+  assert.equal(userBlock.text, "[Image #1] Describe the attached image.", "marker kept verbatim");
+  assert.equal(userBlock.attachments.length, 1, "local_image content became one attachment");
+  assert.equal(userBlock.attachments[0].path, imagePath);
+  // The whole point of matching the legacy output shape: the provider-neutral
+  // reading rule keeps working with no vintage branch.
+  const display = userPromptDisplay(userBlock, "");
+  assert.equal(display.imageCount, 1);
+  assert.equal(display.text, "Describe the attached image.");
+});
+
+check("codex paginated: item_completed AgentMessage emits assistant text in BOTH phases", () => {
+  // MEASURED phases: `final_answer` (140 items) and `commentary` (1). The legacy
+  // `agent_message` event carried both channels undifferentiated, so both must
+  // render — dropping commentary would silently shorten the transcript.
+  for (const phase of ["final_answer", "commentary"]) {
+    const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+    const blocks = normalizer.consumeLine(
+      paginatedItemLine(
+        {
+          type: "AgentMessage",
+          id: "msg_0c896225d59e4159016a75bed0bbb481968a7bf32d1a6b6cc6",
+          content: [{ type: "Text", text: "the reply" }],
+          phase,
+        },
+        "2026-09-02T01:05:58.000Z",
+      ),
+    );
+    assert.equal(blocks.length, 1, `phase ${phase} emits exactly one block`);
+    assert.equal(blocks[0].kind, "assistant-text");
+    assert.equal(blocks[0].markdown, "the reply", `phase ${phase} reads the capital-T Text entry`);
+  }
+});
+
+check("codex paginated: Reasoning and CommandExecution items emit NOTHING (anti-double-emit fence)", () => {
+  // MEASURED 1:1 co-occurrence: a paginated rollout carries BOTH the
+  // `item_completed` mirror AND the `response_item` record for the same thinking
+  // block and the same tool call. The normalizer's standing split — text from
+  // event_msg, tools/reasoning from response_item — is what keeps that from
+  // drawing every card twice. Feed both halves and demand ONE each.
+  //
+  // The reasoning halves below are MEASURED from a live 0.152.0 paginated
+  // session driven with `-c model_reasoning_summary="detailed"` (SL-8 r7 —
+  // needed because every Reasoning item in the passive corpus was EMPTY, so
+  // this fence would otherwise assert a mirror nothing had shown to exist).
+  // Note both records share the reasoning `id` VERBATIM and both carry the same
+  // summary text: that is what proves they are one item mirrored, and therefore
+  // that dropping the item half loses nothing rather than losing the block.
+  const REASONING_ID = "rs_0835c13770d466c1016a978e50d9d887d184a1d9104ca1b67f";
+  const REASONING_SUMMARY = "**Ensuring specific pairings**";
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const blocks = [];
+  for (const line of [
+    JSON.stringify({
+      timestamp: "2026-09-02T01:47:17.000Z",
+      type: "event_msg",
+      payload: { type: "task_started", turn_id: PAGINATED_TURN_ID },
+    }),
+    JSON.stringify({
+      timestamp: "2026-09-02T01:47:18.000Z",
+      type: "response_item",
+      payload: {
+        type: "reasoning",
+        id: REASONING_ID,
+        summary: [{ type: "summary_text", text: REASONING_SUMMARY }],
+        encrypted_content: "gAAAAABqSANITIZEDREASONINGCIPHERTEXT0000000000000000",
+      },
+    }),
+    paginatedItemLine(
+      // MEASURED: the item mirror carries the SAME id and the SAME text, flat in
+      // `summary_text` — a populated mirror, not the empty one the passive
+      // corpus happened to contain.
+      { type: "Reasoning", id: REASONING_ID, summary_text: [REASONING_SUMMARY], raw_content: [] },
+      "2026-09-02T01:47:18.500Z",
+    ),
+    JSON.stringify({
+      timestamp: "2026-09-02T01:47:19.000Z",
+      type: "response_item",
+      payload: { type: "custom_tool_call", call_id: "call_zMltAeKx9TMAi29N", name: "exec", input: "{}" },
+    }),
+    paginatedItemLine(
+      {
+        type: "CommandExecution",
+        id: "exec-2eaedf99-617f-49b4-9a59-8fb2fbef6ec8",
+        command: ["/bin/zsh", "-lc", "cat probe.txt"],
+        status: "completed",
+        exit_code: 0,
+        aggregated_output: "hello\n",
+      },
+      "2026-09-02T01:47:23.000Z",
+      { started_at_ms: 1788313643079, completed_at_ms: 1788313643079 },
+    ),
+  ]) {
+    blocks.push(...normalizer.consumeLine(line));
+  }
+  const kinds = blocks.map((block) => block.kind);
+  assert.deepEqual(kinds, ["thinking", "tool-call"], "exactly one thinking block and one tool card, not two of each");
+  // Not two — and not zero. The summary must actually reach the reader, or this
+  // fence would pass just as happily on a normalizer that dropped BOTH halves.
+  assert.equal(
+    blocks[0].text,
+    REASONING_SUMMARY,
+    "the surviving thinking block carries the visible summary — the drop costs no content",
+  );
+});
+
+check("codex vintage parity: the same conversation reads identically in both rollout vintages", () => {
+  // The load-bearing claim of the two-vintage reader. Same turn, same content,
+  // two record families — the emitted block kinds and text must not differ, or
+  // a user's older sessions and their new ones would read as different products.
+  const ts = ["2026-09-02T01:00:00.000Z", "2026-09-02T01:00:01.000Z", "2026-09-02T01:00:02.000Z"];
+  const legacy = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const paginated = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+
+  const legacyBlocks = [
+    ...legacy.consumeLine(
+      JSON.stringify({ timestamp: ts[0], type: "event_msg", payload: { type: "task_started", turn_id: PAGINATED_TURN_ID } }),
+    ),
+    ...legacy.consumeLine(
+      JSON.stringify({
+        timestamp: ts[1],
+        type: "event_msg",
+        payload: { type: "user_message", message: "ask something", images: [], local_images: [], text_elements: [] },
+      }),
+    ),
+    ...legacy.consumeLine(
+      JSON.stringify({ timestamp: ts[2], type: "event_msg", payload: { type: "agent_message", message: "answer something" } }),
+    ),
+  ];
+
+  const paginatedBlocks = [
+    ...paginated.consumeLine(
+      JSON.stringify({ timestamp: ts[0], type: "event_msg", payload: { type: "task_started", turn_id: PAGINATED_TURN_ID } }),
+    ),
+    ...paginated.consumeLine(
+      paginatedItemLine(
+        { type: "UserMessage", id: "u1", content: [{ type: "text", text: "ask something", text_elements: [] }] },
+        ts[1],
+      ),
+    ),
+    ...paginated.consumeLine(
+      paginatedItemLine(
+        { type: "AgentMessage", id: "a1", content: [{ type: "Text", text: "answer something" }], phase: "final_answer" },
+        ts[2],
+      ),
+    ),
+  ];
+
+  const shape = (blocks) =>
+    blocks.map((block) => ({
+      kind: block.kind,
+      turnKey: block.turnKey,
+      seq: block.seq,
+      text: block.kind === "user-message" ? block.text : block.markdown,
+      attachments: block.kind === "user-message" ? block.attachments.length : undefined,
+    }));
+  assert.deepEqual(shape(paginatedBlocks), shape(legacyBlocks), "both vintages produce the same reading");
+  assert.equal(legacyBlocks.length, 2, "and the comparison is against real blocks, not two empty lists");
+});
+
+// --- Codex 0.152.0 turn_context (MEASURED) -----------------------------------
+// The 0.146 pin above uses the 0.144.5 shape. 0.152.0 grew the record from 6
+// fields to 18 — `permission_profile` (#39145), `approvals_reviewer`,
+// `collaboration_mode`, `workspace_roots`, `comp_hash`, `personality`,
+// `multi_agent_version`, `realtime_active`, and `file_system_sandbox_policy`
+// (which the 0.146 inventory row recorded as REMOVED — it is back, and still
+// never read). All four CONSUMED fields kept their names, positions and types:
+// MEASURED across 1,966 turn_context records, zero carried an unreadable one at
+// 0.152.0. This pin is the anchor for that claim.
+check("codex 0.152.0: the enlarged turn_context still yields exactly the four consumed fields", () => {
+  const contexts = [];
+  const normalizer = new CodexRolloutNormalizer({
+    taskId: "task-1",
+    sourceId: "codex:s1",
+    onTurnContext: (context) => contexts.push(context),
+  });
+  const blocks = normalizer.consumeLine(
+    JSON.stringify({
+      timestamp: "2026-09-02T01:05:57.140Z",
+      ordinal: 7,
+      type: "turn_context",
+      payload: {
+        turn_id: "01a05fa6-b27b-7fd3-b3fe-c6a3efe3183d",
+        cwd: "/tmp/work",
+        workspace_roots: ["/tmp/work"],
+        current_date: "2026-09-01",
+        timezone: "America/New_York",
+        approval_policy: "on-request",
+        approvals_reviewer: "user",
+        sandbox_policy: {
+          type: "workspace-write",
+          network_access: false,
+          exclude_tmpdir_env_var: false,
+          exclude_slash_tmp: false,
+        },
+        permission_profile: {
+          type: "managed",
+          file_system: { type: "restricted", entries: [{ path: { type: "path", path: "/tmp/work" }, access: "write" }] },
+          network: "restricted",
+        },
+        file_system_sandbox_policy: {
+          kind: "restricted",
+          entries: [{ path: { type: "path", path: "/tmp/work" }, access: "write" }],
+        },
+        model: "gpt-5.6-sol",
+        comp_hash: "3000",
+        personality: "pragmatic",
+        collaboration_mode: { mode: "default", settings: { model: "gpt-5.6-sol", reasoning_effort: "high" } },
+        multi_agent_version: "v2",
+        realtime_active: false,
+        effort: "high",
+        summary: "auto",
+      },
+    }),
+  );
+  assert.equal(blocks.length, 0, "turn_context is still not a transcript block");
+  assert.deepEqual(
+    contexts[0],
+    { model: "gpt-5.6-sol", effort: "high", approvalPolicy: "on-request", sandboxPolicy: "workspace-write" },
+    "the twelve new sibling fields change nothing the reconcile reads",
+  );
+});
+
+check("codex 0.152.0: a full-access turn_context still projects the unique reconcile pair", () => {
+  // MEASURED live at 0.152.0 (SL-8 r5, spawned with the verbatim
+  // CODEX_PERMISSION_MODE_FLAGS full-access triple). This is the ONE pair
+  // codexPermissionModeFromTurnContext acts on, so its survival across the
+  // 0.152.0 shape change is what keeps the permission mirror reconcilable.
+  // NOTE `permission_profile.type` reads "disabled" here and "managed" for the
+  // other two modes — a candidate second signal, deliberately NOT consumed:
+  // it does not separate ask-for-approval from approve-for-me either, so it
+  // buys no new resolution on the axis that actually needs it.
+  const contexts = [];
+  const normalizer = new CodexRolloutNormalizer({
+    taskId: "task-1",
+    sourceId: "codex:s1",
+    onTurnContext: (context) => contexts.push(context),
+  });
+  normalizer.consumeLine(
+    JSON.stringify({
+      timestamp: "2026-09-02T01:51:58.000Z",
+      type: "turn_context",
+      payload: {
+        turn_id: "01a05fd0-d9ba-78f2-94eb-484d9df435a9",
+        approval_policy: "never",
+        approvals_reviewer: "user",
+        sandbox_policy: { type: "danger-full-access" },
+        permission_profile: { type: "disabled" },
+        model: "gpt-5.6-sol",
+        effort: "high",
+      },
+    }),
+  );
+  assert.equal(contexts[0].sandboxPolicy, "danger-full-access");
+  assert.equal(contexts[0].approvalPolicy, "never");
+});
+
+check("codex 0.152.0: an object-valued approval_policy degrades to null, never a wrong mode", () => {
+  // MEASURED (SL-8 r4): `approval_policy` is not always a string — six local
+  // turn_contexts carry `{granular: {...}}`. The consumed field is string-typed
+  // by guard, so this yields null and the controller keeps the current mirror.
+  // Pinned because a permissive read here would MISLABEL an access level.
+  const contexts = [];
+  const normalizer = new CodexRolloutNormalizer({
+    taskId: "task-1",
+    sourceId: "codex:s1",
+    onTurnContext: (context) => contexts.push(context),
+  });
+  normalizer.consumeLine(
+    JSON.stringify({
+      timestamp: "2026-09-02T01:51:58.000Z",
+      type: "turn_context",
+      payload: {
+        approval_policy: {
+          granular: { sandbox_approval: false, rules: false, skill_approval: false, request_permissions: true },
+        },
+        sandbox_policy: { type: "workspace-write" },
+        model: "gpt-5.6-sol",
+        effort: "high",
+      },
+    }),
+  );
+  assert.equal(contexts[0].approvalPolicy, null, "a non-string approval_policy is not guessed at");
+  assert.equal(contexts[0].sandboxPolicy, "workspace-write", "the readable siblings still come through");
 });
 
 // --- Codex subagent roster (S6) ----------------------------------------------

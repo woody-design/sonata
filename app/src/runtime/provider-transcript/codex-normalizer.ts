@@ -54,6 +54,17 @@ export type CodexCompactionIntegrity = "summary-present" | "summary-missing" | "
  * (Fernet), so its plaintext is unavailable; the item's TYPE is all Sonata can
  * read, and it is enough.
  *
+ * AMENDED at 0.147.0-alpha.6.5 (SL-8 r6, re-verified over 62 records spanning
+ * twelve versions): a THIRD plain item type, `agent_message`, joined the history
+ * alongside `message`. All 4 records carrying it also carry their one healthy
+ * `compaction` item — so the shape is not a failure, but the original vocabulary
+ * read it as unrecognized and returned `unassessable`, which silently retired the
+ * #36642 warning for the newest vintage that compacts at all. `agent_message` is
+ * conversational content, structurally the same as `message`, so it joins the
+ * plain set. The FAILURE signature is unchanged and still the only thing that
+ * raises an alarm: zero `compaction` items among items that are otherwise all
+ * recognized-plain.
+ *
  * THE FAILURE — codex #36642 (open, suspected server-side, present in 0.145.0
  * and unfixed in 0.146.0; version-pinning does not mitigate it). A failed
  * auto-compaction writes the `compacted` record anyway, with a replacement
@@ -93,7 +104,10 @@ export function assessCodexCompactionIntegrity(
       summary = true;
       continue;
     }
-    if (entry.type !== "message") {
+    // The recognized-plain vocabulary. Anything outside it is a shape this
+    // assessment has NOT measured, and an unmeasured shape must never raise the
+    // alarm — see AMENDED above for why `agent_message` is in the set.
+    if (entry.type !== "message" && entry.type !== "agent_message") {
       return "unassessable";
     }
   }
@@ -104,9 +118,26 @@ export function assessCodexCompactionIntegrity(
  * Normalizes Codex rollout JSONL records into transcript blocks.
  *
  * Codex stores conversational text twice: as `response_item` protocol records
- * and as `event_msg` UI events. Text is read from event_msg only
- * (user_message / agent_message) and tool activity from response_item only
- * (function_call / *_output), so duplication is impossible by construction.
+ * and as `event_msg` UI events. Text is read from event_msg only and tool
+ * activity from response_item only (function_call / *_output), so duplication
+ * is impossible by construction.
+ *
+ * TWO ROLLOUT VINTAGES, one reader. Codex 0.147.0 introduced a per-thread
+ * `history_mode` (recorded in `session_meta.payload.history_mode` and in the
+ * state DB's `threads.history_mode`), and it changed which event_msg records
+ * carry the conversation:
+ *
+ *   history_mode = "legacy"    → `user_message` / `agent_message` events
+ *   history_mode = "paginated" → `item_completed` events wrapping an `item`
+ *                                 whose `type` is `UserMessage` / `AgentMessage`
+ *
+ * MEASURED (SL-8, r2/r3, 1,524 local rollouts across 25 CLI versions
+ * 0.142.0 → 0.152.0): the two families are mutually exclusive — a paginated
+ * rollout contains ZERO `user_message`/`agent_message` events, and a legacy one
+ * contains ZERO `item_completed`. So reading both cannot double-emit, and the
+ * split is by construction rather than by a version check the next bump would
+ * falsify. Both vintages stay live because Sonata reads rollouts a user may
+ * have written months ago.
  */
 export class CodexRolloutNormalizer {
   private readonly taskId: TaskId;
@@ -263,65 +294,24 @@ export class CodexRolloutNormalizer {
       return [];
     }
 
+    // LEGACY vintage (history_mode "legacy", every version through 0.146.x and
+    // the 0.147.0 alphas): the conversation rides these two events.
     if (payload.type === "user_message" && typeof payload.message === "string") {
-      const text = payload.message.trim();
-      const attachments = codexImageAttachments(payload);
-      if (!text && attachments.length === 0) {
-        return [];
-      }
-      // Turn key, three ways: (1) adopt the turn_id `task_started` just opened;
-      // (2) legacy/first — no task_started ever, or no turn yet — mint a
-      // synthetic key so each prompt still opens a turn (a synthetic key can
-      // never anchor a Run by id, the honest fallback); (3) a SECOND prompt
-      // inside one task_started turn joins that turn rather than forking to an
-      // unanchorable synthetic key (forward-proofing; ≤1 prompt/turn today).
-      let synthetic = false;
-      if (this.turnAwaitingUser && this.currentTurnKey) {
-        // adopt — currentTurnKey is already the real turn_id
-      } else if (!this.sawTaskStarted || this.currentTurnKey === null) {
-        this.currentTurnKey = `turn-${++this.turnSeq}`;
-        synthetic = true;
-      } // else: join the current task_started turn (keep currentTurnKey)
-      this.turnAwaitingUser = false;
-      const block: UserMessageBlock = {
-        kind: "user-message",
-        id: this.nextBlockId("user"),
-        taskId: this.taskId,
-        sourceId: this.sourceId,
-        provider: "codex",
-        turnKey: this.currentTurnKey,
-        runId: null,
-        ts,
-        seq: ++this.seq,
-        text,
-        command: text.startsWith("/") ? text.split(/\s/, 1)[0] ?? null : null,
-        attachments,
-      };
-      // Only a synthetic user-only turn is reconciliation-eligible for a late
-      // task_started; a real-keyed prompt is already correctly anchored.
-      this.lastUserBlock = synthetic ? block : null;
-      return [block];
+      return this.emitUserMessage(payload.message, codexImageAttachments(payload), ts);
     }
 
     if (payload.type === "agent_message" && typeof payload.message === "string") {
-      const text = payload.message.trim();
-      if (!text) {
-        return [];
-      }
-      return [
-        {
-          kind: "assistant-text",
-          id: this.nextBlockId("text"),
-          taskId: this.taskId,
-          sourceId: this.sourceId,
-          provider: "codex",
-          turnKey: this.ensureTurn(),
-          runId: null,
-          ts,
-          seq: ++this.seq,
-          markdown: text,
-        },
-      ];
+      return this.emitAgentMessage(payload.message, ts);
+    }
+
+    // PAGINATED vintage (history_mode "paginated", 0.147.0+ / MEASURED at
+    // 0.152.0): the same conversation arrives as `item_completed` wrapping a
+    // typed `item`. See the class doc for why reading both families cannot
+    // double-emit. `item_started` / `item_updated` are deliberately NOT read —
+    // neither appears in the measured corpus, and a completed item is the only
+    // one whose text is final.
+    if (payload.type === "item_completed") {
+      return this.consumeCompletedItem(payload.item, ts);
     }
 
     // `turn_aborted` (Esc mid-turn): settle the stuck turn. Anchor to the
@@ -363,6 +353,124 @@ export class CodexRolloutNormalizer {
     // double it. Intentionally ignored.
 
     return [];
+  }
+
+  /**
+   * Read a paginated-vintage `item_completed` item.
+   *
+   * Only the two CONVERSATIONAL item kinds emit. Every other kind — MEASURED:
+   * `Reasoning` and `CommandExecution` — is the event-mirror of a
+   * `response_item` record this normalizer ALREADY reads (`reasoning`,
+   * `custom_tool_call` / `custom_tool_call_output`), so emitting here would draw
+   * every thinking block and every tool card twice.
+   *
+   * `Reasoning` — POSITIVELY MEASURED, not assumed (SL-8 r7). The paginated
+   * corpus's only two Reasoning items were EMPTY (`summary_text: []`), because
+   * their sessions ran with `reasoning summaries: none` — so "the response_item
+   * carries it" had no supporting evidence, and if 0.147+ had moved visible
+   * summaries onto `item.summary_text` / `item.raw_content` (both fields exist,
+   * neither has a reader) this drop would silently lose every thinking block.
+   * Two live 0.152.0 paginated sessions driven with
+   * `-c model_reasoning_summary="detailed"` settle it: the `response_item`
+   * carries the visible summary in the `summary: [{type:"summary_text", text}]`
+   * shape `reasoningSummaryText` already reads, and it shares its `id` with the
+   * `Reasoning` item verbatim — same item, same text, mirrored. Dropping the
+   * mirror loses nothing; reading it would double the block.
+   *
+   * `CommandExecution` — its `response_item` twin is demonstrated to produce the
+   * card (the tool-call fence in the paginated smoke feeds both halves and
+   * demands exactly one), so the same reasoning holds on a smaller sample (n=1).
+   *
+   * That is the same "text from event_msg, tools from response_item" split the
+   * legacy vintage rests on, held across the shape change; an item kind never
+   * measured falls through the same way, which is the fail-safe direction (a
+   * missing block, never a doubled or invented one).
+   */
+  private consumeCompletedItem(item: unknown, ts: string): TranscriptBlock[] {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+    const record = item as Record<string, unknown>;
+    if (record.type === "UserMessage") {
+      return this.emitUserMessage(codexItemText(record), codexItemImageAttachments(record), ts);
+    }
+    if (record.type === "AgentMessage") {
+      // `phase` is `final_answer` or `commentary` (MEASURED). Both are agent
+      // speech the TUI shows, and the legacy `agent_message` event carried both
+      // channels undifferentiated — so both render as assistant text here too,
+      // keeping the two vintages' output identical for the same conversation.
+      return this.emitAgentMessage(codexItemText(record), ts);
+    }
+    return [];
+  }
+
+  /**
+   * Build the prompt block for either vintage. Holds the turn-key rule, which
+   * is subtle enough that both callers must share it rather than restate it.
+   */
+  private emitUserMessage(
+    rawText: string,
+    attachments: TranscriptAttachment[],
+    ts: string,
+  ): TranscriptBlock[] {
+    const text = rawText.trim();
+    if (!text && attachments.length === 0) {
+      return [];
+    }
+    // Turn key, three ways: (1) adopt the turn_id `task_started` just opened;
+    // (2) legacy/first — no task_started ever, or no turn yet — mint a
+    // synthetic key so each prompt still opens a turn (a synthetic key can
+    // never anchor a Run by id, the honest fallback); (3) a SECOND prompt
+    // inside one task_started turn joins that turn rather than forking to an
+    // unanchorable synthetic key (forward-proofing; ≤1 prompt/turn today).
+    let synthetic = false;
+    if (this.turnAwaitingUser && this.currentTurnKey) {
+      // adopt — currentTurnKey is already the real turn_id
+    } else if (!this.sawTaskStarted || this.currentTurnKey === null) {
+      this.currentTurnKey = `turn-${++this.turnSeq}`;
+      synthetic = true;
+    } // else: join the current task_started turn (keep currentTurnKey)
+    this.turnAwaitingUser = false;
+    const block: UserMessageBlock = {
+      kind: "user-message",
+      id: this.nextBlockId("user"),
+      taskId: this.taskId,
+      sourceId: this.sourceId,
+      provider: "codex",
+      turnKey: this.currentTurnKey,
+      runId: null,
+      ts,
+      seq: ++this.seq,
+      text,
+      command: text.startsWith("/") ? text.split(/\s/, 1)[0] ?? null : null,
+      attachments,
+    };
+    // Only a synthetic user-only turn is reconciliation-eligible for a late
+    // task_started; a real-keyed prompt is already correctly anchored.
+    this.lastUserBlock = synthetic ? block : null;
+    return [block];
+  }
+
+  /** Build the reply block for either vintage. */
+  private emitAgentMessage(rawText: string, ts: string): TranscriptBlock[] {
+    const text = rawText.trim();
+    if (!text) {
+      return [];
+    }
+    return [
+      {
+        kind: "assistant-text",
+        id: this.nextBlockId("text"),
+        taskId: this.taskId,
+        sourceId: this.sourceId,
+        provider: "codex",
+        turnKey: this.ensureTurn(),
+        runId: null,
+        ts,
+        seq: ++this.seq,
+        markdown: text,
+      },
+    ];
   }
 
   /**
@@ -750,6 +858,70 @@ function codexImageAttachments(payload: Record<string, unknown>): TranscriptAtta
       path: image,
       mediaType: null,
     }));
+}
+
+/**
+ * The text of a paginated-vintage `item`, from its `content` array.
+ *
+ * MEASURED (SL-8 r3, 141 AgentMessage + 140 UserMessage items): the text entry
+ * spells its type `text` on a UserMessage and `Text` on an AgentMessage — an
+ * upstream asymmetry, so both spellings are accepted rather than either being
+ * hardcoded per item kind. Exactly one text entry per item was observed; the
+ * loop still concatenates every one it finds, because dropping content is the
+ * one failure mode a reader must not have.
+ *
+ * A UserMessage's text carries its `[Image #N]` placeholders inline, byte-identical
+ * to the legacy `user_message.message` — so the reading layer's placeholder rule
+ * needs no vintage branch.
+ */
+function codexItemText(item: Record<string, unknown>): string {
+  const content = item.content;
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  const parts: string[] = [];
+  for (const entry of content) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    const part = entry as Record<string, unknown>;
+    if (typeof part.type !== "string" || part.type.toLowerCase() !== "text") {
+      continue;
+    }
+    if (typeof part.text === "string") {
+      parts.push(part.text);
+    }
+  }
+  return parts.join("\n");
+}
+
+/**
+ * The image attachments of a paginated-vintage `item` — the `local_image`
+ * content entries, which replace the legacy event's flat `local_images` array.
+ * Same output shape, so attachments render identically across vintages.
+ */
+function codexItemImageAttachments(item: Record<string, unknown>): TranscriptAttachment[] {
+  const content = item.content;
+  if (!Array.isArray(content)) {
+    return [];
+  }
+  const attachments: TranscriptAttachment[] = [];
+  for (const entry of content) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    const part = entry as Record<string, unknown>;
+    if (part.type !== "local_image" || typeof part.path !== "string" || !part.path.trim()) {
+      continue;
+    }
+    attachments.push({
+      kind: "image",
+      source: "local-path",
+      path: part.path,
+      mediaType: null,
+    });
+  }
+  return attachments;
 }
 
 function parseToolArguments(payload: Record<string, unknown>): unknown {

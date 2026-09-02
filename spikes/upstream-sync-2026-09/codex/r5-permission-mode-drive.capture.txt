@@ -1,0 +1,41 @@
+# r5 — live turn_context per Sonata permission mode
+codex --version : codex-cli 0.152.0
+expected        : 0.152.0
+captured at     : 2026-09-02T01:51:49.844Z
+
+## ask-for-approval
+  spawn: codex exec --skip-git-repo-check -C /private/tmp/sonata-sync-2026-09/r5-ask-for-approval -s workspace-write -c approval_policy="on-request" -c approvals_reviewer="user" "Reply with exactly SONATA_SL8_R5_ASK_FOR_APPROVAL and nothing else. Do not call any tool."
+  exit: 0
+  rollout: ~/.codex/sessions/2026/09/01/rollout-2026-09-01T21-51-49-01a05fd0-ba71-7633-9379-9c48c1713dc8.jsonl
+  turn_context records: 1
+    sandbox_policy.type="workspace-write"  approval_policy="never"  approvals_reviewer="user"  permission_profile.type="managed"
+    model="gpt-5.6-sol"  effort="high"
+  codexPermissionModeFromTurnContext("workspace-write", "never") ⇒ null (keeps mirror)
+  spawn reviewer=user vs turn_context reviewer="user"
+
+## approve-for-me
+  spawn: codex exec --skip-git-repo-check -C /private/tmp/sonata-sync-2026-09/r5-approve-for-me -s workspace-write -c approval_policy="on-request" -c approvals_reviewer="auto_review" "Reply with exactly SONATA_SL8_R5_APPROVE_FOR_ME and nothing else. Do not call any tool."
+  exit: 0
+  rollout: ~/.codex/sessions/2026/09/01/rollout-2026-09-01T21-51-53-01a05fd0-ca81-7312-aa52-4f2e18c3aad7.jsonl
+  turn_context records: 1
+    sandbox_policy.type="workspace-write"  approval_policy="on-request"  approvals_reviewer="auto_review"  permission_profile.type="managed"
+    model="gpt-5.6-sol"  effort="high"
+  codexPermissionModeFromTurnContext("workspace-write", "on-request") ⇒ null (keeps mirror)
+  spawn reviewer=auto_review vs turn_context reviewer="auto_review"
+
+## full-access
+  spawn: codex exec --skip-git-repo-check -C /private/tmp/sonata-sync-2026-09/r5-full-access -s danger-full-access -c approval_policy="never" -c approvals_reviewer="user" "Reply with exactly SONATA_SL8_R5_FULL_ACCESS and nothing else. Do not call any tool."
+  exit: 0
+  rollout: ~/.codex/sessions/2026/09/01/rollout-2026-09-01T21-51-57-01a05fd0-d9ba-78f2-94eb-484d9df435a9.jsonl
+  turn_context records: 1
+    sandbox_policy.type="danger-full-access"  approval_policy="never"  approvals_reviewer="user"  permission_profile.type="disabled"
+    model="gpt-5.6-sol"  effort="high"
+  codexPermissionModeFromTurnContext("danger-full-access", "never") ⇒ "full-access"
+  spawn reviewer=user vs turn_context reviewer="user"
+
+## verdict table
+mode              spawn (sandbox, approval, reviewer)                 turn_context (sandbox, approval, reviewer)          reconcile
+ask-for-approval  (workspace-write, on-request, user)                 (workspace-write, never, user)                      null
+approve-for-me    (workspace-write, on-request, auto_review)          (workspace-write, on-request, auto_review)          null
+full-access       (danger-full-access, never, user)                   (danger-full-access, never, user)                   full-access
+

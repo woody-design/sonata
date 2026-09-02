@@ -1,0 +1,37 @@
+# r7 — paginated reasoning-summary drive
+codex --version : codex-cli 0.152.0
+expected        : 0.152.0
+captured at     : 2026-09-02T02:47:41.509Z
+
+spawn: codex exec --skip-git-repo-check -C /private/tmp/sonata-sync-2026-09/r7-reasoning -c model_reasoning_summary="detailed" "Think step by step about why 1729 is the smallest number expressible as the sum of two positive cubes in two different ways, then reply with just the two pairs."
+exit  : 0
+header: (not found)
+
+rollout: ~/.codex/sessions/2026/09/01/rollout-2026-09-01T22-47-41-01a06003-dedf-79f1-b2dd-403c71756145.jsonl
+history_mode: paginated
+
+## response_item / reasoning  (the record the normalizer READS)
+  id            : rs_0835c13770d466c1016a978e50d9d887d184a1d9104ca1b67f
+  summary[]     : ["**Ensuring specific pairings**"]
+  summary shape : ["summary_text"]
+  encrypted_content: 1420 chars
+
+## event_msg / item_completed / Reasoning  (the mirror the normalizer DROPS)
+  id            : rs_0835c13770d466c1016a978e50d9d887d184a1d9104ca1b67f
+  summary_text[]: ["**Ensuring specific pairings**"]
+  raw_content[] : []
+
+## MIRROR TEST — do the two records describe the SAME item?
+  response_item ids : rs_0835c13770d466c1016a978e50d9d887d184a1d9104ca1b67f
+  item ids          : rs_0835c13770d466c1016a978e50d9d887d184a1d9104ca1b67f
+  ids in BOTH       : 1 / 1
+  response text     : ["**Ensuring specific pairings**"]
+  item text         : ["**Ensuring specific pairings**"]
+  VERDICT           : SAME ITEM, SAME TEXT — the response_item carries the visible summary, so dropping the mirror loses nothing
+
+## what the BUILT normalizer emits for this rollout
+  user-message    | Think step by step about why 1729 is the smallest number exp
+  thinking        | **Ensuring specific pairings**
+  assistant-text  | (1, 12) and (9, 10)
+  thinking blocks: 1  (expected exactly 1 — not 0, not 2)
+
