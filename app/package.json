@@ -206,6 +206,7 @@
     "smoke:run-index-compaction": "npm run build:main && node tests/smoke/run-index-compaction.mjs",
     "smoke:run-index-storm": "npm run build:main && node tests/smoke/run-index-storm.mjs",
     "smoke:stop-hook-completion": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/stop-hook-completion.mjs",
+    "smoke:background-wake-modeling": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/background-wake-modeling.mjs",
     "smoke:login-shell-path": "npm run build:main && node tests/smoke/login-shell-path.mjs",
     "smoke:packaged-runtime-paths": "npm run build:main && node tests/smoke/packaged-runtime-paths.mjs",
     "smoke:packaged-app": "node tests/smoke/packaged-app-assert.mjs",

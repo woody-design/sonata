@@ -45,6 +45,7 @@ const {
   claudeHooksDirectory,
   CliStateModel,
   readBackgroundWork,
+  BackgroundWorkTracker,
 } = require(APP_DIR + "dist/runtime");
 const { NotificationPolicy } = require(APP_DIR + "dist/main/notification-policy");
 
@@ -205,7 +206,7 @@ function compactRunPayload(payload = {}) {
 }
 
 class Session {
-  constructor(name) {
+  constructor(name, opts = {}) {
     this.name = name;
     this.t0 = Date.now();
     this.hooks = [];
@@ -234,13 +235,15 @@ class Session {
     });
     // The production notification chain: cli-state feeds `cli-state:changed`,
     // which the policy observes. Same objects, same order as `RuntimeController`.
-    this.policy = new NotificationPolicy();
+    this.policy = new NotificationPolicy(opts.policyOptions ?? {});
+    // The session's background-work memory, exactly as ActiveTaskRuntime holds one.
+    this.backgroundWork = new BackgroundWorkTracker();
     this.cliState = new CliStateModel((snapshot) => {
       this.cliStates.push({
         atMs: this.at(),
         activity: snapshot.activity,
         source: snapshot.source,
-        pendingWake: snapshot.pendingWake,
+        turnEndWake: snapshot.turnEndWake,
       });
       const decision = this.policy.observe({
         type: "cli-state:changed",
@@ -249,7 +252,7 @@ class Session {
           activity: snapshot.activity,
           tool: snapshot.tool,
           approvalKind: snapshot.approvalKind,
-          pendingWake: snapshot.pendingWake,
+          turnEndWake: snapshot.turnEndWake,
           source: snapshot.source,
           changedAt: snapshot.changedAt,
         },
@@ -297,21 +300,36 @@ class Session {
     const event = typeof payload.hook_event_name === "string" ? payload.hook_event_name : "<none>";
     this.hooks.push({ atMs: this.at(), event, keys: Object.keys(payload).sort(), payload: renderPayload(payload) });
 
-    // PRODUCTION's dispatch edges as SHIPPED at SL-16, verbatim, in order.
-    this.cliState.applyHook(payload);
-    const backgroundWork = readBackgroundWork(payload);
+    // PRODUCTION's dispatch edges as SHIPPED at SL-16, verbatim, in order —
+    // including the ONE advance of the session's background-work memory, gated
+    // on main-turn endings and handed to BOTH consumers.
+    const turnEndWake =
+      event === "Stop" || event === "StopFailure" || event === "Interrupt"
+        ? (this.backgroundWork.noteTurnEnd(readBackgroundWork(payload)) ?? undefined)
+        : undefined;
     if (event === "Stop" || event === "StopFailure") {
-      this.claims.push({ atMs: this.at(), event, claim: backgroundWork });
+      this.claims.push({
+        atMs: this.at(),
+        event,
+        raw: readBackgroundWork(payload).kind,
+        turnEndWake: turnEndWake ?? null,
+      });
     }
+    this.cliState.applyHook(payload, turnEndWake ? { turnEndWake } : {});
     if (event === "SessionStart") this.host.noteHookSessionStart();
     if (event === "UserPromptSubmit") {
       this.host.beginRunFromHook(typeof payload.prompt === "string" ? payload.prompt : "", {
         promptId: typeof payload.prompt_id === "string" ? payload.prompt_id : null,
       });
     }
-    if (event === "Stop") this.host.completeRunFromTurnEnd({ backgroundWork });
+    if (event === "Stop") {
+      this.host.completeRunFromTurnEnd(turnEndWake ? { turnEndWake } : {});
+    }
     if (event === "StopFailure") {
-      this.host.completeRunFromTurnEnd({ errorExcerpt: String(payload.error ?? "API error"), backgroundWork });
+      this.host.completeRunFromTurnEnd({
+        errorExcerpt: String(payload.error ?? "API error"),
+        ...(turnEndWake ? { turnEndWake } : {}),
+      });
     }
   }
 
@@ -452,7 +470,7 @@ async function armRevivalLive() {
   const revivalRun = session.events.find((e) => e.type === "run:started" && e.atMs > stopAtMs) ?? null;
   const claims = session.claims;
 
-  const c1 = claims[0]?.claim?.kind === "pending";
+  const c1 = claims[0]?.raw === "pending" && Boolean(claims[0]?.turnEndWake?.opened);
   const c2 =
     pausedRun?.payload.status === "completed" &&
     pausedRun?.payload.completionSource === "hook-stop" &&
@@ -488,11 +506,76 @@ async function armRevivalLive() {
   });
 }
 
+
+/**
+ * Z4B — the B1 regression, live. A LONG-LIVED background task (the dev-server
+ * shape) stays in `background_tasks` for the rest of the session, so the naive
+ * "non-empty means paused" reading would swallow every completion ping from
+ * here on. Two turns, one long-lived task: turn 1 legitimately opens a pause,
+ * turn 2 must open NOTHING and must ping.
+ *
+ * No wake is awaited and none is wanted — that is the whole point, and it is
+ * why this arm costs ~40s rather than ~90s. The completion floor is lowered to
+ * 1s for this arm and SAID SO here: the production floor is a "were you still
+ * watching" heuristic, and holding turn 2 under a 30s floor would measure the
+ * floor rather than the pause logic this arm exists to test.
+ */
+async function armDevServerLive() {
+  const session = new Session("z4b-dev-server", { policyOptions: { completeFloorMs: 1000 } });
+  if (!(await session.boot())) return session.finish({ verdict: "BOOT FAILED" });
+
+  session.host.submitPrompt(
+    "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 600. " +
+      "Do NOT wait for it, do NOT poll it, and do not run any other tool. " +
+      "As soon as it is started, reply with exactly: STARTED",
+  );
+  const turn1Over = await session.waitUntil(() => session.claims.length >= 1, 180_000);
+  const turn1 = session.claims[0] ?? null;
+  await delay(2500);
+
+  // A SECOND, ordinary turn while the long-lived task keeps running.
+  session.host.submitPrompt("Reply with exactly: SECOND");
+  const turn2Over = await session.waitUntil(() => session.claims.length >= 2, 180_000);
+  await delay(3000);
+  const turn2 = session.claims[1] ?? null;
+
+  const b1 = turn1?.raw === "pending" && Boolean(turn1?.turnEndWake?.opened);
+  // The array is STILL non-empty on turn 2 — that is what makes the check
+  // meaningful. If the CLI had dropped the task, this would prove nothing.
+  const b2 = turn2?.raw === "pending";
+  const b3 = turn2?.turnEndWake?.opened === null;
+  const completes = session.notifications.filter((n) => n.kind === "complete");
+  const b4 = completes.length === 1;
+  const pausedRuns = session.events.filter(
+    (event) => event.type === "run:updated" && event.payload.pendingWake,
+  );
+  const b5 = pausedRuns.length === 1;
+
+  return session.finish({
+    turn1Over,
+    turn2Over,
+    turn1Claim: turn1,
+    turn2Claim: turn2,
+    completes,
+    stampedRuns: pausedRuns.map((event) => event.payload.id),
+    checks: {
+      "B1 turn 1 opens a pause (the task is new)": b1,
+      "B1 turn 2's payload STILL names the task (the array is session state)": b2,
+      "B1 turn 2 opens NOTHING (no growth = no pause)": b3,
+      "B1 exactly one complete fired — turn 2's, not swallowed": b4,
+      "B1 exactly one card stamped — turn 1's": b5,
+    },
+    verdict:
+      b1 && b2 && b3 && b4 && b5 ? "PASS — the dev-server regression is fixed live" : "FAIL — see checks",
+  });
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const result = await armRevivalLive();
+const devServer = await armDevServerLive();
 const endPin = pinVersion("probe end");
 const restore = restoreOnce();
 
@@ -507,18 +590,45 @@ fs.writeFileSync(
     "## Verdict",
     "",
     "```json",
-    sanitize(JSON.stringify({ verdict: result.verdict, checks: result.checks }, null, 2)),
+    sanitize(
+      JSON.stringify(
+        {
+          z4a: { verdict: result.verdict, checks: result.checks },
+          z4b: { verdict: devServer.verdict, checks: devServer.checks },
+        },
+        null,
+        2,
+      ),
+    ),
     "```",
     "",
-    "## Full record",
+    "## z4a — the revival arc, full record",
     "",
     "```json",
     sanitize(JSON.stringify(result, null, 2)),
+    "```",
+    "",
+    "## z4b — the dev-server (B1) arm, full record",
+    "",
+    "```json",
+    sanitize(JSON.stringify(devServer, null, 2)),
     "```",
     "",
   ].join("\n"),
   "utf8",
 );
 
-console.log(JSON.stringify({ verdict: result.verdict, checks: result.checks, endDrift: endPin.drifted }, null, 2));
-process.exit(result.verdict.startsWith("PASS") && !endPin.drifted ? 0 : 1);
+console.log(
+  JSON.stringify(
+    {
+      z4a: { verdict: result.verdict, checks: result.checks },
+      z4b: { verdict: devServer.verdict, checks: devServer.checks },
+      endDrift: endPin.drifted,
+    },
+    null,
+    2,
+  ),
+);
+process.exit(
+  result.verdict.startsWith("PASS") && devServer.verdict.startsWith("PASS") && !endPin.drifted ? 0 : 1,
+);

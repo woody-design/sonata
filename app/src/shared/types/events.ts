@@ -16,7 +16,9 @@ import type {
   DeliveryReceipt,
   DeliveryTaskState,
   LaunchSpeedMode,
+  PendingWake,
   ReasoningEffort,
+  TurnEndWake,
   RunId,
   RunKind,
   RunStatus,
@@ -279,6 +281,11 @@ export type CliStateChangedEvent = BaseRuntimeEvent<
     activity: CliActivity;
     tool: string | null;
     approvalKind: string | null;
+    /** SL-16 — the `turn-ended` qualifier: what this turn ending said about
+     *  background work, session history accounted for. Optional on the wire
+     *  because recorded event fixtures predate the field, and a missing value
+     *  must read as "no claim", never as "nothing in flight". */
+    turnEndWake?: TurnEndWake | null;
     source: string;
     changedAt: string;
   }
@@ -329,6 +336,16 @@ export type RunStartedEvent = BaseRuntimeEvent<
      *  bridge; null for runs begun before the hook fires (idle-path writes)
      *  or recorded pre-bridge — those fall back to text/time matching. */
     promptId?: string | null;
+    /**
+     * SL-16 — the run this one CONTINUES: the id of the run whose turn end
+     * announced the in-flight background work whose completion woke the session
+     * and started this turn. Set only on a revival (a `<task-notification>`
+     * prompt arriving while a wake is awaited), so it is the run model agreeing
+     * with the "(background task returned)" title the reading surface already
+     * shows. Absent on every ordinary run, including one the user types DURING
+     * a pause — their prompt is their own turn, not the continuation.
+     */
+    revivalOf?: RunId | null;
     status: RunStatus;
     lifecyclePhase: RunStatus;
     startedAt: string;
@@ -343,6 +360,11 @@ export type RunUpdatedEvent = BaseRuntimeEvent<
   "run:updated",
   RunStartedEvent["payload"] & {
     statusReason?: string;
+    /** SL-16 — "ended, expecting wake": this run's turn-end payload declared
+     *  in-flight background work. Only ever set on a settled run, alongside
+     *  `status: "completed"` (the turn did end) — see {@link PendingWake} for
+     *  why it is a second axis and not a status. */
+    pendingWake?: PendingWake;
     completionHint?: CompletionHint;
     lastLifecycleHint?: unknown;
     approvalKind?: ApprovalKind;

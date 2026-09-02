@@ -32,7 +32,7 @@
  * fired adds no coverage — see `stoplessTurnEndConfirmed` for what does.
  */
 
-import type { RuntimeProvider, TaskId } from "./domain";
+import type { RuntimeProvider, TaskId, TurnEndWake } from "./domain";
 
 /**
  * Hook events sonata injects + observes. Discriminator = `hook_event_name`.
@@ -248,7 +248,10 @@ export interface HookPayload {
    * e.g. `claude-opus-5[1m]`; codex: `gpt-5.6-sol`). Claude additionally stamps
    * `scratchpad_dir` everywhere, `source` on `SessionStart` ("startup"), `effort`
    * (`{level}`) on the tool and `Stop` events, and `background_tasks` +
-   * `session_crons` on `Stop`/`SubagentStop`.
+   * `session_crons` on `Stop`/`SubagentStop`. The last two are no longer
+   * unread — SL-16 consumes `background_tasks` off the closing `Stop`; see
+   * `runtime/cli-signal/background-work` for the contract and `session_crons`
+   * for why the cron sibling is deliberately not a pause.
    *
    * The `effort` one is worth a second look by whoever takes the register item
    * "the claude effort axis is OPTIONAL and Sonata models it as mandatory"
@@ -259,7 +262,20 @@ export interface HookPayload {
   source?: string;
   effort?: unknown;
   scratchpad_dir?: string;
+  /**
+   * `Stop` / `SubagentStop` (claude, MEASURED 2.1.258). The in-flight background
+   * work that will wake this session — the CLI's own "session is done" vs
+   * "session is paused waiting for background work" discriminator. Left `unknown`
+   * on the wire type, as the permissive-boundary rule prescribes: the one reader
+   * (`readBackgroundWork`) validates the shape it consumes and treats anything
+   * else as "said nothing". Entries measured as
+   * `{id, type, status, description, command}`.
+   */
   background_tasks?: unknown;
+  /** `Stop` / `SubagentStop` (claude, MEASURED). Scheduled wakeups
+   *  (`CronCreate` / `ScheduleWakeup` / `/loop`), `{id, schedule, recurring,
+   *  prompt}`. Read for the record, deliberately NOT treated as a paused turn —
+   *  see `background-work`. */
   session_crons?: unknown;
   /** PostToolUseFailure (claude, MEASURED) — alongside `error`. `is_interrupt`
    *  distinguishes a tool the USER killed from one that failed on its own. */
@@ -299,6 +315,22 @@ export interface CliStateSnapshot {
   tool: string | null;
   /** Approval kind when waiting-approval (from the scrape fallback or a hook). */
   approvalKind: string | null;
+  /**
+   * A QUALIFIER on `turn-ended`, in the same class as `tool` and `approvalKind`
+   * on the states they qualify (SL-16): what this turn ending said about
+   * background work, once the session's own history is accounted for. Null on
+   * every other activity, and on a turn end whose payload said nothing.
+   *
+   * It lives on the LIVE state, not only on the run record, because it is needed
+   * EARLIER than the run record can deliver it: `RuntimeController.applyHookToTask`
+   * drives cli-state before it completes the run, so `cli-state:changed` is the
+   * first — and at the moment of the turn end, the only — event carrying the fact.
+   * The notification policy is what needs it there (a "complete" ping fired at a
+   * pause is the lie SL-16 removes), and it needs BOTH halves: `opened` decides
+   * whether to hold, `returned` decides which clock the eventual ping is measured
+   * against.
+   */
+  turnEndWake: TurnEndWake | null;
   /** What last drove the state — for telemetry/debugging, never UI copy. */
   source: string;
   /** ISO timestamp of the last change. */

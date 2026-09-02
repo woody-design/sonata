@@ -376,6 +376,11 @@ export class RunIndex {
           kind: event.payload.kind,
           prompt: event.payload.prompt,
           promptId: event.payload.promptId ?? null,
+          // The revival link is known at BIRTH and must ride the first event:
+          // `run:started` is what materializes the row, and a follow-up patch
+          // would leave a window where the reading surface shows an unexplained
+          // new run — the same reasoning that puts the honest title here.
+          ...(event.payload.revivalOf ? { revivalOf: event.payload.revivalOf } : {}),
           title: event.payload.title,
           status: event.payload.status,
           lifecyclePhase: event.payload.lifecyclePhase,
@@ -399,6 +404,7 @@ export class RunIndex {
             prompt: event.payload.prompt,
             title: event.payload.title,
             ...(event.payload.promptId != null ? { promptId: event.payload.promptId } : {}),
+            ...(event.payload.revivalOf ? { revivalOf: event.payload.revivalOf } : {}),
             status: event.payload.status,
             lifecyclePhase: event.payload.lifecyclePhase,
             startedAt: event.payload.startedAt,
@@ -410,6 +416,9 @@ export class RunIndex {
           };
           if (event.payload.statusReason !== undefined) {
             patch.statusReason = event.payload.statusReason;
+          }
+          if (event.payload.pendingWake !== undefined) {
+            patch.pendingWake = event.payload.pendingWake;
           }
           if (event.payload.completionHint !== undefined) {
             patch.completionHint = event.payload.completionHint;

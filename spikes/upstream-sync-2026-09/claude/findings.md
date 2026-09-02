@@ -2566,3 +2566,330 @@ that z2a re-measured SL-2b's shipped stopless closer at **Esc+32532ms**, matchin
 that slice's committed figure (32532/32509/32519) exactly — consistent with an
 unchanged terminal-host, though not proof of one. Any re-run of these probes
 should re-state its own build provenance rather than inherit this one.
+
+# SL-16 — revival modeling: "ended, expecting wake" (built 2026-09-02, binary 2.1.258)
+
+The modeling slice F47 was the design input for. SL-12 measured the signal and
+shipped nothing; this ships the model and verifies it LIVE (probe `z4`).
+
+## F49 — the emitted `background_tasks` array is ALREADY the pause (STATIC, decisive for the design)
+
+The one static read this slice needed, and it removed a design question rather
+than adding one. `Stop`'s array is built by a filter that runs BEFORE emission
+(2.1.258 bundle, verbatim):
+
+```js
+function tm(e){
+  if(e.status!=="running" && e.status!=="pending") return false;
+  if("isBackgrounded" in e && e.isBackgrounded===false) return false;
+  return true;
+}
+```
+
+So every entry that reaches a hook is, by the vendor's own definition, in-flight
+backgrounded work. Sonata therefore does NOT re-filter on `status`: re-deriving a filter it can read would be
+second-guessing upstream with a copy that can drift. The `type` values are mapped
+through the bundle's own label table (`local_bash→shell`, `local_agent→subagent`,
+`local_workflow→workflow`, `monitor_mcp`/`monitor_ws→monitor`,
+`mcp_task→MCP task`, `in_process_teammate→teammate`, `dream`,
+`auto_mode_scan→auto-mode scan`, `remote_agent→cloud session`) — recorded
+verbatim on the run, because "waiting on WHAT" is the durable diagnostic and an
+unrecognised future kind must survive rather than be flattened.
+
+**CORRECTED BY F56 (review B1):** this finding's first write-up concluded
+"non-empty IS the pause declaration", and that inference was WRONG — the same
+schema sentence says the array is registered *in this session*, so it is session
+state and a long-lived task sits in it forever. Membership is a vendor fact;
+the PAUSE is a per-turn question the array alone cannot answer. See F56.
+
+`session_crons` is built beside it (`{id, schedule, recurring, prompt}`) and is
+**deliberately NOT a pause.** The vendor's two descriptions differ exactly where
+it matters: background work leaves the session "PAUSED waiting … to wake it",
+a cron merely "will wake this session later". A standing schedule is not a paused
+turn — a session with a daily cron is DONE for today, and folding it in would
+suppress the completion notification of every turn that session ever runs.
+
+## F50 — what shipped, and why `RunStatus` was NOT widened
+
+Woody's intent was a card that is honest — "ended, but expected to wake", neither
+"done" nor "still working". The obvious reading of F47's "a state the run model
+does not currently have" is a new `RunStatus` member. **Rejected on a survey of
+its consumers**, and the survey is the finding: there is no exhaustive `switch`
+on `RunStatus` anywhere in the tree. Every consumer is an if-chain or a hardcoded
+string array with a silent default, so a new member compiles clean and does the
+WRONG thing in seven places at once — `taskStatusFromRunStatus` → `idle`,
+`isPendingTurnEnd` → broker approvals and option prompts never released,
+`status-region-tracker`'s terminal-status array → the liveness clock runs
+forever, both `completionSourceForStatus`/`completionConfidenceForStatus`
+fallbacks, `runTone` → an unstyled class, `runOutcome` → "Claude is working" on an
+ended run — plus two allowlist guards that would silently drop work.
+
+And none of those seven wants a different answer than `completed` already gives.
+The turn DID end: the model stopped, the composer came back, the user can type.
+So SHIPPED is a SECOND AXIS beside the status — `PendingWake {tasks:[{id,kind}]}`,
+optional, stamped only by a turn end that left NEW work behind (the ids are what
+make that diffable — F56):
+
+- `status` stays `completed`, `completionSource` stays `hook-stop`, and
+  `completionConfidence` stays **`high`**. Demoting the confidence was considered
+  and rejected: that axis answers "how sure are we the turn ended?", and the Stop
+  hook is exactly as authoritative as it ever was. Answering a different question
+  on it would corrupt a well-defined axis.
+- A new `CompletionSource` member was also rejected — the source names WHICH hook
+  ended the turn, and it was `Stop`. Orthogonal axes stay orthogonal.
+- Additive in-place widening at v1 (the tree's established practice, and the only
+  safe one: a version bump DISCARDS every user's run history — `readExistingReport`
+  returns a fresh report on any mismatch, with no migration path).
+
+## F51 — the notification: held, not cancelled, and it is the approval rule again
+
+Before: one request produced TWO "task complete" pings (F47, measured 4/4) — one
+at the pause, false, and one ~70s later at the real end. Options weighed: ping at
+the pause with a background-work flavour (still two), ping only at the pause, or
+hold. **HELD**, because a notification's job is "your turn", and at the pause
+nothing is being asked of the user and the work they asked for is not finished.
+
+The shape it took is the one the policy already had: re-entering `busy` from
+`waiting-approval` deliberately does NOT reset the turn clock, because "a turn
+with an approval is a long turn". A turn with a background wake is a long turn,
+same principle, same code. So the arc stays ARMED across the pause and the clock
+keeps running from the ORIGINAL submit — which is right, because the whole paused
+stretch is time the user was away. One arc, one ping, at whichever turn end is
+genuinely final.
+
+Two scopes had to be kept APART, and merging them would have cost the user a
+notification: the ARC is held, but the TURN is not. `notifiedAsks` is turn-scoped
+by its own contract, so the wake clears it — an approval raised after the wake is
+a new question, even when its fingerprint matches one from before the pause.
+
+**RESIDUAL — and the FIRST write-up's bound was self-cancelling, corrected in
+F56.** It claimed "a later turn end on that task still fires", which is only true
+if the background task VANISHED — i.e. exactly not the never-wakes case the bound
+was supposed to cover. With F56's growth scoping the residual is genuinely
+bounded and much smaller: only the ONE turn that launched never-returning work
+loses its ping; every later turn in that session pings normally, because none of
+them opened anything. A dead PTY drops the arc.
+
+## F52 — attribution, and the F43 gap resized rather than closed
+
+`revivalOf: RunId` on the revived run — the run model finally agreeing with the
+"(background task returned)" title the reading surface has shown since
+2026-07-02. Two terms, and the conjunction is load-bearing (A/B'd: dropping the
+prompt term fails its pin): the `<task-notification>` prefix proves the turn is
+machine-injected — the ONLY discriminator that exists at 2.1.258, since F44's
+`source` is specified and unemitted — and an awaited wake proves there was
+something to return from. A prompt the USER types during a pause satisfies only
+one and correctly gets an ordinary run.
+
+NO EXPIRY on the awaited pointer: the wake tracks the background job's own
+duration (z1: a 70s sleep → ~69s), so any timeout would be a guess that silently
+unlinks the honest long cases. It is cleared only by evidence — the revival
+consuming it, a later turn end reporting `background_tasks: []`, or a fresh spawn.
+
+**F43 (1 of 9 wakes fires no `UserPromptSubmit`) is HANDLED where it can be and
+REGISTERED where it cannot.** What it gives: the revived turn's own `Stop` carries
+an EMPTY array, which is positive evidence on the same field and the same channel
+— no wake detection, no heuristic. Sonata uses it twice: the held ping fires
+(the cli-state change comparison had to learn `pendingWake`, or `turn-ended` →
+`turn-ended` deduped it away and the ping was lost forever — A/B'd), and the
+awaited pointer settles so a LATER task-notification is not back-attributed to a
+wake that already happened (which is why the settle sits ABOVE
+`completeRunFromTurnEnd`'s no-active-run guard — A/B'd). **What stays open**: that
+revival mints no run, so it gets no card and no `revivalOf`, and the paused run's
+card keeps saying "waiting on background work" after the wake has come and gone.
+A `resolvedAt` stamp was designed and NOT built: it rewrites settled history to
+repair a card, in the 1-in-9 shape only, and the brief's instruction was to
+attribute what Stop gives and register the rest.
+
+## F53 — the Stop-less arm and the quota sibling: two deliberate non-changes
+
+**Esc'd-then-waking is honest by construction, and pinned.** A claude Esc fires no
+hook at all (F45), so the SL-2b stopless closer runs on no payload and CLAIMS
+NOTHING — no `pendingWake`, no armed pointer. A later wake therefore gets an
+honest unlinked run rather than an invented connection, and that arc produces two
+notifications because Sonata has two independent pieces of evidence and no
+grounds to join them. The quiescence constants are untouched.
+
+**`SubagentStop` is a documented no-op** (SL-16 objective 4, decided on evidence).
+It carries the same two fields — MEASURED, z1's SubagentStop 1.5s after the parent
+`Stop` named the SAME running shell — so wiring it would restate one fact twice,
+and would state it at a moment when it is FALSE: a SubagentStop normally lands
+mid-turn, while the session is working, and "paused waiting for background work"
+is not true of a live turn. The pause belongs to the main turn's ending.
+
+**Quota auto-resume: REGISTERED, not forced.** The brief allowed folding it in if
+it were a natural fit. It is not, and the reason is F47's own cross-cutting
+finding: `background_tasks` announces the PAUSE on the payload that already
+arrives, while `quota_auto_resume_fired` announces the WAKE. Hanging the pause off
+the wake would infer backwards from the exact channel F43 disqualified. The quota
+episode's arm phase has NO measured signal on Sonata's wire at all, and `_stale`
+("waiting for the user to press enter") is a `needs-you`, a different notification
+kind. It needs its own design, on an episode nobody has yet observed.
+
+## F54 — z4: the model verified LIVE end to end (MEASURED, PASS 5/5)
+
+The smokes construct payloads by hand, so they cannot prove a real payload's
+nested array survives the production hook sink and watcher. `z4` closes that loop:
+real CLI → production sink → production `HookWatcher` → `readBackgroundWork` →
+`TerminalHost` → `CliStateModel` → `NotificationPolicy`, with the dispatch edges
+copied from what `applyHookToTask` ships today.
+
+```
+SessionStart@1556  UserPromptSubmit@4409  PreToolUse@6644  PostToolUse@6747
+Stop@7863  SubagentStop@9488  Notification@68015  UserPromptSubmit@76829
+Stop@78557  SubagentStop@80088
+```
+
+| claim | result |
+|---|---|
+| C1 the LIVE closing `Stop` reads `pending` | **PASS** — `[{id, type:"shell", status:"running", …}]` |
+| C2 run closes `completed`/`hook-stop`/`high` WITH `pendingWake` | **PASS** — `{taskCount:1, kinds:["shell"]}`, statusReason `stop hook (turn ended, background work pending)` |
+| C3 no `complete` notification at the pause | **PASS** — 0 decisions at Stop, where the old model fired one |
+| C4 the wake's run names the paused run | **PASS** — `revivalOf: run-…-1`, title `(background task returned)` |
+| C5 exactly ONE `complete`, after the pause | **PASS** — one, at 78557ms |
+
+Wake at **+70694ms**; the post-wake `Stop` carried `background_tasks: []`, so the
+same field answered `pending` and `none` in one run. Note `Notification@68015` —
+the 60s `idle_prompt` — passed through the pause without cancelling it, which is
+the live counterpart of the keep-on-omit rule.
+
+Binary pinned `2.1.258` at start AND end (no drift). Settings guard ran with
+`mutatedByProbe: false`, and its `--self-test` was exercised first
+(`detected: true, restored: true, bytesMatch: true`).
+
+## F55 — evidence files
+
+`z4-revival-modeling-live.mjs` + `z4-revival-modeling-live.capture.txt` (one live
+arm, five claims). `spikes/` is gitignored by the code repo — these need
+`git add -f` (done). Unit fence: `app/tests/smoke/background-wake-modeling.mjs`
+(23 checks across the reader, cli-state, the run lifecycle, the notification
+policy and the card copy). Five separate A/Bs were run, each reverting ONE line
+and rebuilding, to prove the new pins fail against the pre-fix behaviour: the
+cli-state change comparison, the keep-on-omit rule, the notification hold, the
+pre-guard settle placement, and the two-term revival guard. A sixth A/B corrected
+an OVERCLAIM rather than confirming one — the `unstated`-is-not-`none` arm turns
+out to have no live consumer that depends on it today (every current caller is
+insensitive), so its comment now says so and calls itself a contract for the next
+consumer rather than a live fix.
+
+# SL-16 review round 1 (2026-09-02) — 1 BLOCKING, 1 minor, 1 pre-existing; all taken
+
+## F56 — BLOCKING, TAKEN: `background_tasks` is SESSION state, so non-emptiness is not a pause
+
+**The bug, and it was a REGRESSION rather than a missed improvement.** The first
+cut held the completion notification, stamped the card, and armed the revival
+pointer on `background_tasks` being non-empty. But the vendor's own sentence —
+quoted in F49 and then under-read — says the array is "registered **in this
+session**". A long-lived task (a dev server, a watcher, a `tail -f`) is
+`status:"running"` for the rest of the session, so EVERY later turn end carries
+it. Consequence: every completion ping for the rest of that session silently
+swallowed (pre-slice, those turns pinged), and every later card stamped. Two
+corroborations were available and unused: the same array rides `SubagentStop`
+mid-turn, and the CLI's own footer counts it as a standing session fact.
+
+**MEASURED LIVE (z4b, this round).** Two turns, one `sleep 600` backgrounded in
+turn 1:
+
+| | `Stop` payload | `opened` |
+|---|---|---|
+| turn 1 @7531ms | `pending` — `[{bjtfron51, shell}]` | `{tasks:[{bjtfron51,shell}]}` |
+| turn 2 @11792ms | **`pending` — the SAME task, still there** | **`null`** |
+
+Turn 2's raw claim is what makes the arm decisive: the array had NOT emptied, so
+this is the exact shape that would have swallowed the ping. One `complete` fired
+(turn 2's), one card stamped (turn 1's).
+
+**THE FIX: the pause is a question about identity over time, so it needs memory.**
+`BackgroundWorkTracker` (one per task runtime, alongside `cliState`) holds the
+ids in flight as of the last turn end and answers two things per ending:
+
+- `opened` — tasks whose ids were NOT already known. Only this may hold a
+  notification, stamp a card, or arm the revival pointer.
+- `returned` — a previously-known id is gone, i.e. some awaited work finished.
+
+`PendingWake` therefore carries `tasks:[{id,kind}]` rather than a count: the ids
+are the diff, and the count was the part that could not answer the question.
+
+**SECONDARY, also taken.** The first cut held the turn CLOCK across a pause
+(suppressing the `busy` reset), so a 3s prompt typed during a pause was measured
+from the paused arc's original start and pinged "finished" at a user sitting
+right there. Fixed by splitting the clocks rather than by another carve-out:
+`turnStartedAt` always restarts (the busy branch is now byte-identical to
+pre-slice), and `wakeArcStartedAt` separately remembers the unfinished request.
+A turn end picks the arc's clock only when it RESOLVES the arc. This is strictly
+simpler than what it replaced — the wake needs no special case at all, and the
+`notifiedAsks` carve-out the first cut had to add by hand disappeared with it.
+
+**A THIRD BUG, found by the mandatory new fence rather than by reasoning.** With
+the clocks split, the disarm block still cleared `wakeArcStartedAt` on EVERY turn
+end — so a user's interleaved turn consumed the arc and the eventual wake, having
+lost it, measured its own ~2s turn and fired nothing. The arc now survives turn
+ends that neither open nor resolve it. This is exactly the failure the reviewer
+predicted the missing fence would hide: the host-layer version of this scenario
+already existed and asserted only `revivalOf`, which is why the notification side
+went unexamined twice.
+
+## F57 — MINOR, TAKEN: the `StopFailure` drift, fixed structurally rather than patched
+
+The reviewer found `runtime-controller` stamping the run record on a `StopFailure`
+while `cli-state`'s own `StopFailure` branch read no payload — so that ending
+emitted no pause and the double-fire this slice removes was still live on it. The
+one-line fix would have been another `readBackgroundWork` call in that branch.
+
+Taken structurally instead, because the drift was a CLASS: the tracker is
+advanced ONCE in `applyHookToTask` and the same `TurnEndWake` is handed to
+cli-state and to the run record, so there is no longer a second derivation to
+keep in sync. cli-state gained one `endTurn` path that all three main-turn
+endings (`Stop` / `StopFailure` / `Interrupt`) route through. The slice's
+"these cannot drift apart" comment was FALSE when written; it is now true by
+construction. `StopFailure`'s `background_tasks` presence stays UNMEASURED, which
+is why both arms are pinned — field present and field absent — so the fix holds
+whichever way upstream turns out to behave.
+
+## F58 — PRE-EXISTING, TAKEN: the sidebar dot was the last surface still saying "finished"
+
+`runtime-reducer`'s `completedUnseen` ("Finished while you were away") lit at the
+pause, contradicting the card on the same run. It is one condition consulting the
+same fact on the same event, so it was taken under this slice's one-honest-arc
+intent rather than registered. The wake's own run lights it when the work
+actually returns.
+
+## F59 — COPY: Woody's ruling, and why the form is load-bearing
+
+The card string is **`Waiting on background work…`** (Woody, 2026-09-02) —
+replacing the first cut's "Ended, waiting on background work". Preserved
+verbatim: no `Ended,` prefix, and the trailing character is a single `…` (U+2026),
+not three periods. Pinned as Woody-approved wording in `ui-vocabulary-corpus`
+alongside the update-pill literals, and A/B'd — swapping `…` for `...` fails the
+fence.
+
+The form is coherent with F56 rather than merely shorter: now that the state is
+scoped to the turn that actually GREW the pending set, this is the one run still
+owed something, and the ellipsis carries "owed, not finished" without the card
+claiming either "done" or "working". Dropping `Ended,` also removes the tension
+F58 fixed from the other side.
+
+## F60 — verification after the review round
+
+`npm run build` clean; smoke **147/147 PASS / 0 FAIL / 0 SKIP**, the SL-16 fence
+grown from 23 to **33 checks** (the tracker's own arms, both `StopFailure` arms,
+the dev-server regression, the short-human-turn floor case, the interleaved-turn
+arc end-to-end through `NotificationPolicy`, and the sidebar dot).
+
+Three NEW A/Bs this round, each reverting one line and rebuilding:
+
+| reverted | fails |
+|---|---|
+| growth → non-emptiness (the B1 bug) | 5 checks, incl. the dev-server arm |
+| arc cleared on every turn end | the two interleaved-turn arcs |
+| `…` → `...` | the vocabulary pin |
+
+**LIVE re-run (z4, both arms), PASS 10/10.** The mechanism changed materially — a
+new stateful component now sits in the live chain — so the unit arcs could not
+carry it: only a real session can show that the CLI's task `id` is stable across
+two `Stop`s (it is: `bjtfron51` in both z4b turns) and that the array genuinely
+does not empty between turns. z4a re-confirms the revival arc unchanged (wake at
++71009ms, `revivalOf` set, zero pings at the pause, exactly one after);
+z4b is the B1 regression, reproduced and fixed, against the real binary. Binary
+pinned `2.1.258` at start AND end; settings guard `mutatedByProbe: false` with
+its `--self-test` exercised first.

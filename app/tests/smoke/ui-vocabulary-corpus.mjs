@@ -55,6 +55,15 @@ assert.match(source.cliHtml, /<title>Sonata CLI<\/title>/, "CLI document title")
 assert.match(source.updateButton, /"Restart to Update"/, "update pill resting label");
 assert.match(source.updateButton, /"Installing…"/, "update pill updating label");
 
+// Run-card pending-wake label (SL-16, 2026-09-02). Woody-approved wording,
+// pinned as a LITERAL for the same reason as the pills above: this is the one
+// new user-facing string the revival-modeling slice introduced, and its exact
+// form is load-bearing. The trailing character is a single `…` (U+2026), not
+// three periods, and there is no "Ended," prefix — the ellipsis alone carries
+// "this run is still owed something", which is precisely what the state means
+// now that it is scoped to the turn that started the work.
+assert.match(source.runs, /"Waiting on background work\u2026"/, "pending-wake run outcome label");
+
 // Auto-update menu + dialog vocabulary (S3). The manual affordance's label and
 // the eight result-dialog title/body strings are the agreed, Woody-approved
 // wording. Pin the LITERALS (same rationale as the S2 pills): a wording drift

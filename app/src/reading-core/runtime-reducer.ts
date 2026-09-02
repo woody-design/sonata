@@ -165,7 +165,16 @@ export function reduceRuntimeEvent(
       view.pendingApproval = null;
       view.approvalExpired = false; // stale-flag hygiene (S2 review F8)
     }
-    if (!isActiveRunStatus(event.payload.status) && !isActiveView(state, view)) {
+    if (
+      !isActiveRunStatus(event.payload.status) &&
+      !isActiveView(state, view) &&
+      // SL-16: …but a run that ended expecting a wake has not FINISHED, and this
+      // dot says "finished while you were away" in the sidebar. It was the last
+      // surface still contradicting the card, which reads "Waiting on background
+      // work…" for the same run — one honest arc means one answer
+      // everywhere. The wake's own run lights it when the work actually returns.
+      !event.payload.pendingWake
+    ) {
       // The settled sidebar grammar's fourth state: finished while away.
       view.completedUnseen = true;
     }

@@ -8,6 +8,7 @@ import type {
   CompletionHint,
   CompletionSource,
   LaunchSpeedMode,
+  PendingWake,
   ReasoningEffort,
   RunId,
   RunKind,
@@ -77,9 +78,19 @@ export interface RuntimeRunReport {
    *  absent on pre-bridge records and idle-path runs whose hook echo was
    *  swallowed (those keep text/time matching). */
   promptId?: string | null;
+  /** Additive in-place widening (still v1), SL-16: the run this one CONTINUES —
+   *  set when a background task's completion woke the session and started this
+   *  turn. Absent on every ordinary run and on reports written before SL-16. */
+  revivalOf?: RunId | null;
   title: string;
   status: RunStatus;
   statusReason?: string;
+  /** Additive in-place widening (still v1), SL-16: "ended, expecting wake" —
+   *  this run's turn-end payload declared in-flight background work. Rides
+   *  ALONGSIDE `status: "completed"` rather than replacing it (the turn really
+   *  did end); see {@link PendingWake}. Absent = no claim, on both a run that
+   *  positively reported nothing in flight and a report written before SL-16. */
+  pendingWake?: PendingWake;
   lifecyclePhase: RunStatus;
   startedAt: string;
   endedAt: string | null;

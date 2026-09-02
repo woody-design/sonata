@@ -18,7 +18,9 @@ import type {
   CompletionHint,
   CompletionSource,
   LaunchSpeedMode,
+  PendingWake,
   ReasoningEffort,
+  TurnEndWake,
   RuntimeProvider,
   RunId,
   RunKind,
@@ -788,6 +790,22 @@ export class TerminalHost extends EventEmitter {
    *  (unlike recentAttributionRun, which beginRun clears): the back-stamp's
    *  ambiguity guard against a finished same-text twin's late hook echo. */
   private lastFinishedPrompt: { text: string; expiresAt: number } | null = null;
+  /**
+   * The run whose turn end declared in-flight background work and is still
+   * waiting to be woken by it (SL-16) — the id alone, because the id is the
+   * whole question this answers ("which run does the revival continue?"). Set at
+   * the completion that stamped `pendingWake`; the wake's DETAIL lives on that
+   * run's own record, where it is durable, rather than being mirrored here.
+   *
+   * NO EXPIRY, deliberately. The wake tracks the background task's OWN duration
+   * (MEASURED: a 70s sleep woke the session at ~69s, 4/4) — a job that runs for
+   * an hour wakes in an hour, and any timeout Sonata invented would be a guess
+   * that silently unlinks the honest cases. It is cleared only by evidence: the
+   * revival consuming it, a later turn end positively reporting no background
+   * work left (`background_tasks: []` — the ONLY trace of the F43 revival that
+   * fired no `UserPromptSubmit` at all), or a fresh spawn.
+   */
+  private runAwaitingWake: RunId | null = null;
   private activeRunRaw = "";
   // Remote Control (phone access) — tracked optimistically; no hook/structured
   // signal exists for it, and the footer `/rc` pill is not a state readout at all
@@ -1318,6 +1336,9 @@ export class TerminalHost extends EventEmitter {
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
     this.sustainedIdleVerdict = null;
+    // A wake belongs to the session that announced it: a fresh spawn is a new
+    // session, and the old session's background work can never wake this one.
+    this.runAwaitingWake = null;
     this.taskReady = false;
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
@@ -2444,8 +2465,27 @@ export class TerminalHost extends EventEmitter {
     // event, not a follow-up patch (review P2, 2026-07-02). The prompt stays
     // verbatim — it is the detection key for the reading surface's husk
     // suppression.
+    const revival = text.startsWith("<task-notification>");
+    // SL-16 — the revival's other half. The title has said "(background task
+    // returned)" since 2026-07-02; now the run MODEL agrees with it and names
+    // WHICH run returned. Two terms, both required, and the conjunction is the
+    // point: the prompt text proves this turn is machine-injected (the only
+    // discriminator that exists at 2.1.258 — `UserPromptSubmit.source` is
+    // specified and NOT emitted, F44), and the awaited wake proves there was
+    // something to come back FROM. A prompt the USER types during the pause
+    // satisfies neither and correctly gets an ordinary run — their turn is
+    // their own, and the background work is still in flight behind it.
+    const revivalOf = revival ? (this.runAwaitingWake ?? undefined) : undefined;
+    if (revivalOf) {
+      // Consumed once. A second backgrounded task still in flight will re-arm
+      // this at the revival turn's OWN end (its `Stop` carries the remaining
+      // entries), so a chain of wakes links run→run→run rather than all
+      // pointing back at the first.
+      this.runAwaitingWake = null;
+    }
     this.beginRun(text || "(prompt)", kind, {
-      ...(text.startsWith("<task-notification>") ? { title: "(background task returned)" } : {}),
+      ...(revival ? { title: "(background task returned)" } : {}),
+      ...(revivalOf ? { revivalOf } : {}),
       promptId: options.promptId ?? null,
     });
   }
@@ -3972,7 +4012,7 @@ export class TerminalHost extends EventEmitter {
   private beginRun(
     text: string,
     kind: RunKind,
-    options: { title?: string; promptId?: string | null } = {},
+    options: { title?: string; promptId?: string | null; revivalOf?: RunId } = {},
   ): ActiveRun {
     // A run beginning supersedes any in-flight control switch (model/effort OR a
     // permission stepping run): the receipt window is over (a new turn is
@@ -3995,6 +4035,10 @@ export class TerminalHost extends EventEmitter {
       kind,
       prompt: text,
       promptId: options.promptId ?? null,
+      // Rides `run:started`, for the same reason the honest title does: the
+      // first event is what mints the run-index row and reaches the reading
+      // surface, so the link must be there from the start rather than patched in.
+      ...(options.revivalOf ? { revivalOf: options.revivalOf } : {}),
       title: options.title ?? (trimmed.split(/\r?\n/, 1)[0]?.slice(0, 120) || "(empty prompt)"),
       status: "active",
       lifecyclePhase: "active",
@@ -4043,6 +4087,11 @@ export class TerminalHost extends EventEmitter {
       completionSource?: CompletionSource;
       completionConfidence?: CompletionConfidence;
       completionHint?: CompletionHint;
+      /** SL-16 — the turn-end payload declared in-flight background work that
+       *  will wake the session. Stamped on the finished run AND armed as the
+       *  host's awaited wake, in one place, so the record and the attribution
+       *  pointer can never disagree about which run is waiting. */
+      pendingWake?: PendingWake;
     } = {},
   ): ActiveRun | null {
     if (!this.activeRun) {
@@ -4068,6 +4117,7 @@ export class TerminalHost extends EventEmitter {
       completionSource,
       completionConfidence,
       ...(completionHint !== undefined ? { completionHint } : {}),
+      ...(metadata.pendingWake ? { pendingWake: metadata.pendingWake } : {}),
       endedAt: endedAt.toISOString(),
       elapsedMs: endedAt.getTime() - Date.parse(this.activeRun.startedAt),
     });
@@ -4093,6 +4143,13 @@ export class TerminalHost extends EventEmitter {
       text: finished.prompt.trim(),
       expiresAt: Date.now() + this.postCompletionAttributionMs,
     };
+    // Arm the revival link from the SAME fact that stamped the record. Set
+    // rather than merged: a fresh pause supersedes an older one (the newest
+    // turn end is the one the wake will return to), and the older run keeps its
+    // own honest stamp in the report either way.
+    if (metadata.pendingWake) {
+      this.runAwaitingWake = finished.id;
+    }
     this.clearCompletionTimer();
     this.emitEvent("run:updated", finished);
     if (metadata.completionSource === "terminal-idle-heuristic") {
@@ -4413,8 +4470,35 @@ export class TerminalHost extends EventEmitter {
    * them and the consumer that depends on the separation. A closed two-member
    * union rather than a raw `CompletionSource` — this method may only ever stamp
    * a hook-driven ending, and the type should say so.
+   *
+   * `turnEndWake` is what the SAME payload said about whether this ending is
+   * FINAL (SL-16) — already resolved against the session's history by the
+   * controller's `BackgroundWorkTracker`, because "is anything in flight?" and
+   * "did THIS turn leave something behind?" are different questions and only the
+   * second one is a pause (review B1).
+   *
+   * Its `returned` half is handled BEFORE the no-active-run guard, and that order
+   * is load-bearing rather than incidental: the F43 revival — measured 1 of 9 —
+   * fires no `UserPromptSubmit`, so Sonata mints no run for it and the only
+   * trace it leaves anywhere on this wire is precisely this call arriving with
+   * `returned: true` and nothing active. Settling the wake there is what stops a
+   * LATER, unrelated task-notification from being attributed to a wake that
+   * already happened. The method's name still describes what it does when there
+   * IS a run; when there is not, it is the turn-end signal settling the one
+   * piece of state that outlives runs.
    */
-  completeRunFromTurnEnd(options?: { errorExcerpt?: string; ending?: "stop" | "interrupt" }): ActiveRun | null {
+  completeRunFromTurnEnd(options?: {
+    errorExcerpt?: string;
+    ending?: "stop" | "interrupt";
+    turnEndWake?: TurnEndWake;
+  }): ActiveRun | null {
+    // Positive evidence that awaited work came back ends the pause. Note this is
+    // NOT "the array is empty": a dev server still running while the shell we
+    // were waiting on finished is a genuine return, and an empty array while
+    // nothing was ever awaited is not.
+    if (options?.turnEndWake?.returned) {
+      this.runAwaitingWake = null;
+    }
     if (!this.activeRun) {
       return null;
     }
@@ -4448,6 +4532,14 @@ export class TerminalHost extends EventEmitter {
       this.approvalSuppressedInSettleWindow = false;
       this.clearApprovalSettleTimer();
     }
+    // SL-16 — "ended, expecting wake", stamped on whichever ending fired. The
+    // turn genuinely ended, so the status stays `completed` and the evidence
+    // stays `hook-stop`/`high`: the Stop hook is exactly as authoritative about
+    // the ENDING as it ever was, and demoting the confidence would corrupt a
+    // well-defined axis ("how sure are we the turn ended?") to smuggle in an
+    // answer to a different question. `pendingWake` IS that different question,
+    // carried beside it rather than folded into it.
+    const pendingWake = options?.turnEndWake?.opened ?? undefined;
     // `StopFailure` (probed S6: fires on API errors with a structured
     // `error` field, while Stop stays silent) rides the same completion
     // path — the turn ENDED; the hint carries the structured error, so the
@@ -4458,18 +4550,25 @@ export class TerminalHost extends EventEmitter {
         completionSource: "hook-stop",
         completionConfidence: "high",
         completionHint: withCompletionErrorExcerpt(undefined, options.errorExcerpt),
+        ...(pendingWake ? { pendingWake } : {}),
       });
     }
     if (options?.ending === "interrupt") {
       return this.finishActiveRun("completed", "interrupt hook (turn interrupted)", {
         completionSource: "hook-interrupt",
         completionConfidence: "high",
+        ...(pendingWake ? { pendingWake } : {}),
       });
     }
-    return this.finishActiveRun("completed", "stop hook (turn ended)", {
-      completionSource: "hook-stop",
-      completionConfidence: "high",
-    });
+    return this.finishActiveRun(
+      "completed",
+      pendingWake ? "stop hook (turn ended, background work pending)" : "stop hook (turn ended)",
+      {
+        completionSource: "hook-stop",
+        completionConfidence: "high",
+        ...(pendingWake ? { pendingWake } : {}),
+      },
+    );
   }
 
   private clearCompletionTimer(): void {

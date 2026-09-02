@@ -172,6 +172,76 @@ export interface CompletionHint {
   [key: string]: unknown;
 }
 
+/**
+ * "Ended, expecting wake" — in-flight background work a turn-end payload
+ * announced, which will wake the session again with no user input (SL-16,
+ * upstream sync 2026-09; claude 2.1.258, findings F42/F47).
+ *
+ * A SECOND AXIS beside `RunStatus`, deliberately not a member of it. The turn
+ * genuinely ENDED — the model stopped, the composer came back, the user can
+ * type — so `completed` is the honest status and `hook-stop`/`high` the honest
+ * evidence. What was NOT honest was leaving that the whole story: the same
+ * `Stop` payload says a shell is still running and will re-enter the session.
+ * Widening `RunStatus` was considered and rejected: it is consumed by seven
+ * if-chains with silent defaults (task-status mapping, the broker-release
+ * predicate, the working-status terminal set, two completion-metadata mappers,
+ * tone and outcome copy) and none of them would want a different answer than
+ * `completed` already gives.
+ *
+ * Present only on a run whose turn-end payload named background work that was
+ * NOT already in flight at the previous turn end. Absent means "nothing new was
+ * said" — which covers nothing in flight, only-pre-existing work, an ending that
+ * carried no such field at all (a codex turn, a Stop-less close), and reports
+ * written before SL-16. Additive and optional; absent is never a claim.
+ */
+export interface PendingWakeTask {
+  /** The CLI's own task id (MEASURED: `b8ylzf16p`). Load-bearing, not
+   *  decorative: `background_tasks` is SESSION state, so identity is the only
+   *  way to tell work THIS turn left behind from work that was already running
+   *  before it — see `BackgroundWorkTracker`. `""` when a payload names none,
+   *  which fails toward "not new" (a notification too many, never one too few). */
+  id: string;
+  /** The vendor's own kind label — `shell`, `subagent`, `workflow`, `monitor`,
+   *  `MCP task`, `teammate`, `dream`, `auto-mode scan`, `cloud session` (the
+   *  2.1.258 type map, STATIC). Recorded verbatim rather than normalized: this
+   *  is the durable diagnostic answer to "waiting on WHAT", and an unrecognised
+   *  future kind must survive into the record rather than be flattened away. */
+  kind: string;
+}
+
+export interface PendingWake {
+  /** The in-flight background tasks THIS turn end newly announced. Never empty.
+   *
+   *  Not "everything in flight": the CLI's array is session-scoped and a
+   *  long-lived task (a dev server, a watcher, a `tail -f`) stays in it for the
+   *  rest of the session, so a turn end is only "expecting wake" for work it
+   *  actually left behind. */
+  tasks: PendingWakeTask[];
+}
+
+/**
+ * What ONE main-turn ending said about background work, after the session's own
+ * history is taken into account (SL-16). Produced by `BackgroundWorkTracker`,
+ * which owns that history; carried on the live cli-state so the notification
+ * policy can read both halves at the moment the turn ends.
+ */
+export interface TurnEndWake {
+  /**
+   * Work this turn end left behind that was NOT already in flight at the
+   * previous turn end — the pause, and the only thing that may hold a
+   * notification or stamp a card. Null when this turn named nothing new.
+   */
+  opened: PendingWake | null;
+  /**
+   * True when work named at an EARLIER turn end is no longer in flight: some
+   * awaited background job came back. This is what tells "the wake I was holding
+   * for has landed" apart from "an ordinary turn ended while a dev server
+   * happens to still be running" — two situations that are otherwise identical
+   * on the wire, and which need different notification clocks.
+   */
+  returned: boolean;
+}
+
 export type DeliveryItemStatus =
   | "queued"
   | "delivering"

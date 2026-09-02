@@ -163,6 +163,20 @@ export function runOutcome(run: RuntimeRunReport, providerName: string): string 
   if (run.status === "approval-denied") {
     return `${approvalKindLabel(run.approvalKind)} approval denied`;
   }
+  // SL-16 — checked BEFORE the two `completed` arms, because it is the one
+  // thing a plain "Completed" would hide. The turn ended (which is why the
+  // status is `completed`) and the CLI's own turn-end payload said it will wake
+  // itself when the background work THIS run launched returns. Neither "done"
+  // nor "still working" is true, and the card has to say the third thing.
+  //
+  // Woody-approved wording (2026-09-02), verbatim — the trailing character is a
+  // single `…`, not three dots. The ellipsis is carrying the meaning: because
+  // `pendingWake` is scoped to the turn that actually GREW the pending set, this
+  // is the one run that is still owed something, and "…" says owed-not-finished
+  // without the card having to claim either "done" or "working".
+  if (run.pendingWake) {
+    return "Waiting on background work…";
+  }
   if (run.status === "completed" && run.completionSource === "terminal-idle-heuristic") {
     return "Completed by terminal idle heuristic";
   }
@@ -190,6 +204,14 @@ export function completionErrorExcerpt(run: RuntimeRunReport | null): string | n
 export function runTone(run: RuntimeRunReport): string {
   if (run.status === "stopped" || run.status === "approval-denied" || run.status === "failed") {
     return "attention";
+  }
+  // SL-16, ordered before `completed` for the same reason `runOutcome` is: the
+  // tone must agree with the copy. `waiting` and not `attention` — nothing is
+  // being asked of the user; the session is waiting on itself. (Neither tone
+  // carries a CSS rule today, so this is semantic honesty on the class name
+  // rather than a visual change; only `.attention` is styled.)
+  if (run.pendingWake) {
+    return "waiting";
   }
   if (run.status === "completed") {
     return "complete";

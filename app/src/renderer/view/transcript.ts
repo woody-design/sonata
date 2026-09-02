@@ -490,7 +490,13 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   // did NOT complete (stopped / failed / denied / pty-exited) — failure IS
   // state, and without it a stopped run would be indistinguishable from a
   // completed one. Live and waiting states belong to the status strip.
-  if (turn.run && !liveRun && turn.run.status !== "completed") {
+  //
+  // SL-16 widens that rule by its own logic rather than against it: a turn that
+  // ended with background work still in flight IS a completed run whose state
+  // would otherwise be indistinguishable from a finished one — the same argument
+  // the sentence above makes for a stopped run. `pendingWake` is set only on
+  // settled runs, so the `!liveRun` guard already covers it.
+  if (turn.run && !liveRun && (turn.run.status !== "completed" || turn.run.pendingWake)) {
     card.append(renderRunOutcomeNote(turn.run));
   }
   return card;

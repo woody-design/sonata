@@ -61,6 +61,8 @@ import {
   isRunIndexEvent,
   resolveRunForTurn,
   changedPathsFromToolUse,
+  readBackgroundWork,
+  BackgroundWorkTracker,
   parseApplyPatchOps,
   TerminalHost,
   type StartTaskOptions,
@@ -231,6 +233,11 @@ interface ActiveTaskRuntime {
   deliveryController: DeliveryController;
   statusTracker: StatusRegionTracker;
   cliState: CliStateModel;
+  /** SL-16 — the session's memory of which background tasks are in flight, and
+   *  therefore the ONE place that can say whether a turn end left NEW work
+   *  behind. `background_tasks` is session-scoped, so this cannot be derived
+   *  per-payload; see `BackgroundWorkTracker`. */
+  backgroundWork: BackgroundWorkTracker;
   /** A native AskUserQuestion awaiting an answer (Slice 5). Tracked so the
    *  controller can answer it, bound-check the selection, and emit a
    *  cancellation when the turn ends or the PTY exits unanswered. */
@@ -866,6 +873,10 @@ export class RuntimeController {
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
     });
     const cliState = new CliStateModel((snapshot) => this.emitCliState(task.id, snapshot));
+    // Built with the task and discarded with it: a respawn starts from "nothing
+    // known to be running", which is the honest prior for a session that has not
+    // reported a turn end yet.
+    const backgroundWork = new BackgroundWorkTracker();
 
     const runtime = terminalHost.startTask(startOptions);
 
@@ -893,6 +904,7 @@ export class RuntimeController {
       deliveryController,
       statusTracker,
       cliState,
+      backgroundWork,
       pendingOptionPrompt: null,
       lastOptionPromptResolution: null,
       autoTitle: null,
@@ -2672,8 +2684,24 @@ export class RuntimeController {
     // under a live PTY: /clear, native resume). Idempotent.
     this.adoptTranscriptFromHook(active, payload);
 
+    // SL-16 — the ONE advance of the session's background-work memory, before
+    // anything consumes it. Gated on the three MAIN-turn endings: `SubagentStop`
+    // carries the same array but lands mid-turn, and letting it advance the
+    // memory would consume the growth the main turn's `Stop` has to report.
+    //
+    // The result is handed to BOTH consumers below — cli-state here, the run
+    // record at the dispatch edges — so the live state and the durable record are
+    // literally the same value rather than two derivations that must agree. (The
+    // first cut derived it twice and they did NOT agree: `StopFailure` stamped
+    // the run but left cli-state blind, so the double-notification this slice
+    // removes was still live on that ending. Review M1.)
+    const turnEndWake =
+      event === "Stop" || event === "StopFailure" || event === "Interrupt"
+        ? (active.backgroundWork.noteTurnEnd(readBackgroundWork(payload)) ?? undefined)
+        : undefined;
+
     // CLI-state — the schema-agnostic primary signal for busy/idle/turn-end.
-    active.cliState.applyHook(payload);
+    active.cliState.applyHook(payload, turnEndWake ? { turnEndWake } : {});
 
     // Stop-Esc corroboration (both providers): a tool STARTING after a stop
     // was requested proves the turn survived the Esc — the terminal host
@@ -2769,7 +2797,7 @@ export class RuntimeController {
     // stays as the fallback (and is Codex's ONLY turn-failure net — D6 — since
     // Codex has no StopFailure event).
     if (event === "Stop") {
-      active.terminalHost.completeRunFromTurnEnd();
+      active.terminalHost.completeRunFromTurnEnd(turnEndWake ? { turnEndWake } : {});
       // The parent turn's Stop also clears any Codex subagent still marked
       // running (a dropped SubagentStop) — Codex subagents are awaited within
       // their launch turn, so none legitimately outlive it. `turn_id` names
@@ -2813,7 +2841,7 @@ export class RuntimeController {
       // event. The run-id side channel SL-9 shipped in its place — and registered
       // for replacement — is deleted, so there is no second place a turn ending
       // has to be recorded and nothing to keep in sync.
-      active.terminalHost.completeRunFromTurnEnd({ ending: "interrupt" });
+      active.terminalHost.completeRunFromTurnEnd({ ending: "interrupt", ...(turnEndWake ? { turnEndWake } : {}) });
       // Same straggler cleanup `Stop` does, for the same reason: codex subagents
       // are awaited WITHIN their launch turn, so none can legitimately outlive a
       // turn that just ended — and an interrupt is precisely when a `SubagentStop`
@@ -2835,7 +2863,12 @@ export class RuntimeController {
         typeof payload.error === "string" && payload.error.trim()
           ? payload.error.trim()
           : "API error";
-      active.terminalHost.completeRunFromTurnEnd({ errorExcerpt: error });
+      // `StopFailure`'s own `background_tasks` presence is UNMEASURED (SL-9's
+      // census caught the event, not this field on it). Passing the claim is
+      // therefore not an assumption: an absent field reads `unstated` and
+      // changes nothing, and if the CLI does carry it, a failed turn that left
+      // a shell running is the same honest pause as a clean one.
+      active.terminalHost.completeRunFromTurnEnd({ errorExcerpt: error, ...(turnEndWake ? { turnEndWake } : {}) });
     }
   }
 
@@ -3259,6 +3292,7 @@ export class RuntimeController {
         activity: snapshot.activity,
         tool: snapshot.tool,
         approvalKind: snapshot.approvalKind,
+        turnEndWake: snapshot.turnEndWake,
         source: snapshot.source,
         changedAt: snapshot.changedAt,
       },

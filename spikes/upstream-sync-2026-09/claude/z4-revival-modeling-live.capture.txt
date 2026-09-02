@@ -7,18 +7,30 @@ Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
 
 ```json
 {
-  "verdict": "PASS — all five claims hold live",
-  "checks": {
-    "C1 live closing Stop reads `pending`": true,
-    "C2 run closes completed/hook-stop/high WITH pendingWake": true,
-    "C3 no complete notification at the pause": true,
-    "C4 the wake's run names the paused run": true,
-    "C5 exactly ONE complete, after the pause": true
+  "z4a": {
+    "verdict": "PASS — all five claims hold live",
+    "checks": {
+      "C1 live closing Stop reads `pending`": true,
+      "C2 run closes completed/hook-stop/high WITH pendingWake": true,
+      "C3 no complete notification at the pause": true,
+      "C4 the wake's run names the paused run": true,
+      "C5 exactly ONE complete, after the pause": true
+    }
+  },
+  "z4b": {
+    "verdict": "PASS — the dev-server regression is fixed live",
+    "checks": {
+      "B1 turn 1 opens a pause (the task is new)": true,
+      "B1 turn 2's payload STILL names the task (the array is session state)": true,
+      "B1 turn 2 opens NOTHING (no growth = no pause)": true,
+      "B1 exactly one complete fired — turn 2's, not swallowed": true,
+      "B1 exactly one card stamped — turn 1's": true
+    }
   }
 }
 ```
 
-## Full record
+## z4a — the revival arc, full record
 
 ```json
 {
@@ -36,85 +48,98 @@ Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
     "UserPromptSubmit"
   ],
   "hookOrder": [
-    "SessionStart@1556",
-    "UserPromptSubmit@4409",
-    "PreToolUse@6644",
-    "PostToolUse@6747",
-    "Stop@7863",
-    "SubagentStop@9488",
-    "Notification@68015",
-    "UserPromptSubmit@76829",
-    "Stop@78557",
-    "SubagentStop@80088"
+    "SessionStart@634",
+    "UserPromptSubmit@3383",
+    "PreToolUse@6023",
+    "PostToolUse@6125",
+    "Stop@7141",
+    "SubagentStop@8872",
+    "Notification@67191",
+    "UserPromptSubmit@76119",
+    "Stop@78150",
+    "SubagentStop@79779"
   ],
   "backgroundWorkClaims": [
     {
-      "atMs": 7864,
+      "atMs": 7141,
       "event": "Stop",
-      "claim": {
-        "kind": "pending",
-        "wake": {
-          "taskCount": 1,
-          "kinds": [
-            "shell"
+      "raw": "pending",
+      "turnEndWake": {
+        "opened": {
+          "tasks": [
+            {
+              "id": "bcdl4oxc7",
+              "kind": "shell"
+            }
           ]
-        }
+        },
+        "returned": false
       }
     },
     {
-      "atMs": 78557,
+      "atMs": 78150,
       "event": "Stop",
-      "claim": {
-        "kind": "none"
+      "raw": "none",
+      "turnEndWake": {
+        "opened": null,
+        "returned": true
       }
     }
   ],
   "cliStates": [
     {
-      "atMs": 4410,
+      "atMs": 3383,
       "activity": "busy",
       "source": "hook:UserPromptSubmit",
-      "pendingWake": null
+      "turnEndWake": null
     },
     {
-      "atMs": 6644,
+      "atMs": 6023,
       "activity": "busy",
       "source": "hook:PreToolUse",
-      "pendingWake": null
+      "turnEndWake": null
     },
     {
-      "atMs": 6747,
+      "atMs": 6125,
       "activity": "busy",
       "source": "hook:PostToolUse",
-      "pendingWake": null
+      "turnEndWake": null
     },
     {
-      "atMs": 7864,
+      "atMs": 7141,
       "activity": "turn-ended",
       "source": "hook:Stop(background work pending)",
-      "pendingWake": {
-        "taskCount": 1,
-        "kinds": [
-          "shell"
-        ]
+      "turnEndWake": {
+        "opened": {
+          "tasks": [
+            {
+              "id": "bcdl4oxc7",
+              "kind": "shell"
+            }
+          ]
+        },
+        "returned": false
       }
     },
     {
-      "atMs": 76829,
+      "atMs": 76119,
       "activity": "busy",
       "source": "hook:UserPromptSubmit",
-      "pendingWake": null
+      "turnEndWake": null
     },
     {
-      "atMs": 78557,
+      "atMs": 78150,
       "activity": "turn-ended",
       "source": "hook:Stop",
-      "pendingWake": null
+      "turnEndWake": {
+        "opened": null,
+        "returned": true
+      }
     }
   ],
   "notifications": [
     {
-      "atMs": 78557,
+      "atMs": 78150,
       "kind": "complete",
       "taskId": "task-z4-z4-revival-live",
       "reason": "turn-ended"
@@ -122,10 +147,10 @@ Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
   ],
   "runEvents": [
     {
-      "atMs": 4148,
+      "atMs": 3136,
       "type": "run:started",
       "payload": {
-        "id": "run-1788361266475-1",
+        "id": "run-1788364005253-1",
         "kind": "prompt",
         "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f",
         "status": "active",
@@ -134,10 +159,10 @@ Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
       }
     },
     {
-      "atMs": 4410,
+      "atMs": 3383,
       "type": "run:updated",
       "payload": {
-        "id": "run-1788361266475-1",
+        "id": "run-1788364005253-1",
         "kind": "prompt",
         "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f",
         "status": "active",
@@ -146,10 +171,10 @@ Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
       }
     },
     {
-      "atMs": 7864,
+      "atMs": 7141,
       "type": "run:updated",
       "payload": {
-        "id": "run-1788361266475-1",
+        "id": "run-1788364005253-1",
         "kind": "prompt",
         "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f",
         "status": "completed",
@@ -157,64 +182,65 @@ Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
         "completionSource": "hook-stop",
         "completionConfidence": "high",
         "pendingWake": {
-          "taskCount": 1,
-          "kinds": [
-            "shell"
+          "tasks": [
+            {
+              "id": "bcdl4oxc7",
+              "kind": "shell"
+            }
           ]
         }
       }
     },
     {
-      "atMs": 76829,
+      "atMs": 76119,
       "type": "run:started",
       "payload": {
-        "id": "run-1788361339156-2",
+        "id": "run-1788364078236-2",
         "kind": "prompt",
         "title": "(background task returned)",
         "status": "active",
         "completionSource": null,
         "completionConfidence": null,
-        "revivalOf": "run-1788361266475-1"
+        "revivalOf": "run-1788364005253-1"
       }
     },
     {
-      "atMs": 78557,
+      "atMs": 78150,
       "type": "run:updated",
       "payload": {
-        "id": "run-1788361339156-2",
+        "id": "run-1788364078236-2",
         "kind": "prompt",
         "title": "(background task returned)",
         "status": "completed",
         "statusReason": "stop hook (turn ended)",
         "completionSource": "hook-stop",
         "completionConfidence": "high",
-        "revivalOf": "run-1788361266475-1"
+        "revivalOf": "run-1788364005253-1"
       }
     }
   ],
   "notes": [
-    "trust dialog answered via sendApprove at 331ms",
-    "ready=true at 1645ms"
+    "ready=true at 633ms"
   ],
   "ptyExited": false,
   "screenTail": "\n\n\n\n\n\n\n\n\n\n                                                                                                    \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ show me the output\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
   "turnOver": true,
   "woke": true,
-  "stopAtMs": 7863,
+  "stopAtMs": 7141,
   "closingStopBackgroundTasks": [
     {
-      "id": "bsd9ozeo7",
+      "id": "bcdl4oxc7",
       "type": "shell",
       "status": "running",
-      "description": "Sleep 70 seconds then echo",
+      "description": "Run background sleep",
       "command": "sleep 70; echo BGDONE"
     }
   ],
   "closingStopSessionCrons": [],
   "wakeStopBackgroundTasks": [],
-  "wakeStopDelayMs": 70694,
+  "wakeStopDelayMs": 71009,
   "pausedRun": {
-    "id": "run-1788361266475-1",
+    "id": "run-1788364005253-1",
     "kind": "prompt",
     "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f",
     "status": "completed",
@@ -222,20 +248,22 @@ Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
     "completionSource": "hook-stop",
     "completionConfidence": "high",
     "pendingWake": {
-      "taskCount": 1,
-      "kinds": [
-        "shell"
+      "tasks": [
+        {
+          "id": "bcdl4oxc7",
+          "kind": "shell"
+        }
       ]
     }
   },
   "revivalRun": {
-    "id": "run-1788361339156-2",
+    "id": "run-1788364078236-2",
     "kind": "prompt",
     "title": "(background task returned)",
     "status": "active",
     "completionSource": null,
     "completionConfidence": null,
-    "revivalOf": "run-1788361266475-1"
+    "revivalOf": "run-1788364005253-1"
   },
   "notificationsAtPause": 0,
   "checks": {
@@ -246,5 +274,258 @@ Settings guard: {"checked":true,"mutatedByProbe":false,"restored":true}
     "C5 exactly ONE complete, after the pause": true
   },
   "verdict": "PASS — all five claims hold live"
+}
+```
+
+## z4b — the dev-server (B1) arm, full record
+
+```json
+{
+  "scenario": "z4b-dev-server",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@1328",
+    "UserPromptSubmit@4179",
+    "PreToolUse@6412",
+    "PostToolUse@6515",
+    "Stop@7531",
+    "SubagentStop@9056",
+    "UserPromptSubmit@10272",
+    "Stop@11792",
+    "SubagentStop@13323"
+  ],
+  "backgroundWorkClaims": [
+    {
+      "atMs": 7531,
+      "event": "Stop",
+      "raw": "pending",
+      "turnEndWake": {
+        "opened": {
+          "tasks": [
+            {
+              "id": "bjtfron51",
+              "kind": "shell"
+            }
+          ]
+        },
+        "returned": false
+      }
+    },
+    {
+      "atMs": 11792,
+      "event": "Stop",
+      "raw": "pending",
+      "turnEndWake": {
+        "opened": null,
+        "returned": false
+      }
+    }
+  ],
+  "cliStates": [
+    {
+      "atMs": 4179,
+      "activity": "busy",
+      "source": "hook:UserPromptSubmit",
+      "turnEndWake": null
+    },
+    {
+      "atMs": 6412,
+      "activity": "busy",
+      "source": "hook:PreToolUse",
+      "turnEndWake": null
+    },
+    {
+      "atMs": 6515,
+      "activity": "busy",
+      "source": "hook:PostToolUse",
+      "turnEndWake": null
+    },
+    {
+      "atMs": 7531,
+      "activity": "turn-ended",
+      "source": "hook:Stop(background work pending)",
+      "turnEndWake": {
+        "opened": {
+          "tasks": [
+            {
+              "id": "bjtfron51",
+              "kind": "shell"
+            }
+          ]
+        },
+        "returned": false
+      }
+    },
+    {
+      "atMs": 10272,
+      "activity": "busy",
+      "source": "hook:UserPromptSubmit",
+      "turnEndWake": null
+    },
+    {
+      "atMs": 11792,
+      "activity": "turn-ended",
+      "source": "hook:Stop",
+      "turnEndWake": {
+        "opened": null,
+        "returned": false
+      }
+    }
+  ],
+  "notifications": [
+    {
+      "atMs": 11792,
+      "kind": "complete",
+      "taskId": "task-z4-z4b-dev-server",
+      "reason": "turn-ended"
+    }
+  ],
+  "runEvents": [
+    {
+      "atMs": 3924,
+      "type": "run:started",
+      "payload": {
+        "id": "run-1788364087239-1",
+        "kind": "prompt",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 600. Do NOT wait for it, do NO",
+        "status": "active",
+        "completionSource": null,
+        "completionConfidence": null
+      }
+    },
+    {
+      "atMs": 4179,
+      "type": "run:updated",
+      "payload": {
+        "id": "run-1788364087239-1",
+        "kind": "prompt",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 600. Do NOT wait for it, do NO",
+        "status": "active",
+        "completionSource": null,
+        "completionConfidence": null
+      }
+    },
+    {
+      "atMs": 7531,
+      "type": "run:updated",
+      "payload": {
+        "id": "run-1788364087239-1",
+        "kind": "prompt",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 600. Do NOT wait for it, do NO",
+        "status": "completed",
+        "statusReason": "stop hook (turn ended, background work pending)",
+        "completionSource": "hook-stop",
+        "completionConfidence": "high",
+        "pendingWake": {
+          "tasks": [
+            {
+              "id": "bjtfron51",
+              "kind": "shell"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "atMs": 10057,
+      "type": "run:started",
+      "payload": {
+        "id": "run-1788364093372-2",
+        "kind": "prompt",
+        "title": "Reply with exactly: SECOND",
+        "status": "active",
+        "completionSource": null,
+        "completionConfidence": null
+      }
+    },
+    {
+      "atMs": 10272,
+      "type": "run:updated",
+      "payload": {
+        "id": "run-1788364093372-2",
+        "kind": "prompt",
+        "title": "Reply with exactly: SECOND",
+        "status": "active",
+        "completionSource": null,
+        "completionConfidence": null
+      }
+    },
+    {
+      "atMs": 11793,
+      "type": "run:updated",
+      "payload": {
+        "id": "run-1788364093372-2",
+        "kind": "prompt",
+        "title": "Reply with exactly: SECOND",
+        "status": "completed",
+        "statusReason": "stop hook (turn ended)",
+        "completionSource": "hook-stop",
+        "completionConfidence": "high"
+      }
+    }
+  ],
+  "notes": [
+    "trust dialog answered via sendApprove at 462ms",
+    "ready=true at 1422ms"
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n\n\n                                                                                                    \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ check on that background command\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · 1 shell · ← for agents",
+  "turn1Over": true,
+  "turn2Over": true,
+  "turn1Claim": {
+    "atMs": 7531,
+    "event": "Stop",
+    "raw": "pending",
+    "turnEndWake": {
+      "opened": {
+        "tasks": [
+          {
+            "id": "bjtfron51",
+            "kind": "shell"
+          }
+        ]
+      },
+      "returned": false
+    }
+  },
+  "turn2Claim": {
+    "atMs": 11792,
+    "event": "Stop",
+    "raw": "pending",
+    "turnEndWake": {
+      "opened": null,
+      "returned": false
+    }
+  },
+  "completes": [
+    {
+      "atMs": 11792,
+      "kind": "complete",
+      "taskId": "task-z4-z4b-dev-server",
+      "reason": "turn-ended"
+    }
+  ],
+  "stampedRuns": [
+    "run-1788364087239-1"
+  ],
+  "checks": {
+    "B1 turn 1 opens a pause (the task is new)": true,
+    "B1 turn 2's payload STILL names the task (the array is session state)": true,
+    "B1 turn 2 opens NOTHING (no growth = no pause)": true,
+    "B1 exactly one complete fired — turn 2's, not swallowed": true,
+    "B1 exactly one card stamped — turn 1's": true
+  },
+  "verdict": "PASS — the dev-server regression is fixed live"
 }
 ```
