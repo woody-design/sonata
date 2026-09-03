@@ -12,6 +12,7 @@ import type {
 } from "../../shared/types/cli-setup-run";
 import type { RuntimeProvider } from "../../shared/types/domain";
 import { cliCommandEnv } from "./cli-env";
+import { scrubClaudeNestingEnv } from "../../runtime/claude-env-scrub";
 
 /**
  * The readiness subsystem's recovery half (CLI readiness S2; plan D7, L7): run
@@ -525,8 +526,11 @@ export function hasCompletedClaudeOnboarding(env: NodeJS.ProcessEnv): boolean {
  *   Electron's node-mode marker.
  * - the nested-session markers must go: a `claude` that sees `CLAUDECODE` /
  *   `CLAUDE_CODE_*` registers no session side channel (research 2026-06-12 §4.2),
- *   and this run exists to let `claude` do its FIRST RUN properly.
- *   `CLAUDE_CONFIG_DIR` stays — user-owned configuration, not a marker.
+ *   and this run exists to let `claude` do its FIRST RUN properly. The exact key
+ *   set (incl. `CLAUDE_EFFORT` / `CLAUDE_PID` / `CLAUDE_PLUGIN_DATA`, D2 U5) is
+ *   owned by `scrubClaudeNestingEnv`, shared with the pty spawn, so the two
+ *   environments cannot drift. `CLAUDE_CONFIG_DIR` stays — user-owned
+ *   configuration, not a marker.
  * - `TERM`/`COLORTERM` so the CLI paints in the window's xterm as it would in a
  *   real terminal.
  *
@@ -537,12 +541,7 @@ export function hasCompletedClaudeOnboarding(env: NodeJS.ProcessEnv): boolean {
 export function setupRunEnv(): NodeJS.ProcessEnv {
   const env = cliCommandEnv();
   delete env.ELECTRON_RUN_AS_NODE;
-  delete env.CLAUDECODE;
-  for (const key of Object.keys(env)) {
-    if (key.startsWith("CLAUDE_CODE_")) {
-      delete env[key];
-    }
-  }
+  scrubClaudeNestingEnv(env);
   return { ...env, TERM: "xterm-256color", COLORTERM: "truecolor" };
 }
 

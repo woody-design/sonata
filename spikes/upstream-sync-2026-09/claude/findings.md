@@ -4284,3 +4284,94 @@ here so the next session starts from a fact rather than from a surprise.
   a capture is evidence, and a re-render that stamped a 2.1.258 record with a
   2.1.259 pin would quietly make it lie.
 - `settings-guard.mjs` — the shared bracket, reused unchanged from U1 (F70).
+
+# D2 U5 — probe/production environment parity (built 2026-09-03, binary 2.1.259; no CLI spawned)
+
+Woody's rulings 4 and 7 on the D2 acceptance package (2026-09-03). Executed inline
+by the orchestrator after the delegated engineer was cut off three times by
+server-side API errors (500, 529, 529) with no edits landed. Binary read as
+`2.1.259 (Claude Code)`; this slice spawns no CLI, so the start/end drift rule
+does not apply — the only binary-derived claim below is STATIC.
+
+## F95 — three un-prefixed nesting keys now scrubbed, from ONE shared rule (ruling 7)
+
+`ptyEnvironment` (terminal-host) and `setupRunEnv` (cli-readiness/setup-run) each
+carried their own copy of the nesting-marker scrub (`CLAUDECODE`, `CLAUDE_CODE_*`),
+kept in lockstep by a comment. U1's probe m1 had to delete `CLAUDE_EFFORT`,
+`CLAUDE_PID`, `CLAUDE_PLUGIN_DATA` from its OWN env to read the boot banner's
+effort segment cleanly (F70) — harness knowledge the product lacked.
+
+Shipped: `app/src/runtime/claude-env-scrub.ts` · `scrubClaudeNestingEnv(env)` —
+deletes the four exact keys and the `CLAUDE_CODE_` prefix; both call sites use it.
+`CLAUDE_CONFIG_DIR` stays. `ELECTRON_RUN_AS_NODE` stays with its callers (it is an
+Electron concern, not a claude one).
+
+STATIC basis (`grep -ac` over the 2.1.258 `claude.exe`, read 2026-09-02):
+`CLAUDE_EFFORT` 9 · `CLAUDE_PID` 6 · `CLAUDE_PLUGIN_DATA` 11 matching lines. What
+`CLAUDE_EFFORT` DOES to a session is NOT measured and not claimed — only that the
+binary reads it and a Sonata child must not inherit a parent session's value.
+Reachability: only when Sonata is launched from inside a Claude Code session
+(dev shape); a Dock-launched Sonata has none of these. Live proof that the dev
+shape exists: this orchestrator's own environment carries
+`CLAUDE_PLUGIN_DATA=…/plugins/data/codex-openai-codex` (pgrep, 2026-09-03).
+
+Smoke `pty-env-scrub` extended: sets all three, asserts all three `null` in the
+child, `CLAUDE_CONFIG_DIR` survives → `"success": true`. `import-fence`: 8 layer
+rules hold, 67 modules acyclic (main → runtime import is an existing direction).
+
+## F96 — the `~/.claude.json` bracket: surgical, never a byte restore (ruling 4)
+
+MEASURED 2026-09-03 before cleanup: `~/.claude.json` held **3,617** project entries,
+**143** under `/private/tmp/sonata-sync-2026-09/` (the whole 2026-09 program, not
+only D2), 73 top-level keys, 4,097,779 bytes. The file carries live per-project
+accounting (`lastCost`, `lastSessionId`, `lastModelUsage`, …) the CLI rewrites
+while running, so the F70 caution stands: a byte restore would clobber a user's
+concurrent sessions.
+
+Shipped in `settings-guard.mjs`: `snapshotProjectKeys()` (a key SET, never values,
+never the file) and `cleanupProbeProjectKeys(snapshot, {probeRoot, sweepExisting})`
+— deletes only keys NEW since the snapshot AND under the probe root; preserves the
+file's indentation and trailing newline; concurrency fence = mtime+size re-check
+between read and write, one retry, then refuse and report; verifies the removed
+keys are gone and the survivor count matches. `createSettingsGuard()` snapshots the
+key set at construction and runs the cleanup inside `restore()` — i.e. from the
+caller's `finally`, after every arm's CLI has exited — so the NEXT probe gets it
+for free. m1/p1/h4 deliberately not retrofitted (committed evidence).
+
+Self-test (`SONATA_PROBE_CLAUDE_JSON_PATH` → throwaway): seeds one real-looking
+project with accounting + one pre-existing probe-root key; "the CLI runs" (adds a
+probe-root key, changes the real project's `lastCost`/`lastSessionId`); normal
+cleanup removes exactly the new probe key, leaves the pre-existing probe key and
+every foreign value intact (`verified: true`); sweep mode then removes the
+pre-existing probe key and nothing else. `"pass": true` for both halves plus the
+original settings.json bracket.
+
+**The one deliberate mutation of the user's real file** (`--sweep-probe-root`,
+2026-09-03, one claude process alive = this orchestrator's session; the mtime
+fence did not trip): `projectsBefore 3617 → removed 143 → survivors 3474,
+verified true`. Independent post-check against a pre-sweep copy: all 3,474
+non-probe project values byte-identical (`JSON.stringify` equal), 0 differing; all
+72 non-`projects` top-level keys identical; 0 probe-root keys remain. Removed
+paths are all `/private/tmp/sonata-sync-2026-09/<family>/<arm>` (first three:
+`trust-variants/plain-fresh`, `trust-variants/git-repo-fresh`,
+`trust-variants/wt-origin`). The pre-sweep copy was deleted after the check (it
+is the user's config).
+
+## F97 — evidence files and verification
+
+- `app/src/runtime/claude-env-scrub.ts` (new); `terminal-host.ts` / `setup-run.ts`
+  call sites; `app/tests/smoke/pty-env-scrub.mjs` (+3 keys).
+- `spikes/upstream-sync-2026-09/claude/settings-guard.mjs` (+second-file bracket,
+  self-test half, `--sweep-probe-root`).
+- Foreground: `npm run build` ✓; `smoke:pty-env-scrub` success; `smoke:cli-setup-run`,
+  `smoke:cli-readiness-probe`, `smoke:codex-runtime-settings`, `smoke:import-fence`
+  OK; guard `--self-test` pass; full `npm run smoke` → **147/148**. The one FAIL is
+  `native-image-attachments` (claude "six images" arm): its evidence tail reads
+  `✻529 Overloaded · Retrying … attempt 8/10` — the Anthropic API overload that
+  also killed this slice's delegated engineer three times (500/529/529) in the
+  same hour. A/B on the change itself: re-run with `CLAUDE_EFFORT`/`CLAUDE_PID`/
+  `CLAUDE_PLUGIN_DATA` REMOVED from the parent env (making the new scrub a
+  no-op) → same arm, same 529 tail, same verdict. The failure is independent of
+  U5; re-run when the API recovers.
+- Codex bytes untouched (`git diff --name-only | grep -i codex` → none).
+

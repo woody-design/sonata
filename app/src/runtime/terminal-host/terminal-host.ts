@@ -66,6 +66,7 @@ import {
 } from "./tui-parsers-claude";
 import { isCodexTrustDialog, isCodexUpdatePrompt } from "./tui-parsers-codex";
 import { ControlSwitchEngine } from "./control-switch-engine";
+import { scrubClaudeNestingEnv } from "../claude-env-scrub";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
 export const BRACKETED_PASTE_END = "\x1b[201~";
@@ -5434,16 +5435,14 @@ function ptyEnvironment(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   // Nested-session markers inherited when Sonata itself was launched from a
-  // Claude Code session. A child `claude` that sees them registers NO
-  // ~/.claude/sessions/<pid>.json — the waitingFor side channel goes dark
-  // (research 2026-06-12 §4.2). CLAUDE_CONFIG_DIR is intentionally kept:
-  // it is user-owned configuration, not a nesting marker.
-  delete env.CLAUDECODE;
-  for (const key of Object.keys(env)) {
-    if (key.startsWith("CLAUDE_CODE_")) {
-      delete env[key];
-    }
-  }
+  // Claude Code session (`CLAUDECODE`, `CLAUDE_CODE_*`, and since D2 U5 the
+  // three un-prefixed siblings `CLAUDE_EFFORT` / `CLAUDE_PID` /
+  // `CLAUDE_PLUGIN_DATA`). The rule and its measured basis live in ONE place,
+  // shared with the readiness setup run: `scrubClaudeNestingEnv`.
+  // CLAUDE_CONFIG_DIR is intentionally kept — user-owned configuration.
+  // Order matters: the scrub runs BEFORE `extraEnv` is overlaid below, so a key
+  // Sonata sets on purpose can never be filtered as an inherited marker.
+  scrubClaudeNestingEnv(env);
   // Finder/Dock-launched apps inherit launchd's minimal PATH, not the user's
   // interactive PATH — so a packaged Sonata can't find node/claude/codex/git.
   // Merge the login-shell PATH (darwin-only, cached once, ~2s timeout fallback,

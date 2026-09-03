@@ -30,6 +30,19 @@
 //   2. The override env var (`SONATA_PROBE_SETTINGS_PATH`) exists ONLY so the
 //      guard can be self-tested against a throwaway file. A production probe run
 //      never sets it and therefore always protects the real one.
+//
+// THE SECOND FILE (D2 U5, 2026-09-03 — F70/F96). Every live-spawn arm answers the
+// workspace-trust dialog for a `/private/tmp/sonata-sync-2026-09/...` cwd, and the
+// CLI persists that answer as `projects[<cwd>].hasTrustDialogAccepted` in
+// `~/.claude.json`. MEASURED 2026-09-03: 143 such entries from this program in a
+// file of 3,617 projects. That file ALSO carries live accounting the CLI rewrites
+// continuously (`lastCost`, `lastSessionId`, `lastModelUsage`, …), so a BYTE
+// restore of it is unsafe — it would clobber a user's concurrent sessions. The
+// bracket for it is therefore SURGICAL, not a snapshot: remember the SET of
+// project keys before the run, and afterwards delete only the keys that are NEW
+// since the snapshot AND live under the probe root. Nothing else is read into a
+// capture, nothing else is written. Override env for self-test:
+// `SONATA_PROBE_CLAUDE_JSON_PATH`.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -105,6 +118,110 @@ export function restoreUserSettings(snapshot) {
   };
 }
 
+/** The CLI's project map file (trust answers + per-project accounting). */
+export function userClaudeJsonPath() {
+  return process.env.SONATA_PROBE_CLAUDE_JSON_PATH || path.join(os.homedir(), ".claude.json");
+}
+
+/** The root under which every probe in this program creates its cwds. Only keys
+ *  under it are ever eligible for cleanup. */
+export const DEFAULT_PROBE_ROOT = "/private/tmp/sonata-sync-2026-09/";
+
+function readProjectKeys(claudeJsonPath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(claudeJsonPath, "utf8"));
+    const projects = parsed && typeof parsed.projects === "object" && parsed.projects ? parsed.projects : {};
+    return { ok: true, keys: new Set(Object.keys(projects)) };
+  } catch (error) {
+    return { ok: false, keys: new Set(), error: String(error?.message ?? error) };
+  }
+}
+
+/** The indentation the file already uses, so a rewrite does not reformat it. */
+function detectIndent(text) {
+  const match = /\n([ \t]+)"/.exec(text);
+  return match ? match[1] : 2;
+}
+
+/** Snapshot the SET of `projects` keys (never values, never the file). */
+export function snapshotProjectKeys(claudeJsonPath = userClaudeJsonPath()) {
+  const read = readProjectKeys(claudeJsonPath);
+  return { path: claudeJsonPath, ok: read.ok, keys: read.keys, error: read.error };
+}
+
+/**
+ * Delete ONLY the project keys that are (a) absent from the snapshot and (b) under
+ * `probeRoot`. Read-modify-write once; if the file's mtime/size moves between the
+ * read and the write (a CLI still running), re-read and retry once, then give up
+ * and report rather than clobber. Reports the removed key paths — they are probe
+ * cwds under `/private/tmp`, safe for a committed capture.
+ *
+ * `sweepExisting: true` widens (a) to "any key under the probe root" — used ONCE,
+ * deliberately, to clean the entries the program's earlier probes left before this
+ * guard existed. A normal run never sets it.
+ */
+export function cleanupProbeProjectKeys(snapshot, { probeRoot = DEFAULT_PROBE_ROOT, sweepExisting = false } = {}) {
+  if (!snapshot || !snapshot.ok) {
+    return { checked: false, reason: snapshot?.error ?? "no snapshot" };
+  }
+  const attempt = () => {
+    let text;
+    let statBefore;
+    try {
+      statBefore = fs.statSync(snapshot.path);
+      text = fs.readFileSync(snapshot.path, "utf8");
+    } catch (error) {
+      return { done: true, result: { checked: true, removed: [], error: `read: ${String(error?.message ?? error)}` } };
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { done: true, result: { checked: true, removed: [], error: "unparseable; left untouched" } };
+    }
+    const projects = parsed && typeof parsed.projects === "object" && parsed.projects ? parsed.projects : null;
+    if (!projects) return { done: true, result: { checked: true, removed: [] } };
+    const removed = Object.keys(projects).filter(
+      (key) => key.startsWith(probeRoot) && (sweepExisting || !snapshot.keys.has(key)),
+    );
+    if (removed.length === 0) return { done: true, result: { checked: true, removed: [] } };
+    for (const key of removed) delete projects[key];
+    const survivors = Object.keys(projects).length;
+    const out = `${JSON.stringify(parsed, null, detectIndent(text))}${text.endsWith("\n") ? "\n" : ""}`;
+    // Concurrency fence: another writer between our read and our write means our
+    // parsed copy is stale — do not write over it.
+    let statNow;
+    try {
+      statNow = fs.statSync(snapshot.path);
+    } catch {
+      return { done: true, result: { checked: true, removed: [], error: "vanished between read and write" } };
+    }
+    if (statNow.mtimeMs !== statBefore.mtimeMs || statNow.size !== statBefore.size) {
+      return { done: false };
+    }
+    fs.writeFileSync(snapshot.path, out, "utf8");
+    const after = readProjectKeys(snapshot.path);
+    const stillThere = removed.filter((key) => after.keys.has(key));
+    return {
+      done: true,
+      result: {
+        checked: true,
+        removed,
+        verified: stillThere.length === 0 && after.ok && after.keys.size === survivors,
+        survivors: after.keys.size,
+      },
+    };
+  };
+  let outcome = attempt();
+  if (!outcome.done) {
+    outcome = attempt();
+    if (!outcome.done) {
+      return { checked: true, removed: [], error: "file changed under us twice; not written" };
+    }
+  }
+  return outcome.result;
+}
+
 /**
  * The bracket, as one object. Construct it BEFORE the first spawn; call
  * `guard.restore()` from a `finally`. Signal handlers are installed immediately
@@ -117,8 +234,16 @@ export function restoreUserSettings(snapshot) {
  *   - `diffSinceSnapshot()` — the per-arm, non-restoring check: did THIS arm move
  *     the file? Recorded per arm, then the whole run is restored once at the end.
  */
-export function createSettingsGuard({ settingsPath = userSettingsPath(), onRestore } = {}) {
+export function createSettingsGuard({
+  settingsPath = userSettingsPath(),
+  claudeJsonPath = userClaudeJsonPath(),
+  probeRoot = DEFAULT_PROBE_ROOT,
+  onRestore,
+} = {}) {
   const snapshot = snapshotUserSettings(settingsPath);
+  // The second file's bracket (see the module header): a key SET, not bytes.
+  const projectKeys = snapshotProjectKeys(claudeJsonPath);
+  let projectCleanup = null;
   const history = [];
   let finalOutcome = null;
 
@@ -150,6 +275,18 @@ export function createSettingsGuard({ settingsPath = userSettingsPath(), onResto
     if (!finalOutcome.mutatedByProbe && finalOutcome.checked) {
       process.stderr.write(
         `\n[settings guard] final: ${settingsPath} matches the snapshot (arms that mutated it: ${history.filter((h) => h.mutatedByProbe).length})\n`,
+      );
+    }
+    // The second file, AFTER every arm's CLI has exited (this runs from the
+    // caller's `finally`): delete only the project keys this run created under
+    // the probe root. Never a byte restore — see the module header.
+    projectCleanup = cleanupProbeProjectKeys(projectKeys, { probeRoot });
+    finalOutcome.projectCleanup = projectCleanup;
+    if (projectCleanup.checked) {
+      process.stderr.write(
+        `\n[settings guard] ~/.claude.json: removed ${projectCleanup.removed?.length ?? 0} probe project key(s) under ${probeRoot}` +
+          (projectCleanup.error ? ` — ${projectCleanup.error}` : projectCleanup.verified === false ? " — VERIFY FAILED" : "") +
+          "\n",
       );
     }
     return finalOutcome;
@@ -213,6 +350,11 @@ export function createSettingsGuard({ settingsPath = userSettingsPath(), onResto
     restoreNow,
     restore,
     installSignalRestore,
+    /** The second file's snapshot (key SET) and the cleanup outcome once run. */
+    projectKeys,
+    projectCleanup() {
+      return projectCleanup;
+    },
     /** Every restore this run performed, in order — the run's own audit trail. */
     history() {
       return history;
@@ -233,6 +375,48 @@ export function runSettingsGuardSelfTest(guard = createSettingsGuard()) {
   if (!guard.snapshot) {
     return { selfTest: "SKIP — no settings file at " + guard.path, pass: null };
   }
+  // Second-file self-test (D2 U5): simulate the CLI adding one probe-root trust
+  // entry AND touching a foreign project's accounting after the snapshot. The
+  // cleanup must remove exactly the probe-root key and leave every other value
+  // intact. Runs only against the override path — never seeds the real file.
+  const claudeJsonSelfTest = (() => {
+    const overridePath = process.env.SONATA_PROBE_CLAUDE_JSON_PATH;
+    if (!overridePath) return { skipped: "SONATA_PROBE_CLAUDE_JSON_PATH not set" };
+    const seed = {
+      numStartups: 7,
+      projects: {
+        "/Users/someone/real-project": { allowedTools: [], hasTrustDialogAccepted: true, lastCost: 1.25 },
+        [DEFAULT_PROBE_ROOT + "older-arm"]: { hasTrustDialogAccepted: true },
+      },
+      oauthAccount: { emailAddress: "x@example.com" },
+    };
+    fs.writeFileSync(overridePath, `${JSON.stringify(seed, null, 2)}\n`, "utf8");
+    const snap = snapshotProjectKeys(overridePath);
+    const during = JSON.parse(fs.readFileSync(overridePath, "utf8"));
+    during.projects[DEFAULT_PROBE_ROOT + "self-test-arm"] = { hasTrustDialogAccepted: true };
+    during.projects["/Users/someone/real-project"].lastCost = 2.5;
+    during.projects["/Users/someone/real-project"].lastSessionId = "abc";
+    fs.writeFileSync(overridePath, `${JSON.stringify(during, null, 2)}\n`, "utf8");
+    const cleanup = cleanupProbeProjectKeys(snap);
+    const after = JSON.parse(fs.readFileSync(overridePath, "utf8"));
+    const pass =
+      cleanup.removed?.length === 1 &&
+      cleanup.removed[0] === DEFAULT_PROBE_ROOT + "self-test-arm" &&
+      after.projects[DEFAULT_PROBE_ROOT + "older-arm"] !== undefined &&
+      after.projects["/Users/someone/real-project"].lastCost === 2.5 &&
+      after.projects["/Users/someone/real-project"].lastSessionId === "abc" &&
+      after.numStartups === 7 &&
+      after.oauthAccount.emailAddress === "x@example.com" &&
+      cleanup.verified === true;
+    const sweep = cleanupProbeProjectKeys(snapshotProjectKeys(overridePath), { sweepExisting: true });
+    const afterSweep = JSON.parse(fs.readFileSync(overridePath, "utf8"));
+    const sweepPass =
+      sweep.removed?.length === 1 &&
+      sweep.removed[0] === DEFAULT_PROBE_ROOT + "older-arm" &&
+      Object.keys(afterSweep.projects).length === 1 &&
+      afterSweep.projects["/Users/someone/real-project"].lastCost === 2.5;
+    return { cleanup, sweep, pass: pass && sweepPass };
+  })();
   const mutated = guard.snapshot.bytes.replace(/"model":\s*"[^"]*"/, '"model": "haiku"');
   const mutationIsDistinct = mutated !== guard.snapshot.bytes;
   fs.writeFileSync(
@@ -251,17 +435,30 @@ export function runSettingsGuardSelfTest(guard = createSettingsGuard()) {
     mutationLanded: seenMutated !== guard.snapshot.bytes,
     guard: outcome,
     bytesBackToOriginal: finalBytes === guard.snapshot.bytes,
+    claudeJsonSelfTest,
     pass:
       seenMutated !== guard.snapshot.bytes &&
       outcome.restored === true &&
-      finalBytes === guard.snapshot.bytes,
+      finalBytes === guard.snapshot.bytes &&
+      (claudeJsonSelfTest.pass === undefined || claudeJsonSelfTest.pass === true),
   };
 }
 
 // `node settings-guard.mjs --self-test` — the module is runnable on its own so
 // the bracket can be proven against a throwaway file with no probe attached:
-//   SONATA_PROBE_SETTINGS_PATH=/tmp/x.json node settings-guard.mjs --self-test
+//   SONATA_PROBE_SETTINGS_PATH=/tmp/x.json SONATA_PROBE_CLAUDE_JSON_PATH=/tmp/y.json \\
+//     node settings-guard.mjs --self-test
+// `--sweep-probe-root` (one-off): remove EVERY project key under the probe root
+// from the real ~/.claude.json — the cleanup for entries left before this guard
+// existed. Prints the removed paths. Run only when no claude is running.
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+  if (process.argv.includes("--sweep-probe-root")) {
+    const snap = snapshotProjectKeys();
+    const before = snap.keys.size;
+    const result = cleanupProbeProjectKeys(snap, { sweepExisting: true });
+    console.log(JSON.stringify({ path: snap.path.replace(os.homedir(), "$HOME"), projectsBefore: before, ...result }, null, 2));
+    process.exit(result.error ? 1 : 0);
+  }
   const result = runSettingsGuardSelfTest();
   console.log(JSON.stringify(result, null, 2));
   process.exit(result.pass === false ? 1 : 0);

@@ -1,8 +1,11 @@
 // Slice A smoke — nested-session env scrub.
 // A `claude` child that inherits CLAUDECODE/CLAUDE_CODE_* registers NO
 // ~/.claude/sessions/<pid>.json (research 2026-06-12 §4.2), so the host must
-// scrub them at spawn. CLAUDE_CONFIG_DIR is user-owned config and must pass
-// through untouched.
+// scrub them at spawn. Since D2 U5 (2026-09-03, F95) three un-prefixed siblings a
+// parent session also exports — CLAUDE_EFFORT / CLAUDE_PID / CLAUDE_PLUGIN_DATA —
+// are scrubbed too (the binary reads them; a dev-launched Sonata must spawn the
+// same shape a Dock-launched one does). CLAUDE_CONFIG_DIR is user-owned config
+// and must pass through untouched.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -24,6 +27,9 @@ fs.writeFileSync(${JSON.stringify(envDumpPath)}, JSON.stringify({
   CLAUDECODE: process.env.CLAUDECODE ?? null,
   CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT ?? null,
   CLAUDE_CODE_SSE_PORT: process.env.CLAUDE_CODE_SSE_PORT ?? null,
+  CLAUDE_EFFORT: process.env.CLAUDE_EFFORT ?? null,
+  CLAUDE_PID: process.env.CLAUDE_PID ?? null,
+  CLAUDE_PLUGIN_DATA: process.env.CLAUDE_PLUGIN_DATA ?? null,
   CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null,
   TERM: process.env.TERM ?? null,
 }));
@@ -37,6 +43,9 @@ setTimeout(() => {}, 5000);
 process.env.CLAUDECODE = "1";
 process.env.CLAUDE_CODE_ENTRYPOINT = "cli";
 process.env.CLAUDE_CODE_SSE_PORT = "12345";
+process.env.CLAUDE_EFFORT = "high";
+process.env.CLAUDE_PID = "424242";
+process.env.CLAUDE_PLUGIN_DATA = "/tmp/sonata-smoke-plugin-data";
 process.env.CLAUDE_CONFIG_DIR = "/tmp/sonata-smoke-keepme";
 
 const host = new TerminalHost({
@@ -63,6 +72,9 @@ try {
     childEnv.CLAUDECODE === null &&
     childEnv.CLAUDE_CODE_ENTRYPOINT === null &&
     childEnv.CLAUDE_CODE_SSE_PORT === null &&
+    childEnv.CLAUDE_EFFORT === null &&
+    childEnv.CLAUDE_PID === null &&
+    childEnv.CLAUDE_PLUGIN_DATA === null &&
     childEnv.CLAUDE_CONFIG_DIR === "/tmp/sonata-smoke-keepme" &&
     childEnv.TERM === "xterm-256color";
 
