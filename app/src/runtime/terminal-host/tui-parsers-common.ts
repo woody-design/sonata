@@ -6,6 +6,9 @@
 
 export const ARROW_UP = "\x1b[A";
 export const ARROW_DOWN = "\x1b[B";
+/** ←/→ — the claude `/effort` SLIDER moves one tick per press (D2 U4, m2 arm e1). */
+export const ARROW_LEFT = "\x1b[D";
+export const ARROW_RIGHT = "\x1b[C";
 export const ESC = "\x1b";
 /** Shift+Tab (CSI Z / back-tab) — cycles Claude's permission mode (probe:
  *  manual → accept edits → plan → auto → manual). The ONLY byte the permission

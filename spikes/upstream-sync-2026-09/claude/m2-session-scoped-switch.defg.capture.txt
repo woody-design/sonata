@@ -1,0 +1,1125 @@
+# M2 — picker-`s` session-scoped switch (claude 2.1.259 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-03T16:43:41.637Z
+
+===== version at start =====
+2.1.259 (Claude Code)
+
+===== arms =====
+d,e,f,g
+
+===== MODEL_OPTIONS claude (Sonata offers) =====
+fable, opus[1m], opus, sonnet, haiku, (null=Default)
+
+===== d — boot =====
+{"trust":true,"ready":true,"statusline":{"id":"claude-fable-5-1","display":"Fable 5.1","effort":"medium"}}
+
+===== d — warm-up =====
+{"typed":true,"stopSeen":true,"apiError":false}
+
+===== d/esc-on-row — picker before key (target Haiku: landed=true) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== d/esc-on-row — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== d/esc-on-row — hooks =====
+(none)
+
+===== d/esc-on-row — summary =====
+key=Esc focused="Haiku" dialog=none post.requested_model=undefined post.source=undefined to_model=undefined receipts.set=[] kept=[] statusline=claude-fable-5-1→claude-fable-5-1 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":true,"dialogOpenOnStream":false}
+
+===== d/s-then-dialog-esc — picker before key (target Haiku: landed=true) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== d/s-then-dialog-esc — cache-miss dialog (+245ms) =====
+[cursor] x=3 y=37
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Switch model?
+   Your next response will be slower and use more tokens
+     
+   This conversation is cached for the current model. Switching to Haiku 4.5 means the full history gets re-read on
+   your next message.
+
+   ❯ 1. Yes, switch to Haiku 4.5
+     2. No, go back
+
+===== d/s-then-dialog-esc — picker still open after dialog Esc; sending Esc =====
+[cursor] x=3 y=33
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+     
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== d/s-then-dialog-esc — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+     
+   
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+     
+  ⏸ manual mode on · ← for agents
+
+===== d/s-then-dialog-esc — hooks =====
++88ms PreModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
++148ms PreModelSwitch requested_model="haiku" to_model="claude-sonnet-5" source="picker"
+
+===== d/s-then-dialog-esc — summary =====
+key=s focused="Haiku" dialog=+245ms cursor=1 answered=true postAfterAnswer=nullms post.requested_model=undefined post.source=undefined to_model=undefined receipts.set=[] kept=[] statusline=claude-fable-5-1→claude-fable-5-1 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":true,"dialogOpenOnStream":true}
+
+===== d/s-then-dialog-no — picker before key (target Haiku: landed=true) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+     
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== d/s-then-dialog-no — cache-miss dialog (+244ms) =====
+[cursor] x=3 y=37
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Switch model?
+   Your next response will be slower and use more tokens
+     
+   This conversation is cached for the current model. Switching to Haiku 4.5 means the full history gets re-read on
+   your next message.
+
+   ❯ 1. Yes, switch to Haiku 4.5
+     2. No, go back
+
+===== d/s-then-dialog-no — picker still open after dialog No; sending Esc =====
+[cursor] x=3 y=33
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+   
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== d/s-then-dialog-no — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking the behavior of a physical hardware terminal connected to the computer's shell.
+
+✻ Cogitated for 3s · done 12:43 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+     
+     
+   
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   
+  ⏸ manual mode on · ← for agents
+
+===== d/s-then-dialog-no — hooks =====
++84ms PreModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
++144ms PreModelSwitch requested_model="haiku" to_model="claude-sonnet-5" source="picker"
+
+===== d/s-then-dialog-no — summary =====
+key=s focused="Haiku" dialog=+404ms cursor=1 answered=true postAfterAnswer=nullms post.requested_model=undefined post.source=undefined to_model=undefined receipts.set=[] kept=[] statusline=claude-fable-5-1→claude-fable-5-1 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":true,"dialogOpenOnStream":true}
+
+===== e — boot =====
+{"trust":true,"ready":false,"statusline":{"id":"claude-fable-5-1","display":"Fable 5.1","effort":"medium"}}
+
+===== e — warm-up =====
+{"typed":true,"stopSeen":true,"apiError":false}
+
+===== e1 — after bare /effort (open=true, +152ms) =====
+[cursor] x=0 y=39
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking a physical terminal to let you interact with the shell and command-line programs.
+
+✻ Baked for 3s · done 12:45 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Effort
+
+                             Faster                                                 Smarter
+                             ──────────▲────────────────────────────────┆──────────────────
+                             low     medium     high     xhigh      max       ultracode
+                                                                          xhigh + workflows
+
+   ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+
+===== e1 — /effort picker rows + hint =====
+
+hint: ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+'s to' present: false
+
+===== e1 — after → (one step up) =====
+[cursor] x=0 y=39
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking a physical terminal to let you interact with the shell and command-line programs.
+
+✻ Baked for 3s · done 12:45 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Effort
+
+                             Faster                                                 Smarter
+                             ────────────────────▲──────────────────────┆──────────────────
+                             low     medium     high     xhigh      max       ultracode
+                                                                          xhigh + workflows
+
+   ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+
+===== e1 — dialog after s =====
+[cursor] x=3 y=37
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking a physical terminal to let you interact with the shell and command-line programs.
+
+✻ Baked for 3s · done 12:45 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Change effort level?
+   Your next response will be slower and use more tokens
+
+   This conversation is cached for the current effort level. Switching to high means the full history gets re-read on
+   your next message.        
+         
+   ❯ 1. Yes, switch to high                                               
+     2. No, go back
+
+===== e1 — after `s` (→ then s) =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with high effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking a physical terminal to let you interact with the shell and command-line programs.
+
+✻ Baked for 3s · done 12:45 PM
+
+❯ /effort                                                                                                               
+  ⎿  Set effort level to high (this session only): Comprehensive implementation with extensive testing and documentation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+   
+
+                                                                                                      ● high · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== e1 — after → then `s` =====
+{"sliderBefore":"──────────▲────────────────────────────────┆──────────────────","sliderAfter":"────────────────────▲──────────────────────┆──────────────────","dialogAt":624,"ans":{"answered":true,"atMs":0},"receipts":{"set":[],"kept":[],"effort":[]},"hooks":"(none)","statusline":"medium→high","settings":{"checked":true,"changed":false,"changedKeys":[]},"pickerStillOpen":false,"dialog":false}
+
+===== e1b — after ← then Enter (persisting form) =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking a physical terminal to let you interact with the shell and command-line programs.
+
+✻ Baked for 3s · done 12:45 PM
+
+❯ /effort                                                                                                               
+  ⎿  Set effort level to high (this session only): Comprehensive implementation with extensive testing and documentation
+
+❯ /effort                                                                                                               
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== e1b — after ← then Enter =====
+{"dialogAt":null,"receipts":{"set":[],"kept":[],"effort":[]},"hooks":"(none)","statusline":"high→medium","settings":{"checked":true,"changed":true,"changedKeys":["modelSettings: {\"claude-sonnet-5\":{\"effortLevel\":\"low\"}} → {\"claude-sonnet-5\":{\"effortLevel\":\"low\"},\"claude-fable-5-1\":{\"effortLevel\":\"medium\"}}"]}}
+
+===== e2 — /model picker after → (effort line: ◐ Medium effort ←/→ to adjust → ● High effort (default) ←/→ to adjust) =====
+[cursor] x=3 y=33
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking a physical terminal to let you interact with the shell and command-line programs.
+
+✻ Baked for 3s · done 12:45 PM
+
+❯ /effort                                                                                                               
+  ⎿  Set effort level to high (this session only): Comprehensive implementation with extensive testing and documentation
+
+❯ /effort                                                                                                               
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ● High effort (default) ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== e2 — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with high effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking a physical terminal to let you interact with the shell and command-line programs.
+
+✻ Baked for 3s · done 12:45 PM
+
+❯ /effort                                                                                                               
+  ⎿  Set effort level to high (this session only): Comprehensive implementation with extensive testing and documentation
+
+❯ /effort                                                                                                               
+  ⎿  Set effort level to medium (saved as your default for new sessions): Balanced approach with standard implementation
+     and testing
+
+❯ /model                                                                                                                
+  ⎿  Set model to Fable 5.1 for this session only with high effort
+
+
+
+
+
+
+
+
+
+     
+   
+   
+                                                                     
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== e2 — /model picker →(effort) then `s` =====
+{
+ "open": {
+  "typed": true,
+  "open": true,
+  "openMs": 153,
+  "cr": 1788453935029
+ },
+ "effortBefore": "◐ Medium effort ←/→ to adjust",
+ "effortAfterArrow": "● High effort (default) ←/→ to adjust",
+ "dialogAt": null,
+ "ans": null,
+ "receipts": {
+  "set": [],
+  "kept": [],
+  "effort": []
+ },
+ "hooks": "(none)",
+ "statusline": "claude-fable-5-1/medium→claude-fable-5-1/high",
+ "settings": {
+  "checked": true,
+  "changed": false,
+  "changedKeys": []
+ }
+}
+
+===== f — boot =====
+{"trust":true,"ready":false,"statusline":{"id":"claude-opus-5[1m]","display":"Opus 5 (1M context)","effort":"medium"}}
+
+===== f — warm-up =====
+{"typed":true,"stopSeen":true,"apiError":false}
+
+===== f/opus1m→haiku — picker before key (target Haiku: landed=true) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Opus 5 (1M context) with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/f-repaint-mtlraxq8
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that mimics a hardware text terminal, letting you run command-line programs in a
+  window by rendering their text output and passing your keystrokes back to them.
+
+✻ Sautéed for 2s · done 12:46 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== f/opus1m→haiku — cache-miss dialog (+243ms) =====
+[cursor] x=3 y=37
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Opus 5 (1M context) with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/f-repaint-mtlraxq8
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that mimics a hardware text terminal, letting you run command-line programs in a
+  window by rendering their text output and passing your keystrokes back to them.
+
+✻ Sautéed for 2s · done 12:46 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Switch model?
+   Your next response will be slower and use more tokens
+     
+   This conversation is cached for the current model. Switching to Haiku 4.5 means the full history gets re-read on
+   your next message.
+
+   ❯ 1. Yes, switch to Haiku 4.5
+     2. No, go back
+
+===== f/opus1m→haiku — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Haiku 4.5 · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/f-repaint-mtlraxq8
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that mimics a hardware text terminal, letting you run command-line programs in a
+  window by rendering their text output and passing your keystrokes back to them.
+
+✻ Sautéed for 2s · done 12:46 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Haiku 4.5 for this session only
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+
+     
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+     
+  ⏸ manual mode on · ← for agents
+
+===== f/haiku→opus1m — picker before key (target Opus (1M context): landed=true) =====
+[cursor] x=3 y=32
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Haiku 4.5 · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/f-repaint-mtlraxq8
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that mimics a hardware text terminal, letting you run command-line programs in a
+  window by rendering their text output and passing your keystrokes back to them.
+
+✻ Sautéed for 2s · done 12:46 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Haiku 4.5 for this session only
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku ✔                Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+     
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== f/haiku→opus1m — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Opus 5 (1M context) with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/f-repaint-mtlraxq8
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that mimics a hardware text terminal, letting you run command-line programs in a
+  window by rendering their text output and passing your keystrokes back to them.
+
+✻ Sautéed for 2s · done 12:46 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Haiku 4.5 for this session only
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== f/leg1 — hooks =====
++88ms PreModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
++149ms PreModelSwitch requested_model="haiku" to_model="claude-sonnet-5" source="picker"
++312ms PostModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
+
+===== f/leg1 — summary =====
+key=s focused="Haiku" dialog=+0ms cursor=1 answered=true postAfterAnswer=69ms post.requested_model="haiku" post.source="picker" to_model="claude-haiku-4-5-20251001" receipts.set=[] kept=[] statusline=claude-opus-5[1m]→claude-haiku-4-5-20251001 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":true}
+
+===== f/leg2 — hooks =====
++80ms PreModelSwitch requested_model="opus[1m]" to_model="claude-opus-5[1m]" source="picker"
++140ms PreModelSwitch requested_model="opus[1m]" to_model="claude-opus-5[1m]" source="picker"
++204ms PostModelSwitch requested_model="opus[1m]" to_model="claude-opus-5[1m]" source="picker"
+
+===== f/leg2 — summary =====
+key=s focused="Opus (1M context)" dialog=none post.requested_model="opus[1m]" post.source="picker" to_model="claude-opus-5[1m]" receipts.set=[] kept=[] statusline=claude-haiku-4-5-20251001→claude-opus-5[1m] settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":false}
+
+===== f — last 4096-char window: model receipts visible =====
+{"setCount":0,"keptCount":0,"snippets":[]}
+
+===== g — boot =====
+{"trust":true,"ready":true,"statusline":{"id":"claude-fable-5-1","display":"Fable 5.1","effort":"medium"}}
+
+===== g — after Down@+0ms, then two Downs 60ms apart =====
+[cursor] x=3 y=31
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/g-arming-mtlrcmfp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+   ❯ 1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== g — arming window =====
+{"typed":true,"openAt":36,"focusedAtOpen":"Fable","afterDownAt0ms":"Sonnet","afterTwoMoreDowns60ms":"Default (recommended)","moved":true}
+
+===== settings guard =====
+{"settings":{"mutatedByProbe":false,"restored":true,"changedKeys":[]},"claudeJson":{"checked":true,"removed":["/private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr88nh","/private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h","/private/tmp/sonata-sync-2026-09/session-scoped-switch/f-repaint-mtlraxq8","/private/tmp/sonata-sync-2026-09/session-scoped-switch/g-arming-mtlrcmfp"],"verified":true,"survivors":3503}}
+
+===== version at end =====
+2.1.259 (Claude Code)

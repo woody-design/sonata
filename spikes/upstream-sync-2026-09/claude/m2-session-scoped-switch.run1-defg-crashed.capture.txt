@@ -1,0 +1,461 @@
+# M2 — picker-`s` session-scoped switch (claude 2.1.259 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-03T16:41:53.757Z
+
+===== version at start =====
+2.1.259 (Claude Code)
+
+===== arms =====
+d,e,f,g
+
+===== MODEL_OPTIONS claude (Sonata offers) =====
+fable, opus[1m], opus, sonnet, haiku, (null=Default)
+
+===== d — boot =====
+{"trust":true,"ready":true,"statusline":{"id":"claude-fable-5-1","display":"Fable 5.1","effort":"medium"}}
+
+===== d — warm-up =====
+{"typed":true,"stopSeen":true,"apiError":false}
+
+===== d/esc-on-row — picker before key (target Haiku: landed=true) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr5xet
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ Your message got cut off at "In one short sentenc" — what would you like me to describe in one short sentence?
+
+✻ Sautéed for 3s · done 12:42 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== d/esc-on-row — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr5xet
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ Your message got cut off at "In one short sentenc" — what would you like me to describe in one short sentence?
+
+✻ Sautéed for 3s · done 12:42 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== d/esc-on-row — hooks =====
+(none)
+
+===== d/esc-on-row — summary =====
+key=Esc focused="Haiku" dialog=none post.requested_model=undefined post.source=undefined to_model=undefined receipts.set=[] kept=[] statusline=claude-fable-5-1→claude-fable-5-1 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":true,"dialogOpenOnStream":false}
+
+===== d/s-then-dialog-esc — picker before key (target Haiku: landed=true) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr5xet
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ Your message got cut off at "In one short sentenc" — what would you like me to describe in one short sentence?
+
+✻ Sautéed for 3s · done 12:42 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== d/s-then-dialog-esc — cache-miss dialog (+244ms) =====
+[cursor] x=3 y=37
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr5xet
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ Your message got cut off at "In one short sentenc" — what would you like me to describe in one short sentence?
+
+✻ Sautéed for 3s · done 12:42 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Switch model?
+   Your next response will be slower and use more tokens
+     
+   This conversation is cached for the current model. Switching to Haiku 4.5 means the full history gets re-read on
+   your next message.
+
+   ❯ 1. Yes, switch to Haiku 4.5
+     2. No, go back
+
+===== d/s-then-dialog-esc — after =====
+[cursor] x=3 y=33
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr5xet
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ Your message got cut off at "In one short sentenc" — what would you like me to describe in one short sentence?
+
+✻ Sautéed for 3s · done 12:42 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+     
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== d/s-then-dialog-esc — hooks =====
++81ms PreModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
++140ms PreModelSwitch requested_model="haiku" to_model="claude-sonnet-5" source="picker"
+
+===== d/s-then-dialog-esc — summary =====
+key=s focused="Haiku" dialog=+244ms cursor=1 answered=true postAfterAnswer=nullms post.requested_model=undefined post.source=undefined to_model=undefined receipts.set=[] kept=[] statusline=claude-fable-5-1→claude-fable-5-1 settingsChanged=false parsers={"pickerStillOpen":true,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":true}
+
+===== d/s-then-dialog-no — picker did NOT open =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr5xet
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ Your message got cut off at "In one short sentenc" — what would you like me to describe in one short sentence?
+
+✻ Sautéed for 3s · done 12:42 PM
+
+❯ /model 
+  ⎿  Kept model as Fable 5.1
+
+❯ /model                                                                                                                
+  ⎿  Set model to Fable 5.1 and saved as your default for new sessions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+     
+   
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+     
+  ⏸ manual mode on · ← for agents
+
+===== d/s-then-dialog-no — hooks =====
+(n/a)
+
+===== d/s-then-dialog-no — summary =====
+ERROR picker did not open
+
+===== e — boot =====
+{"trust":true,"ready":true,"statusline":{"id":"claude-fable-5-1","display":"Fable 5.1","effort":"medium"}}
+
+===== e — warm-up =====
+{"typed":true,"stopSeen":true,"apiError":false}
+
+===== e1 — after bare /effort (open=true, +152ms) =====
+[cursor] x=0 y=39
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr6l8t
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ 看起来你的消息被截断了，只写到"In one short sentenc"。请补全你想问的问题。
+
+✻ Baked for 3s · done 12:42 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Effort
+
+                             Faster                                                 Smarter
+                             ──────────▲────────────────────────────────┆──────────────────
+                             low     medium     high     xhigh      max       ultracode
+                                                                          xhigh + workflows
+
+   ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+
+===== e1 — /effort picker rows + hint =====
+
+hint: ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+'s to' present: false
+
+===== e1 — after Down =====
+[cursor] x=0 y=39
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr6l8t
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ 看起来你的消息被截断了，只写到"In one short sentenc"。请补全你想问的问题。
+
+✻ Baked for 3s · done 12:42 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Effort
+
+                             Faster                                                 Smarter
+                             ──────────▲────────────────────────────────┆──────────────────
+                             low     medium     high     xhigh      max       ultracode
+                                                                          xhigh + workflows
+
+   ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+
+===== e1 — after `s` on an effort row =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr6l8t
+
+
+❯ In one short sentenc                                                                                                  
+
+⏺ 看起来你的消息被截断了，只写到"In one short sentenc"。请补全你想问的问题。
+
+✻ Baked for 3s · done 12:42 PM
+
+❯ /effort                                                                                                               
+  ⎿  Set effort level to medium (this session only): Balanced approach with standard implementation and testing
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== e1 — after `s` =====
+{"receipts":{"set":[],"kept":[],"effort":[]},"hooks":"(none)","statusline":"medium→medium","settings":{"checked":true,"changed":false,"changedKeys":[]},"pickerStillOpen":false,"dialog":false}
+
+===== PROBE ERROR =====
+TypeError [ERR_INVALID_ARG_TYPE]: The first argument must be of type string or an instance of Buffer, ArrayBuffer, or Array or an Array-like Object. Received undefined
+    at Buffer.from (node:buffer:360:9)
+    at CustomWriteStream.write ($HOME/Work/Workspace/Product/sonata/dev/app/node_modules/node-pty/lib/unixTerminal.js:296:22)
+    at UnixTerminal._write ($HOME/Work/Workspace/Product/sonata/dev/app/node_modules/node-pty/lib/unixTerminal.js:156:27)
+    at Terminal.write ($HOME/Work/Workspace/Product/sonata/dev/app/node_modules/node-pty/lib/terminal.js:88:14)
+    at Probe.write (file://$HOME/Work/Workspace/Product/sonata/dev/spikes/upstream-sync-2026-08/claude/driver.mjs:59:14)
+    at Session.write (file://$HOME/Work/Workspace/Product/sonata/dev/spikes/upstream-sync-2026-09/claude/m2-session-scoped-switch.mjs:95:25)
+    at file://$HOME/Work/Workspace/Product/sonata/dev/spikes/upstream-sync-2026-09/claude/m2-session-scoped-switch.mjs:333:7
+
+===== settings guard =====
+{"settings":{"mutatedByProbe":false,"restored":true,"changedKeys":[]},"claudeJson":{"checked":true,"removed":["/private/tmp/sonata-sync-2026-09/session-scoped-switch/d-esc-mtlr5xet","/private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr6l8t"],"verified":true,"survivors":3502}}
+
+===== version at end =====
+2.1.259 (Claude Code)

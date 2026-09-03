@@ -34,6 +34,12 @@ const {
   parseClaudeCacheMissCursor,
   claudeCacheMissCancelled,
   parseCodexConsentCursor,
+  claudeModelPickerOpen,
+  parseClaudeModelPicker,
+  claudeEffortPickerOpen,
+  parseClaudeEffortSlider,
+  claudeModelSwitchMatches,
+  CLAUDE_MODEL_ALIASES,
 } = require("../../dist/runtime");
 
 // ── THE MODEL-AXIS SUCCESS NEEDLE IS RETIRED (D2 U3) ───────────────────────
@@ -1221,5 +1227,47 @@ assert.equal(
   null,
   "the consent dialog is not a confirm receipt",
 );
+
+// ── D2 U4: the claude `/model` PICKER and `/effort` SLIDER, off the GRID ──────
+//
+// MEASURED frames at claude 2.1.259 (probe `m2-session-scoped-switch`, captures
+// `.abc` / `.defg`): the picker with the cursor on `Opus (1M context)` and Fable
+// marked current; the slider at medium; the slider after one → (high); the
+// cache-miss dialog the picker's `s` raised. These are the grid reads the
+// session-scoped drive (control-switch-engine `claude-picker`) navigates by.
+const MODEL_PICKER = readFixture("claude-midsession/model-picker-2.1.259.txt");
+const EFFORT_SLIDER = readFixture("claude-midsession/effort-slider-2.1.259.txt");
+const EFFORT_SLIDER_HIGH = readFixture("claude-midsession/effort-slider-after-right-2.1.259.txt");
+const PICKER_CACHE_MISS = readFixture("claude-midsession/model-picker-cachemiss-2.1.259.txt");
+
+assert.equal(claudeModelPickerOpen(MODEL_PICKER), true, "the /model picker is recognised on the grid (title + `s` footer)");
+assert.equal(claudeModelPickerOpen(EFFORT_SLIDER), false, "…and the effort slider is NOT a model picker");
+assert.equal(claudeModelPickerOpen(PICKER_CACHE_MISS), false, "…nor is the cache-miss dialog that `s` raised");
+const picker = parseClaudeModelPicker(MODEL_PICKER);
+assert.deepEqual(
+  picker.rows.map((row) => `${row.digit}:${row.label}${row.current ? "✔" : ""}${row.focused ? "❯" : ""}`),
+  ["1:Default (recommended)", "2:Opus (1M context)❯", "3:Fable✔", "4:Sonnet", "5:Haiku"],
+  "five rows, labels stripped of digit/description, ✔ = current, ❯ = focus (F15 marks)",
+);
+assert.equal(picker.focused, "Opus (1M context)");
+// Every alias Sonata offers maps to a row of THIS picker — except plain `opus`,
+// whose only Opus row is the 1M one (m2 arm a: `target row not found`).
+for (const row of CLAUDE_MODEL_ALIASES) {
+  const present = picker.rows.some((r) => r.label === row.pickerRow);
+  assert.equal(present, row.pickerRow !== null, `alias ${row.alias}: pickerRow ${row.pickerRow} ${row.pickerRow ? "present" : "absent by design"}`);
+}
+assert.equal(claudeEffortPickerOpen(EFFORT_SLIDER), true, "the /effort slider is recognised (footer names `s for this session only`)");
+assert.equal(claudeEffortPickerOpen(MODEL_PICKER), false, "…and the model picker is not an effort slider");
+assert.deepEqual(parseClaudeEffortSlider(EFFORT_SLIDER), { levels: ["low", "medium", "high", "xhigh", "max", "ultracode"], currentIndex: 1 }, "▲ nearest `medium` (MEASURED boot effort)");
+assert.equal(parseClaudeEffortSlider(EFFORT_SLIDER_HIGH).currentIndex, 2, "after one →, ▲ nearest `high` (MEASURED)");
+assert.equal(parseClaudeEffortSlider(MODEL_PICKER).currentIndex, null, "no slider on the model picker frame");
+assert.equal(claudeCacheMissDialogOpen(PICKER_CACHE_MISS), true, "the dialog `s` raised is the same cache-miss dialog the S7 relay parks on");
+// The hook match, all MEASURED shapes (m2 arm a): alias, picker `requested_model`, canonical id.
+assert.equal(claudeModelSwitchMatches("haiku", "haiku", "claude-haiku-4-5-20251001"), true);
+assert.equal(claudeModelSwitchMatches("opus[1m]", "opus[1m]", "claude-opus-5[1m]"), true);
+assert.equal(claudeModelSwitchMatches("fable", "claude-fable-5-1[1m]", "claude-fable-5-1"), true, "the Fable row's picker `requested_model` form");
+assert.equal(claudeModelSwitchMatches("fable", "fable", null), true, "the plain alias still matches (slash-era shape)");
+assert.equal(claudeModelSwitchMatches("fable", "haiku", "claude-haiku-4-5-20251001"), false, "a foreign switch does not");
+assert.equal(claudeModelSwitchMatches("sonnet", "sonnet-ish", null), false, "no fuzzy matching");
 
 console.log("midsession-receipt: OK");

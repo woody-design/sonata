@@ -951,3 +951,211 @@ export function expectedPermissionLandings(
   }
   return landings;
 }
+
+// ── Claude `/model` picker + `/effort` slider (D2 U4, 2026-09-03) ─────────────
+//
+// WHY THE PICKER AT ALL. `/model <alias>` — the slash form Sonata drove since S1 —
+// applies the switch AND writes the user's durable default
+// (`~/.claude/settings.json` `model`: "Set model to X and saved as your default
+// for new sessions"), MEASURED 3/3 under every launch channel (F68). The picker's
+// `s` key is the CLI's own session-scoped affordance: "Set model to X for this
+// session only", settings byte-unchanged, `PostModelSwitch` fires with
+// `source:"picker"` (F89, m2 arms a/b/f). The `/effort` picker is a SLIDER with the
+// same `s` (m2 arm e1: `Set effort level to high (this session only): …`, settings
+// unchanged; its Enter form writes `modelSettings[<id>].effortLevel`). Woody's
+// ruling (2026-09-03): ONE drive path — the picker — no slash fallback.
+//
+// EVERYTHING BELOW READS THE SCREEN GRID, never the pty tail (D-1: "is the picker
+// open / which row is focused / where is the slider" are STATE questions).
+// Frames MEASURED at claude 2.1.259 — `app/tests/fixtures/claude-midsession/
+// model-picker-2.1.259.txt`, `effort-slider-2.1.259.txt`,
+// `effort-slider-after-right-2.1.259.txt` (probe `m2-session-scoped-switch`,
+// captures `.abc` / `.defg`):
+//
+//      Select model
+//      Switch between Claude models. Your pick becomes the default for new sessions. …
+//        1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+//      ❯ 2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+//        3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+//        4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+//        5. Haiku                  Haiku 4.5 · Fastest for quick answers
+//      ◐ Medium effort ←/→ to adjust
+//      Enter to set as default · s to use this session only · Esc to cancel
+//
+//      Effort
+//                                Faster                                                 Smarter
+//                                ──────────▲────────────────────────────────┆──────────────────
+//                                low     medium     high     xhigh      max       ultracode
+//                                                                             xhigh + workflows
+//      ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+//
+// `❯` = focus, `✔` = the CURRENT model (two independent marks, F15). The row
+// LABEL is not the alias (F89 item 4: `5. Haiku Haiku 4.5 · …` is digit, label,
+// description), so the drive navigates by the label column of THIS table.
+
+/**
+ * The alias ↔ picker-row ↔ canonical-id table, MEASURED (F16 ids and display
+ * names at 2.1.258, re-confirmed by m2 arm a at 2.1.259 for every row).
+ *
+ * `pickerRow` is null for plain `opus`: the picker's only Opus row is
+ * `Opus (1M context)`, so a session-scoped switch to the 200K `opus` has no row to
+ * land on (m2 arm a: "target row not found"). Sonata still offers `opus` at LAUNCH
+ * (`--model opus` resolves); mid-session it fails loud with a named reason.
+ *
+ * `postRequestedModel` is what `PostModelSwitch.requested_model` carries when the
+ * row is chosen through the picker — the alias for four rows, but for Fable the
+ * CLI reports `claude-fable-5-1[1m]` (m2 arm a, 2/2 runs) while `to_model` is the
+ * canonical `claude-fable-5-1`. The hook settle therefore matches EITHER the
+ * alias/requested form OR `to_model` against `id` — never `to_model` alone from a
+ * `PreModelSwitch` (whose second copy drifts, F84).
+ */
+export interface ClaudeModelAliasRow {
+  alias: string;
+  /** The picker row label (between the digit and the description). Null = no row. */
+  pickerRow: string | null;
+  /** The statusline `model.display_name` / receipt name. */
+  display: string;
+  /** The canonical API id (`PostModelSwitch.to_model`, statusline `model.id`). */
+  id: string;
+  /** What `requested_model` carried for a picker-driven switch of this row. */
+  postRequestedModel: string;
+}
+export const CLAUDE_MODEL_ALIASES: readonly ClaudeModelAliasRow[] = [
+  { alias: "fable", pickerRow: "Fable", display: "Fable 5.1", id: "claude-fable-5-1", postRequestedModel: "claude-fable-5-1[1m]" },
+  { alias: "opus[1m]", pickerRow: "Opus (1M context)", display: "Opus 5 (1M context)", id: "claude-opus-5[1m]", postRequestedModel: "opus[1m]" },
+  { alias: "opus", pickerRow: null, display: "Opus 5", id: "claude-opus-5", postRequestedModel: "opus" },
+  { alias: "sonnet", pickerRow: "Sonnet", display: "Sonnet 5", id: "claude-sonnet-5", postRequestedModel: "sonnet" },
+  { alias: "haiku", pickerRow: "Haiku", display: "Haiku 4.5", id: "claude-haiku-4-5-20251001", postRequestedModel: "haiku" },
+];
+
+export function claudeModelAliasRow(alias: string): ClaudeModelAliasRow | null {
+  return CLAUDE_MODEL_ALIASES.find((row) => row.alias === alias) ?? null;
+}
+
+/**
+ * Does a `PostModelSwitch` payload confirm a switch Sonata drove to `alias`?
+ * Matches the alias itself (the slash-form / four picker rows), the measured
+ * picker `requested_model` form, or `to_model` against the canonical id (the Fable
+ * row). All three are MEASURED shapes; nothing here is a label heuristic.
+ */
+export function claudeModelSwitchMatches(
+  alias: string,
+  requestedModel: string,
+  toModel: string | null | undefined,
+): boolean {
+  if (requestedModel === alias) {
+    return true;
+  }
+  const row = claudeModelAliasRow(alias);
+  if (!row) {
+    return false;
+  }
+  if (requestedModel === row.postRequestedModel) {
+    return true;
+  }
+  return typeof toModel === "string" && toModel === row.id;
+}
+
+export interface ClaudeModelPickerRow {
+  digit: number;
+  label: string;
+  current: boolean;
+  focused: boolean;
+}
+export interface ClaudeModelPicker {
+  rows: ClaudeModelPickerRow[];
+  /** The focused row's label, or null while the cursor is not legible. */
+  focused: string | null;
+}
+
+const CLAUDE_MODEL_PICKER_TITLE_RE = /Selectmodel/;
+const CLAUDE_MODEL_PICKER_FOOTER_RE = /stousethissessiononly·Esctocancel/;
+const CLAUDE_MODEL_PICKER_ROW_RE = /^\s*(❯)?\s*(\d)\.\s+(.+?)\s*$/;
+
+/** The `/model` picker is on the SCREEN (viewport text). Co-occurrence of the
+ *  title and the footer that names the `s` key — the footer is also the proof
+ *  the affordance this drive rests on still exists at this binary. */
+export function claudeModelPickerOpen(screenText: string): boolean {
+  const compact = cleanTerminal(screenText).replace(/\s+/g, "");
+  return CLAUDE_MODEL_PICKER_TITLE_RE.test(compact) && CLAUDE_MODEL_PICKER_FOOTER_RE.test(compact);
+}
+
+/** Parse the picker's numbered rows off the grid. Label = the text between the
+ *  digit and either the `✔` mark or the two-space gap before the description. */
+export function parseClaudeModelPicker(screenText: string): ClaudeModelPicker {
+  const rows: ClaudeModelPickerRow[] = [];
+  for (const line of cleanTerminal(screenText).split("\n")) {
+    const match = CLAUDE_MODEL_PICKER_ROW_RE.exec(line);
+    if (!match) {
+      continue;
+    }
+    const rest = match[3] ?? "";
+    const label = rest.split(/\s✔|\s{2,}/)[0]?.trim() ?? "";
+    if (!label) {
+      continue;
+    }
+    rows.push({ digit: Number(match[2] ?? "0"), label, current: /✔/.test(rest), focused: match[1] === "❯" });
+  }
+  return { rows, focused: rows.find((row) => row.focused)?.label ?? null };
+}
+
+/** The `/effort` slider is on the SCREEN. Footer names the `s` key; the tick
+ *  labels line carries the level words. */
+const CLAUDE_EFFORT_PICKER_FOOTER_RE = /←\/→toadjust·Entertoconfirm·sforthissessiononly·Esctocancel/;
+export function claudeEffortPickerOpen(screenText: string): boolean {
+  const compact = cleanTerminal(screenText).replace(/\s+/g, "");
+  return CLAUDE_EFFORT_PICKER_FOOTER_RE.test(compact) && /low.*medium.*high/.test(compact);
+}
+
+export interface ClaudeEffortSlider {
+  /** The tick labels in screen order (2.1.259: low medium high xhigh max ultracode). */
+  levels: string[];
+  /** Index into `levels` of the tick nearest the `▲` marker, or null when either
+   *  the marker or the labels line is not legible. */
+  currentIndex: number | null;
+}
+
+/** Locate the `▲` column and the labels line; the current level is the label
+ *  whose centre column is nearest the marker. Column-based rather than
+ *  text-based because the slider paints no textual "current" mark. */
+export function parseClaudeEffortSlider(screenText: string): ClaudeEffortSlider {
+  const lines = cleanTerminal(screenText).split("\n");
+  let markerCol: number | null = null;
+  let labelsLine: string | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (markerCol === null && /▲/.test(line) && /─/.test(line)) {
+      markerCol = line.indexOf("▲");
+      // The labels line is the first following line carrying the level words.
+      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
+        const candidate = lines[j] ?? "";
+        if (/\blow\b/.test(candidate) && /\bmedium\b/.test(candidate) && /\bhigh\b/.test(candidate)) {
+          labelsLine = candidate;
+          break;
+        }
+      }
+      break;
+    }
+  }
+  if (markerCol === null || labelsLine === null) {
+    return { levels: [], currentIndex: null };
+  }
+  const levels: string[] = [];
+  const centres: number[] = [];
+  const wordRe = /\S+/g;
+  let match: RegExpExecArray | null;
+  while ((match = wordRe.exec(labelsLine)) !== null) {
+    levels.push(match[0]);
+    centres.push(match.index + match[0].length / 2);
+  }
+  if (levels.length === 0) {
+    return { levels: [], currentIndex: null };
+  }
+  let best = 0;
+  for (let i = 1; i < centres.length; i++) {
+    if (Math.abs((centres[i] ?? 0) - markerCol) < Math.abs((centres[best] ?? 0) - markerCol)) {
+      best = i;
+    }
+  }
+  return { levels, currentIndex: best };
+}

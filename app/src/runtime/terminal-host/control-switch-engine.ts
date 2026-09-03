@@ -10,16 +10,22 @@ import type {
   ClaudeControlSwitchKind,
   ClaudeControlSwitchResponse,
 } from "../../shared/types/ipc";
-import { ARROW_DOWN, ARROW_UP, ESC, SHIFT_TAB } from "./tui-parsers-common";
+import { ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, ARROW_UP, ESC, SHIFT_TAB } from "./tui-parsers-common";
 import {
   asClaudePermissionMode,
   claudeCacheMissCancelled,
   claudeCacheMissDialogOpen,
+  claudeEffortPickerOpen,
+  claudeModelAliasRow,
+  claudeModelPickerOpen,
+  claudeModelSwitchMatches,
   CONTROL_SWITCH_SCAN_LIMIT,
   expectedPermissionLandings,
   isClaudePermissionCycleMode,
   parseClaudeCacheMissCursor,
   parseClaudeControlReceipt,
+  parseClaudeEffortSlider,
+  parseClaudeModelPicker,
   parseClaudePermissionModeLine,
 } from "./tui-parsers-claude";
 import {
@@ -50,6 +56,15 @@ import {
  *  no auto-answer, no retry). ~5s covers the CLI's echo→apply→print latency
  *  with headroom (probe receipts landed well inside 2.5s). */
 const CONTROL_SWITCH_RECEIPT_TIMEOUT_MS = 5000;
+// The claude session-scoped PICKER drive (D2 U4). Timeouts sized like the codex
+// pickers'; `s` is the CLI's own session-only apply key (F15/F16/F89, m2).
+const CLAUDE_PICKER_OPEN_TIMEOUT_MS = 6000;
+const CLAUDE_PICKER_NAV_TIMEOUT_MS = 2500;
+const CLAUDE_PICKER_CLOSE_VERIFY_MS = 700;
+/** 5 model rows / 6 effort ticks — the longest direct walk is 5; 8 is the loud bound. */
+const CLAUDE_PICKER_MAX_NAV_STEPS = 8;
+const CLAUDE_PICKER_MAX_ROLLBACK_ESCS = 2;
+const CLAUDE_PICKER_APPLY_KEY = "s";
 /** Per-STEP receipt window for the permission Shift+Tab stepping engine (S2).
  *  The mode line is "instant" (probe: it repaints on the same frame as the
  *  keypress), so 1.5s is generous; a step that earns no recognized mode line in
@@ -250,18 +265,60 @@ export interface ControlSwitchHost {
 
 type PendingControlSwitch =
   | {
-      axis: "value";
+      // `claude-picker` (D2 U4) — the SESSION-SCOPED claude model/effort switch.
+      // The slash form (`/model X`, `/effort Y`) applied the switch AND wrote the
+      // user's durable default (F68: `~/.claude/settings.json`, 3/3 under every
+      // launch channel) — the one pollution Sonata caused. The CLI's own
+      // session-only affordance is the picker's `s` key ("Set model to X for this
+      // session only" / "Set effort level to Y (this session only)", settings
+      // byte-unchanged — F89, m2 arms a/b/e/f at 2.1.259). Woody's ruling: ONE
+      // drive path — this one — no slash fallback.
+      //
+      // `/model` is a ROW picker (walk ↑/↓ to the row whose LABEL maps to the
+      // alias — `CLAUDE_MODEL_ALIASES`); `/effort` is a SLIDER (←/→ one tick per
+      // press, current = the ▲ marker's nearest label). Both read the GRID (D-1:
+      // state questions). Phases:
+      //   opening    — typed the bare command + Enter; waiting for the picker's
+      //                title/footer on the grid (the footer names `s` — the proof
+      //                the affordance still exists at this binary).
+      //   navigating — stepping one validated arrow at a time toward `target`
+      //                (a row label / a tick index), re-reading the cursor after
+      //                each press; a pre-move repaint waits, an unexpected jump
+      //                rolls back (never keep guessing).
+      //   applying   — pressed `s`; waiting on the stream for the cache-miss
+      //                dialog (→ PARK, the S7 relay unchanged), the effort receipt
+      //                (effort has no hook), or the `PostModelSwitch` hook
+      //                (`noteModelSwitchConfirmed` — the model axis's settle since
+      //                D2 U3). A native Esc prints `Kept … as` and leaves the
+      //                picker closed — believed only once the grid agrees.
+      //   closing    — a failure fired the rollback Esc; verifying the picker
+      //                closed, then `failed` (a named cause) or needs-attention.
+      // Measured shapes the drive rests on (m2): no arming window (arrow at +0ms
+      // registers); `s` on the row that is ALREADY current fires nothing at all
+      // (arm c) — so a target marked ✔ settles as a no-op after an Esc; a target
+      // with NO row (plain `opus`: the picker's only Opus row is 1M) fails loud
+      // with a named error rather than walking the list.
+      axis: "claude-picker";
       kind: "model" | "effort";
       value: string;
-      /** A queued follow-up command for the staged Save sequence (Part 1, S7): the
-       *  second changed axis (`/effort Y` after `/model X`). Run as ONE logical
-       *  switch only after THIS command settles (a clean receipt OR a relayed Yes
-       *  through the cache-miss drawer); dropped on a failure/cancel so the second
-       *  axis never applies when the first didn't. Null for a single-axis switch.
-       *  (A failed/needs-attention leg is honest without extra state: the chip
-       *  follows each axis's SSOT — a landed model shows even if the effort leg
-       *  then fails — and the terminal event names the axis that couldn't confirm.) */
+      /** The staged Save's queued second axis (`effort` after `model`), run as ONE
+       *  logical switch after THIS one settles; dropped on failure/cancel. */
       next: { kind: "effort"; value: string } | null;
+      phase: "opening" | "navigating" | "applying" | "closing";
+      /** The picker was seen open on the grid — gates the rollback/cancellation
+       *  Esc (an abandoned picker eats the next keystroke, and Enter on it is a
+       *  PERSISTED switch: m2's own run1 hit exactly that). */
+      pickerOpen: boolean;
+      /** model: the target row LABEL; effort: the target tick INDEX. */
+      target: string | number | null;
+      lastCursor: string | number | null;
+      awaitingCursor: string | number | null;
+      navSteps: number;
+      rollbackEscs: number;
+      /** `drift` = the alias's row/tick is absent from the live picker. */
+      attentionReason: ControlSwitchAttentionReason | null;
+      /** A NAMED failure to report as `failed` (vs the generic needs-attention). */
+      failError: string | null;
       timer: NodeJS.Timeout | null;
     }
   | {
@@ -462,6 +519,12 @@ type PendingControlSwitch =
       /** claude-cachemiss ONLY: a queued follow-up command (the staged sequence's
        *  second axis, Part 1). Run only after a Yes settles; dropped on a No. */
       next: { kind: "effort"; value: string } | null;
+      /** claude-cachemiss ONLY (D2 U4): the dialog was raised by the PICKER's `s`,
+       *  not a slash. MEASURED (m2 arm d): a No / Esc on that dialog returns to the
+       *  PICKER, still open — so the cancel paths must Esc it once more, exactly
+       *  the codex consent's Enter-on-Cancel shape. False for a slash-raised
+       *  dialog (no production path raises one any more; kept for the type). */
+      fromPicker: boolean;
       /** codex-consent ONLY: the mode the grant receipt confirms (full-access). */
       codexTarget: CodexOfferedPermissionMode | null;
       phase: "waiting-user" | "navigating" | "confirming" | "cancel-exit" | "closing";
@@ -565,20 +628,26 @@ export class ControlSwitchEngine {
    * model while the pending switch is the EFFORT leg of a staged Save fails the
    * axis test. None of those needs remembered state.
    */
-  noteModelSwitchConfirmed(requestedModel: string): void {
+  noteModelSwitchConfirmed(requestedModel: string, toModel: string | null = null): void {
     const pending = this.pendingControlSwitch;
     if (!pending) {
       return; // no switch in flight — a native switch we did not drive; nothing to settle
     }
-    if (pending.axis === "value") {
+    if (pending.axis === "claude-picker") {
       if (pending.kind !== "model") {
         return; // the EFFORT leg of a staged Save — a model hook cannot settle it
       }
-      if (pending.value !== requestedModel) {
+      if (pending.phase !== "applying") {
+        return; // a Post can only follow our `s`; anything else is not ours to settle
+      }
+      // Alias OR the measured picker `requested_model` form OR `to_model` against
+      // the canonical id (D2 U4: the Fable row reports `claude-fable-5-1[1m]`, m2
+      // arm a) — never `to_model` from a Pre, whose second copy drifts (F84).
+      if (!claudeModelSwitchMatches(pending.value, requestedModel, toModel)) {
         this.debugForeignModelSwitch(requestedModel, pending.value);
         return;
       }
-      this.settleValueSwitch(pending);
+      this.settleClaudePicker(pending);
       return;
     }
     if (
@@ -588,7 +657,7 @@ export class ControlSwitchEngine {
     ) {
       return;
     }
-    if (pending.value !== requestedModel) {
+    if (!claudeModelSwitchMatches(pending.value, requestedModel, toModel)) {
       this.debugForeignModelSwitch(requestedModel, pending.value);
       return;
     }
@@ -667,10 +736,10 @@ export class ControlSwitchEngine {
       return this.startPermissionSwitch(value, from);
     }
 
-    // Single-axis claude model/effort switch: inject the one command, no queued
-    // follow-up. The staged Save sequence (Part 1) uses startClaudeStagedSwitch,
-    // which threads a `next` through this same writer.
-    this.writeClaudeValueCommand(kind, value, null);
+    // Single-axis claude model/effort switch: the session-scoped picker drive
+    // (D2 U4), no queued follow-up. The staged Save sequence (Part 1) uses
+    // startClaudeStagedSwitch, which threads a `next` through the same starter.
+    this.startClaudePicker(kind, value, null);
     return { ok: true };
   }
 
@@ -710,20 +779,22 @@ export class ControlSwitchEngine {
     }
     if (model) {
       // Model first; queue effort as the continuation (if it also changed).
-      this.writeClaudeValueCommand("model", model, effort ? { kind: "effort", value: effort } : null);
+      this.startClaudePicker("model", model, effort ? { kind: "effort", value: effort } : null);
     } else {
-      // Only effort changed — single command.
-      this.writeClaudeValueCommand("effort", effort as string, null);
+      // Only effort changed — single picker.
+      this.startClaudePicker("effort", effort as string, null);
     }
     return { ok: true };
   }
 
   /**
-   * Inject one `/model X` / `/effort Y` command and arm the receipt watch. Shared
-   * by the single-axis inject, the staged Save sequence, and the parked cache-miss
-   * Yes continuation. `next` is a queued follow-up (run after this settles).
+   * Start the session-scoped claude picker drive (D2 U4): type the bare `/model`
+   * or `/effort`, defer the Enter under the write-lock, and wait for the picker on
+   * the grid. Shared by the single-axis inject, the staged Save sequence, and the
+   * parked cache-miss Yes continuation. `next` is a queued follow-up (run after
+   * this settles).
    */
-  private writeClaudeValueCommand(
+  private startClaudePicker(
     kind: "model" | "effort",
     value: string,
     next: { kind: "effort"; value: string } | null,
@@ -731,25 +802,31 @@ export class ControlSwitchEngine {
     if (!this.host.hasPty()) {
       return;
     }
-    const command = `/${kind} ${value}`;
+    this.controlSwitchScan = "";
+    this.pendingControlSwitch = {
+      axis: "claude-picker",
+      kind,
+      value,
+      next,
+      phase: "opening",
+      pickerOpen: false,
+      target: null,
+      lastCursor: null,
+      awaitingCursor: null,
+      navSteps: 0,
+      rollbackEscs: 0,
+      attentionReason: null,
+      failError: null,
+      timer: null,
+    };
+    this.emitControlSwitchState("pending", { kind, value });
     this.host.beginSonataWrite();
-    // Clear the composer line UNCONDITIONALLY before our command lands, so it
-    // can't concatenate onto an Esc-restored prompt OR text a human typed
-    // straight into the idle Terminal (which sets no dirty flag) — a
-    // `<prefix>/model x` line submits as a chat prompt. Screen-blind-safe: a
-    // no-op on a clean line. (F1 review fix: the old dirty-flag-gated flood
-    // no-oped exactly when a human's untracked typing needed clearing.)
+    // Clear the composer line UNCONDITIONALLY before the command lands (RED LINE 1):
+    // `<prefix>/model` would submit as a chat prompt. Screen-blind-safe.
     this.host.clearComposerBeforeTypedCommand();
-    // Typed text, NOT bracketed paste: write the command bytes as real
-    // keystrokes (probe verified `/model sonnet` typed, then Enter, applies).
-    this.host.writePty(command);
-    // Defer the Enter under the held lock (mirrors the prompt-delivery path): a
-    // human keystroke landing in the gap buffers rather than splitting the frame.
-    // A raw carriage return (`\r`), NOT CSI_U_ENTER: a command typed raw into the
-    // slash path submits on `\r` in BOTH legacy and kitty input modes, whereas
-    // the CSI-u encoding only lands under a negotiated kitty session (probe: raw
-    // `/model` + CSI_U_ENTER did not submit; + `\r` did). The bracketed-paste
-    // prompt path can rely on CSI_U_ENTER; this raw-command path cannot.
+    // Typed text, NOT bracketed paste; raw `\r` submits the slash path in both
+    // input modes (the S1 measurement still holds for the bare command).
+    this.host.writePty(kind === "model" ? "/model" : "/effort");
     this.host.deferSonataWrite(
       120,
       () => {
@@ -760,16 +837,368 @@ export class ControlSwitchEngine {
       "control",
     );
     this.host.endSonataWrite();
+    this.armClaudePickerTimeout(CLAUDE_PICKER_OPEN_TIMEOUT_MS);
+  }
 
-    // Arm the watch: fresh scan window, pending state, and the needs-attention
-    // timeout. The receipt (settled/failed) clears the timer.
+  private claudePickerOnScreen(kind: "model" | "effort", screen: string): boolean {
+    return kind === "model" ? claudeModelPickerOpen(screen) : claudeEffortPickerOpen(screen);
+  }
+
+  /** Drive the picker state machine off a fresh pty frame (from
+   *  detectControlSwitchReceipt while a claude-picker switch is unresolved). The
+   *  opening/navigating phases are GRID reads (the picker is state); the applying
+   *  phase watches the STREAM (the dialog, the receipt, the `Kept …` line are
+   *  events) — plus the hook, which arrives through `noteModelSwitchConfirmed`. */
+  private onClaudePickerData(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "claude-picker") {
+      return;
+    }
+    if (pending.phase === "opening" || pending.phase === "navigating") {
+      this.host.readScreen((screen) => this.applyClaudePickerScreen(screen));
+      return;
+    }
+    if (pending.phase !== "applying") {
+      return; // closing — the close-verify chain owns the conclusion
+    }
+    // A session with history raises the cache-miss confirm on `s` too (MEASURED,
+    // F89 + m2 arms a/f) — PARK and relay it through the drawer, unchanged S7.
+    if (claudeCacheMissDialogOpen(this.controlSwitchScan)) {
+      this.parkClaudeCacheMiss(pending);
+      return;
+    }
+    if (pending.kind === "effort") {
+      // Effort has no hook (F88, m2 arm e1): the receipt is its settle. The
+      // session-only receipt `Set effort level to <x> (this session only): …` is
+      // covered by the same success needle as the slash form.
+      const verdict = parseClaudeControlReceipt(this.controlSwitchScan, "effort", pending.value);
+      if (verdict === "settled") {
+        this.settleClaudePicker(pending);
+        return;
+      }
+      if (verdict === "failed") {
+        pending.failError = `Claude rejected the effort level "${pending.value}".`;
+        this.finishClaudePickerFailure(pending);
+        return;
+      }
+    }
+    if (claudeCacheMissCancelled(this.controlSwitchScan, pending.kind)) {
+      // `Kept … as` — a native Esc on the picker (m2 arm d). The stream can replay
+      // an old one (F19), so it is believed only once the grid shows no picker.
+      this.host.readScreen((screen) => {
+        const current = this.pendingControlSwitch;
+        if (!current || current.axis !== "claude-picker" || current.phase !== "applying") {
+          return;
+        }
+        if (!this.claudePickerOnScreen(current.kind, screen)) {
+          const { kind, value } = current;
+          current.pickerOpen = false;
+          this.clearPendingControlSwitch();
+          this.emitControlSwitchState("settled", { kind, value, cancelled: true });
+        }
+      });
+    }
+  }
+
+  /** One grid read of the picker: resolve the target on the opening frame, then
+   *  validate the post-press cursor and decide the next move. Re-guards the
+   *  pending state because a grid read can land after the switch moved on. */
+  private applyClaudePickerScreen(screen: string): void {
+    const pending = this.pendingControlSwitch;
+    if (
+      !pending ||
+      pending.axis !== "claude-picker" ||
+      !this.host.hasPty() ||
+      (pending.phase !== "opening" && pending.phase !== "navigating")
+    ) {
+      return;
+    }
+    if (!this.claudePickerOnScreen(pending.kind, screen)) {
+      return; // not painted yet — wait (the open timeout Escs if it never comes)
+    }
+    pending.pickerOpen = true;
+    let cursor: string | number | null;
+    let order: string[] | null = null;
+    if (pending.kind === "model") {
+      const picker = parseClaudeModelPicker(screen);
+      cursor = picker.focused;
+      order = picker.rows.map((row) => row.label);
+      if (pending.phase === "opening") {
+        const alias = claudeModelAliasRow(pending.value);
+        if (!alias) {
+          pending.failError = `Claude's model picker has no row for "${pending.value}".`;
+          this.failClaudePicker(pending);
+          return;
+        }
+        if (!alias.pickerRow) {
+          // MEASURED (m2 arm a): the picker's only Opus row is `Opus (1M context)`;
+          // plain `opus` (200K) cannot be reached session-scoped. Named, not walked.
+          pending.failError = `Claude's model picker has no row for ${alias.display}; start a new chat with it instead.`;
+          this.failClaudePicker(pending);
+          return;
+        }
+        const target = picker.rows.find((row) => row.label === alias.pickerRow);
+        if (!target) {
+          pending.attentionReason = "drift"; // the row table drifted from the live picker
+          this.failClaudePicker(pending);
+          return;
+        }
+        if (target.current) {
+          // Already the session's model: `s` on it fires nothing (m2 arm c). Esc the
+          // identified picker and settle as a no-op — the SSOT is already there.
+          this.closeClaudePickerAndSettle(pending);
+          return;
+        }
+        pending.target = target.label;
+        pending.phase = "navigating";
+        this.clearClaudePickerTimer(pending);
+      }
+    } else {
+      const slider = parseClaudeEffortSlider(screen);
+      cursor = slider.currentIndex;
+      if (pending.phase === "opening") {
+        if (slider.levels.length === 0 || slider.currentIndex === null) {
+          return; // marker/labels not legible yet — wait
+        }
+        const index = slider.levels.indexOf(pending.value);
+        if (index < 0) {
+          pending.attentionReason = "drift"; // the tier is not on the live slider
+          this.failClaudePicker(pending);
+          return;
+        }
+        if (slider.currentIndex === index) {
+          this.closeClaudePickerAndSettle(pending);
+          return;
+        }
+        pending.target = index;
+        pending.phase = "navigating";
+        this.clearClaudePickerTimer(pending);
+      }
+    }
+    this.advanceClaudePickerNav(cursor, order);
+  }
+
+  /** Validate the post-arrow cursor, then press `s` on the target or ONE validated
+   *  arrow toward it. Bounded by the nav cap → Esc-rollback. */
+  private advanceClaudePickerNav(cursor: string | number | null, order: string[] | null): void {
+    const pending = this.pendingControlSwitch;
+    if (
+      !pending ||
+      pending.axis !== "claude-picker" ||
+      pending.phase !== "navigating" ||
+      pending.target === null ||
+      !this.host.hasPty()
+    ) {
+      return;
+    }
+    if (cursor === null) {
+      return; // cursor not legible yet — wait (nav timeout guards)
+    }
+    if (pending.awaitingCursor !== null && cursor !== pending.awaitingCursor) {
+      if (cursor === pending.lastCursor) {
+        return; // pre-move repaint of where we pressed FROM — keep waiting
+      }
+      this.failClaudePicker(pending); // unexpected jump — roll back, never guess
+      return;
+    }
+    pending.awaitingCursor = null;
+    this.clearClaudePickerTimer(pending);
+    if (cursor === pending.target) {
+      this.pressClaudePickerApply(pending);
+      return;
+    }
+    if (pending.navSteps >= CLAUDE_PICKER_MAX_NAV_STEPS) {
+      this.failClaudePicker(pending);
+      return;
+    }
+    let key: string;
+    let expected: string | number;
+    if (pending.kind === "model") {
+      if (!order || typeof cursor !== "string" || typeof pending.target !== "string") {
+        this.failClaudePicker(pending);
+        return;
+      }
+      const current = order.indexOf(cursor);
+      const wanted = order.indexOf(pending.target);
+      if (current < 0 || wanted < 0) {
+        this.failClaudePicker(pending);
+        return;
+      }
+      const down = wanted > current;
+      key = down ? ARROW_DOWN : ARROW_UP;
+      expected = order[current + (down ? 1 : -1)] ?? pending.target;
+    } else {
+      if (typeof cursor !== "number" || typeof pending.target !== "number") {
+        this.failClaudePicker(pending);
+        return;
+      }
+      const right = pending.target > cursor;
+      key = right ? ARROW_RIGHT : ARROW_LEFT;
+      expected = cursor + (right ? 1 : -1);
+    }
+    pending.lastCursor = cursor;
+    pending.awaitingCursor = expected;
+    pending.navSteps += 1;
     this.controlSwitchScan = "";
-    const timer = setTimeout(() => {
-      this.onControlSwitchTimeout();
-    }, CONTROL_SWITCH_RECEIPT_TIMEOUT_MS);
+    this.host.beginSonataWrite();
+    this.host.writePty(key);
+    this.host.endSonataWrite();
+    this.armClaudePickerTimeout(CLAUDE_PICKER_NAV_TIMEOUT_MS);
+  }
+
+  /** The cursor is on the target: press `s` (session only) and watch the stream /
+   *  hook for the outcome. `s` closes the picker on apply (MEASURED); pickerOpen
+   *  stays true until a settle so an EXTERNAL clear mid-apply still Escs a picker
+   *  that may not have closed. */
+  private pressClaudePickerApply(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
+    pending.phase = "applying";
+    this.controlSwitchScan = "";
+    this.host.beginSonataWrite();
+    this.host.writePty(CLAUDE_PICKER_APPLY_KEY);
+    this.host.endSonataWrite();
+    this.armClaudePickerTimeout(CONTROL_SWITCH_RECEIPT_TIMEOUT_MS);
+  }
+
+  /** The target is already current — nothing to switch. Esc the picker we have
+   *  just IDENTIFIED on the grid (red-line compliant: never a blind Esc) and settle
+   *  honestly; the chip follows its unchanged SSOT. */
+  private closeClaudePickerAndSettle(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
+    this.clearClaudePickerTimer(pending);
+    this.host.beginSonataWrite();
+    this.host.writePty(ESC);
+    this.host.endSonataWrite();
+    pending.pickerOpen = false;
+    this.settleClaudePicker(pending);
+  }
+
+  /** A picker switch settled (hook / effort receipt / no-op). Continue a queued
+   *  `next` (staged Save) as the same logical switch, else emit settled. */
+  private settleClaudePicker(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
+    const { kind, value, next } = pending;
+    pending.pickerOpen = false;
+    this.clearPendingControlSwitch();
+    if (next) {
+      this.startClaudePicker(next.kind, next.value, null);
+      return;
+    }
+    this.emitControlSwitchState("settled", { kind, value });
+  }
+
+  /** Roll back: Esc the picker if it is (or may be) open, verify on the next
+   *  repaint, then conclude `failed` (named) or needs-attention. NEVER retry,
+   *  NEVER guess a row — Enter on this picker is a PERSISTED switch. */
+  private failClaudePicker(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
+    this.clearClaudePickerTimer(pending);
+    pending.phase = "closing";
+    // Every rollback Esc is GRID-verified, the first one included: a user who
+    // Esc'd the picker natively mid-walk has already closed it, and an Esc on the
+    // idle composer is the blind key the red line forbids. Read, then decide.
+    this.host.readScreen((screen) => {
+      const current = this.pendingControlSwitch;
+      if (!current || current.axis !== "claude-picker" || current.phase !== "closing") {
+        return;
+      }
+      current.pickerOpen = this.claudePickerOnScreen(current.kind, screen);
+      this.rollbackClaudePicker(current);
+    });
+  }
+
+  private rollbackClaudePicker(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
+    if (pending.pickerOpen && pending.rollbackEscs < CLAUDE_PICKER_MAX_ROLLBACK_ESCS && this.host.hasPty()) {
+      this.controlSwitchScan = "";
+      this.host.beginSonataWrite();
+      this.host.writePty(ESC);
+      this.host.endSonataWrite();
+      pending.rollbackEscs += 1;
+      const timer = setTimeout(() => this.onClaudePickerCloseVerify(), CLAUDE_PICKER_CLOSE_VERIFY_MS);
+      timer.unref?.();
+      pending.timer = timer;
+      return;
+    }
+    this.finishClaudePickerFailure(pending);
+  }
+
+  private onClaudePickerCloseVerify(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "claude-picker") {
+      return;
+    }
+    pending.timer = null;
+    this.host.readScreen((screen) => {
+      const current = this.pendingControlSwitch;
+      if (!current || current.axis !== "claude-picker" || current.phase !== "closing") {
+        return;
+      }
+      current.pickerOpen = this.claudePickerOnScreen(current.kind, screen);
+      this.rollbackClaudePicker(current);
+    });
+  }
+
+  private finishClaudePickerFailure(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
+    const { kind, value, failError, attentionReason } = pending;
+    pending.pickerOpen = false;
+    this.clearPendingControlSwitch();
+    if (failError) {
+      this.emitControlSwitchState("failed", { kind, value, error: failError });
+      return;
+    }
+    this.emitControlSwitchState("needs-attention", {
+      kind,
+      value,
+      reason: attentionReason ?? "interstitial",
+    });
+  }
+
+  /** A per-phase timeout fired. Opening/navigating: the picker is in a state the
+   *  choreography cannot read — roll back. Applying: `s` was pressed and neither
+   *  the dialog, the receipt nor the hook arrived — an unrecognized interstitial
+   *  the user must resolve natively; NOTHING further is written (the S1 rule:
+   *  no auto-answer, no blind key). */
+  private onClaudePickerTimeout(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "claude-picker") {
+      return;
+    }
+    pending.timer = null;
+    if (pending.phase === "applying") {
+      const { kind, value } = pending;
+      pending.pickerOpen = false;
+      this.clearPendingControlSwitch();
+      this.emitControlSwitchState("needs-attention", { kind, value, reason: "interstitial" });
+      return;
+    }
+    this.failClaudePicker(pending);
+  }
+
+  private armClaudePickerTimeout(ms: number): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "claude-picker") {
+      return;
+    }
+    const timer = setTimeout(() => this.onClaudePickerTimeout(), ms);
     timer.unref?.();
-    this.pendingControlSwitch = { axis: "value", kind, value, next, timer };
-    this.emitControlSwitchState("pending", { kind, value });
+    pending.timer = timer;
+  }
+
+  private clearClaudePickerTimer(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
+    if (pending.timer) {
+      clearTimeout(pending.timer);
+      pending.timer = null;
+    }
   }
 
   /**
@@ -1802,62 +2231,10 @@ export class ControlSwitchEngine {
       this.onParkedConfirmData();
       return;
     }
-    // value axis (model/effort). On a session WITH history, the inject raises the
-    // cache-miss confirm dialog (S7) INSTEAD of applying — recognize it and PARK
-    // (relay through the drawer) rather than time out to needs-attention. Check the
-    // receipt FIRST: on a session without history the switch applies with a clean
-    // receipt and no dialog (the rare clean path); a settled receipt beats a stale
-    // dialog frame from a prior repaint.
-    // `pending.value` is passed so a failure receipt must NAME THIS SWITCH's
-    // target: since 2.1.252 a switch that reshapes the banner forces a full
-    // transcript redraw, which replays every older receipt through this very
-    // window (measured — see parseClaudeControlReceipt's block comment).
-    //
-    // ASYMMETRIC SINCE D2 U3, and the asymmetry is in the PARSER rather than here:
-    // on the model axis this call can only return `failed` or null, because the
-    // model success needle is retired and `noteModelSwitchConfirmed` settles that
-    // axis off the `PostModelSwitch` hook. The `settled` branch below is therefore
-    // reached only by the EFFORT axis, which has no hook to move to. Both branches
-    // are kept axis-agnostic so the shape stays one flow rather than two.
-    const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind, pending.value);
-    if (verdict === "settled") {
-      this.settleValueSwitch(pending);
-      return;
+    // claude-picker (D2 U4) — the session-scoped model/effort drive.
+    if (pending.axis === "claude-picker") {
+      this.onClaudePickerData();
     }
-    if (verdict === "failed") {
-      const { kind, value } = pending;
-      this.clearPendingControlSwitch();
-      const label = kind === "model" ? "model" : "effort level";
-      this.emitControlSwitchState("failed", {
-        kind,
-        value,
-        error: `Claude rejected the ${label} "${value}".`,
-      });
-      return;
-    }
-    if (claudeCacheMissDialogOpen(this.controlSwitchScan)) {
-      this.parkClaudeCacheMiss(pending);
-    }
-  }
-
-  /** A value-axis (model/effort) switch settled — either a clean receipt or a
-   *  relayed Yes through the cache-miss drawer. If a follow-up axis is queued
-   *  (the staged Save sequence, Part 1), run it as the same logical switch; else
-   *  emit the terminal settled. */
-  private settleValueSwitch(
-    pending: Extract<PendingControlSwitch, { axis: "value" }>,
-  ): void {
-    const { kind, value, next } = pending;
-    this.clearPendingControlSwitch();
-    if (next) {
-      // Continue the staged sequence with the second axis — ONE logical switch.
-      // The chip stays pending across it (a fresh pending is armed); the cache-miss
-      // relay handles a second dialog if it appears (measured: usually the second
-      // command applies cleanly, the reread already pending).
-      this.writeClaudeValueCommand(next.kind, next.value, null);
-      return;
-    }
-    this.emitControlSwitchState("settled", { kind, value });
   }
 
   // ── Recognized-confirm drawer relay (S7 parked-confirm) ─────────────────────
@@ -1872,16 +2249,21 @@ export class ControlSwitchEngine {
   /** Park a claude cache-miss confirm (`Switch model? / Change effort level?`):
    *  transform the pending value-axis switch into the parked-confirm relay, keeping
    *  the queued `next` (staged sequence) to run only on a Yes. */
-  private parkClaudeCacheMiss(pending: Extract<PendingControlSwitch, { axis: "value" }>): void {
+  private parkClaudeCacheMiss(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
     if (pending.timer) {
       clearTimeout(pending.timer);
     }
+    // `s` raised the dialog; the picker is behind it (a No/Esc returns there —
+    // m2 arm d), so the relay carries `fromPicker` for its cancel exits.
     this.pendingControlSwitch = {
       axis: "parked-confirm",
       dialog: "claude-cachemiss",
       originKind: pending.kind,
       value: pending.value,
       next: pending.next,
+      fromPicker: true,
       codexTarget: null,
       phase: "waiting-user",
       targetRow: null,
@@ -1908,6 +2290,7 @@ export class ControlSwitchEngine {
       originKind: "codex-permission",
       value: "full-access",
       next: null,
+      fromPicker: false,
       codexTarget: "full-access",
       phase: "waiting-user",
       targetRow: null,
@@ -2099,10 +2482,16 @@ export class ControlSwitchEngine {
     }
     const codexCancel =
       pending.dialog === "codex-consent" && pending.targetRow === CODEX_CONSENT_CANCEL_ROW;
+    // claude No on a PICKER-raised dialog (D2 U4): Enter on `2. No, go back` returns
+    // to the still-open picker (MEASURED m2 arm d, `pickerOpenAfterAnswer: true`),
+    // so the injected No is trailed by the one Esc that closes it — the codex
+    // Cancel's shape, for the same measured reason.
+    const claudePickerNo =
+      pending.dialog === "claude-cachemiss" && pending.fromPicker && pending.targetRow === 2;
     this.controlSwitchScan = "";
     this.host.beginSonataWrite();
     this.host.writePty("\r");
-    if (codexCancel) {
+    if (codexCancel || claudePickerNo) {
       // Deferred under the held write-lock so a human keystroke in the gap buffers
       // rather than splitting the frame — and spaced, so codex processes the
       // consent's Enter (which repaints the picker) before the Esc arrives.
@@ -2120,6 +2509,12 @@ export class ControlSwitchEngine {
     if (codexCancel) {
       // false: the picker-closing Esc is the deferred one written just above.
       this.beginParkedConsentExit(pending, false);
+      return;
+    }
+    if (claudePickerNo) {
+      // The `Kept … as` line + the bounded beat conclude cancelled; the deferred
+      // Esc above closes the returned picker. A Post cannot follow a No.
+      this.beginParkedModelCancelExit(pending);
       return;
     }
     pending.phase = "confirming";
@@ -2364,7 +2759,7 @@ export class ControlSwitchEngine {
     const { originKind, value, next } = pending;
     this.clearPendingControlSwitch();
     if (next) {
-      this.writeClaudeValueCommand(next.kind, next.value, null);
+      this.startClaudePicker(next.kind, next.value, null);
       return;
     }
     this.emitControlSwitchState("settled", { kind: originKind, value });
@@ -2376,8 +2771,21 @@ export class ControlSwitchEngine {
   private settleParkedCancel(
     pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
   ): void {
-    const { originKind, value } = pending;
+    const { originKind, value, fromPicker } = pending;
     this.clearPendingControlSwitch();
+    if (fromPicker && (originKind === "model" || originKind === "effort") && this.host.hasPty()) {
+      // A NATIVE No/Esc on a picker-raised dialog leaves the PICKER open (m2 arm
+      // d). Esc it only if the grid shows it — an identified screen, never a blind
+      // key. (The injected No already queued its Esc, so this read finds nothing.)
+      const kind = originKind;
+      this.host.readScreen((screen) => {
+        if (this.claudePickerOnScreen(kind, screen) && this.host.hasPty()) {
+          this.host.beginSonataWrite();
+          this.host.writePty(ESC);
+          this.host.endSonataWrite();
+        }
+      });
+    }
     this.emitControlSwitchState("settled", { kind: originKind, value, cancelled: true });
   }
 
@@ -2471,27 +2879,6 @@ export class ControlSwitchEngine {
     this.emitControlSwitchState("needs-attention", { kind: originKind, value, reason });
   }
 
-  /**
-   * No model/effort receipt arrived in time — the screen is in an unrecognized
-   * state (a possible cache-miss confirm or Fable consent interstitial). RED LINE:
-   * surface needs-attention and do NOTHING further — no auto-answer, no blind-
-   * Enter, no retry. The user resolves it in the co-visible terminal. (Permission
-   * steps use their own per-step timeout — `onPermissionStepTimeout`.)
-   */
-  private onControlSwitchTimeout(): void {
-    const pending = this.pendingControlSwitch;
-    if (!pending || pending.axis !== "value") {
-      return;
-    }
-    const { kind, value } = pending;
-    this.clearPendingControlSwitch();
-    // The screen is an unrecognized interstitial (cache-miss confirm / Fable
-    // consent) the user must answer natively — the DEFAULT flow on a session with
-    // history (S1). Name it so the banner points at the confirm, not the generic
-    // "couldn't confirm".
-    this.emitControlSwitchState("needs-attention", { kind, value, reason: "interstitial" });
-  }
-
   private clearPendingControlSwitch(): void {
     const pending = this.pendingControlSwitch;
     // Cancelling a codex-permission switch mid-picker (an EXTERNAL clear — a run
@@ -2522,6 +2909,17 @@ export class ControlSwitchEngine {
     if (pending?.axis === "codex-model" && pending.pickerLevel > 0 && this.host.hasPty()) {
       try {
         this.host.writePty(ESC.repeat(pending.pickerLevel));
+      } catch {
+        // Teardown race — the pty is already gone; nothing to close.
+      }
+    }
+    // Same premise for the claude picker (D2 U4): an abandoned `/model` picker eats
+    // the next keystroke and turns a delivered prompt's Enter into a PERSISTED
+    // model switch (m2 run1 measured exactly that by accident). One Esc, only when
+    // the picker was seen open and our own settle/rollback has not already closed it.
+    if (pending?.axis === "claude-picker" && pending.pickerOpen && this.host.hasPty()) {
+      try {
+        this.host.writePty(ESC);
       } catch {
         // Teardown race — the pty is already gone; nothing to close.
       }

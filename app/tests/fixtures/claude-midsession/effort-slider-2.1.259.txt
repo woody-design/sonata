@@ -1,0 +1,41 @@
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/e-effort-mtlr8y8h
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that provides a text-based window where you type commands and see their output,
+  mimicking a physical terminal to let you interact with the shell and command-line programs.
+
+✻ Baked for 3s · done 12:45 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Effort
+
+                             Faster                                                 Smarter
+                             ──────────▲────────────────────────────────┆──────────────────
+                             low     medium     high     xhigh      max       ultracode
+                                                                          xhigh + workflows
+
+   ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+

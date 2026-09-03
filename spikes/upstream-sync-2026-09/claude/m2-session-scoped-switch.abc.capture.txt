@@ -1,0 +1,750 @@
+# M2 — picker-`s` session-scoped switch (claude 2.1.259 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-03T16:48:28.883Z
+
+===== version at start =====
+2.1.259 (Claude Code)
+
+===== arms =====
+a,b,c
+
+===== MODEL_OPTIONS claude (Sonata offers) =====
+fable, opus[1m], opus, sonnet, haiku, (null=Default)
+
+===== a — boot =====
+{"trust":true,"ready":false,"statusline":{"id":"claude-fable-5-1","display":"Fable 5.1","effort":"medium"}}
+
+===== a — hook events from production / layered =====
+PostModelSwitch / PreModelSwitch
+
+===== a — warm-up turn =====
+{"typed":true,"stopSeen":true,"apiError":false}
+
+===== a/opus[1m] — picker before key (target Opus (1M context): landed=true) =====
+[cursor] x=3 y=32
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== a/opus[1m] — cache-miss dialog (+124ms) =====
+[cursor] x=3 y=37
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Switch model?
+   Your next response will be slower and use more tokens
+     
+   This conversation is cached for the current model. Switching to Opus 5 (1M context) means the full history gets
+   re-read on your next message.
+
+   ❯ 1. Yes, switch to Opus 5 (1M context)
+     2. No, go back
+
+===== a/opus[1m] — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Opus 5 (1M context) with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+
+     
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+     
+  ⏸ manual mode on · ← for agents
+
+===== a/opus[1m] — rows at open =====
+  1. Default (recommended) | Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks
+  2. Opus (1M context) | Opus (1M context) Opus 5 with 1M context · Best for everyday, complex tasks
+❯ 3. Fable ✔ | Fable ✔ Fable 5.1 · Most capable for your hardest and longest-running tasks
+  4. Sonnet | Sonnet Sonnet 5 · Efficient for routine tasks
+  5. Haiku | Haiku Haiku 4.5 · Fastest for quick answers
+
+===== a/opus[1m] — hint =====
+Enter to set as default · s to use this session only · Esc to cancel
+◐ Medium effort ←/→ to adjust
+
+===== a/opus[1m] — hooks since key =====
++83ms PreModelSwitch requested_model="opus[1m]" to_model="claude-opus-5[1m]" source="picker"
++190ms PostModelSwitch requested_model="opus[1m]" to_model="claude-opus-5[1m]" source="picker"
+
+===== a/opus[1m] — summary =====
+key=s focused="Opus (1M context)" dialog=+0ms cursor=1 answered=true postAfterAnswer=66ms post.requested_model="opus[1m]" post.source="picker" to_model="claude-opus-5[1m]" receipts.set=[] kept=[] statusline=claude-fable-5-1→claude-opus-5[1m] settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":true}
+
+===== a/opus — picker before key (target Opus: landed=false) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Opus 5 (1M context) with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+     
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== a/opus — rows at open =====
+(n/a)
+
+===== a/opus — hint =====
+Enter to set as default · s to use this session only · Esc to cancel
+
+
+===== a/opus — hooks since key =====
+(n/a)
+
+===== a/opus — summary =====
+ERROR target row not found; Esc'd
+
+===== a/sonnet — picker before key (target Sonnet: landed=true) =====
+[cursor] x=3 y=34
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Opus 5 (1M context) with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context) ✔    Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+   ❯ 4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+     
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== a/sonnet — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Sonnet 5 with low effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model                                                                                                                
+  ⎿  Set model to Sonnet 5 for this session only
+
+
+
+
+
+
+
+
+
+
+     
+    
+     
+                                                                                                       ○ low · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== a/sonnet — rows at open =====
+  1. Default (recommended) | Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks
+❯ 2. Opus (1M context) ✔ | Opus (1M context) ✔ Opus 5 with 1M context · Best for everyday, complex tasks
+  3. Fable | Fable Fable 5.1 · Most capable for your hardest and longest-running tasks
+  4. Sonnet | Sonnet Sonnet 5 · Efficient for routine tasks
+  5. Haiku | Haiku Haiku 4.5 · Fastest for quick answers
+
+===== a/sonnet — hint =====
+Enter to set as default · s to use this session only · Esc to cancel
+◐ Medium effort ←/→ to adjust
+
+===== a/sonnet — hooks since key =====
++84ms PreModelSwitch requested_model="sonnet" to_model="claude-sonnet-5" source="picker"
++148ms PostModelSwitch requested_model="sonnet" to_model="claude-sonnet-5" source="picker"
+
+===== a/sonnet — summary =====
+key=s focused="Sonnet" dialog=none post.requested_model="sonnet" post.source="picker" to_model="claude-sonnet-5" receipts.set=[] kept=[] statusline=claude-opus-5[1m]→claude-sonnet-5 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":false}
+
+===== a/haiku — picker before key (target Haiku: landed=true) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Sonnet 5 with low effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model                                                                                                                
+  ⎿  Set model to Sonnet 5 for this session only
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet ✔               Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== a/haiku — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Haiku 4.5 · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model                                                                                                                
+  ⎿  Set model to Sonnet 5 for this session only
+
+❯ /model                                                                                                                
+  ⎿  Set model to Haiku 4.5 for this session only
+
+
+
+
+
+
+
+     
+    
+     
+    
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== a/haiku — rows at open =====
+  1. Default (recommended) | Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks
+  2. Opus (1M context) | Opus (1M context) Opus 5 with 1M context · Best for everyday, complex tasks
+  3. Fable | Fable Fable 5.1 · Most capable for your hardest and longest-running tasks
+❯ 4. Sonnet ✔ | Sonnet ✔ Sonnet 5 · Efficient for routine tasks
+  5. Haiku | Haiku Haiku 4.5 · Fastest for quick answers
+
+===== a/haiku — hint =====
+Enter to set as default · s to use this session only · Esc to cancel
+○ Low effort ←/→ to adjust
+
+===== a/haiku — hooks since key =====
++85ms PreModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
++149ms PostModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
+
+===== a/haiku — summary =====
+key=s focused="Haiku" dialog=none post.requested_model="haiku" post.source="picker" to_model="claude-haiku-4-5-20251001" receipts.set=[] kept=[] statusline=claude-sonnet-5→claude-haiku-4-5-20251001 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":false}
+
+===== a/fable — picker before key (target Fable: landed=true) =====
+[cursor] x=3 y=33
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Haiku 4.5 · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model                                                                                                                
+  ⎿  Set model to Sonnet 5 for this session only
+
+❯ /model                                                                                                                
+  ⎿  Set model to Haiku 4.5 for this session only
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku ✔                Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== a/fable — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Opus 5 (1M context) for this session only
+
+❯ /model 
+  ⎿  Kept model as Opus 5 (1M context)
+
+❯ /model                                                                                                                
+  ⎿  Set model to Sonnet 5 for this session only
+
+❯ /model                                                                                                                
+  ⎿  Set model to Haiku 4.5 for this session only
+
+❯ /model                                                                                                                
+  ⎿  Set model to Fable 5.1 for this session only
+
+
+
+
+     
+    
+   
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== a/fable — rows at open =====
+  1. Default (recommended) | Default (recommended) Opus 5 with 1M context · Best for everyday, complex tasks
+  2. Opus (1M context) | Opus (1M context) Opus 5 with 1M context · Best for everyday, complex tasks
+  3. Fable | Fable Fable 5.1 · Most capable for your hardest and longest-running tasks
+  4. Sonnet | Sonnet Sonnet 5 · Efficient for routine tasks
+❯ 5. Haiku ✔ | Haiku ✔ Haiku 4.5 · Fastest for quick answers
+
+===== a/fable — hint =====
+Enter to set as default · s to use this session only · Esc to cancel
+
+
+===== a/fable — hooks since key =====
++84ms PreModelSwitch requested_model="claude-fable-5-1[1m]" to_model="claude-fable-5-1" source="picker"
++144ms PreModelSwitch requested_model="claude-fable-5-1[1m]" to_model="claude-fable-5-1" source="picker"
++208ms PostModelSwitch requested_model="claude-fable-5-1[1m]" to_model="claude-fable-5-1" source="picker"
+
+===== a/fable — summary =====
+key=s focused="Fable" dialog=none post.requested_model="claude-fable-5-1[1m]" post.source="picker" to_model="claude-fable-5-1" receipts.set=[] kept=[] statusline=claude-haiku-4-5-20251001→claude-fable-5-1 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":false}
+
+===== b — boot =====
+{"trust":true,"ready":true,"statusline":{"id":"claude-fable-5-1","display":"Fable 5.1","effort":"medium"}}
+
+===== b/fresh-haiku — picker before key (target Haiku: landed=true) =====
+[cursor] x=3 y=35
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/b-fresh-mtlrgd9d
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+   ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ○ Effort not supported for Haiku
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== b/fresh-haiku — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Haiku 4.5 · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/b-fresh-mtlrgd9d
+
+
+❯ /model                                                                                                                
+  ⎿  Set model to Haiku 4.5 for this session only
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+
+     
+    
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== b — hooks =====
++89ms PreModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
++148ms PreModelSwitch requested_model="haiku" to_model="claude-sonnet-5" source="picker"
++214ms PostModelSwitch requested_model="haiku" to_model="claude-haiku-4-5-20251001" source="picker"
+
+===== b — summary =====
+key=s focused="Haiku" dialog=none post.requested_model="haiku" post.source="picker" to_model="claude-haiku-4-5-20251001" receipts.set=[] kept=[] statusline=claude-fable-5-1→claude-haiku-4-5-20251001 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":false}
+
+===== c — boot =====
+{"trust":true,"ready":true,"statusline":{"id":"claude-fable-5-1","display":"Fable 5.1","effort":"medium"}}
+
+===== c — warm-up =====
+{"typed":true,"stopSeen":true,"apiError":false}
+
+===== c/s-on-current — picker before key (target Fable: landed=true) =====
+[cursor] x=3 y=33
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/c-current-mtlrgko0
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器是一个在图形界面中模拟传统文本终端的程序，让你通过键盘输入命令并查看程序的文本输出。
+
+✻ Cooked for 3s · done 12:50 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+     2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
+===== c/s-on-current — after =====
+[cursor] x=2 y=36
+--- screen ---
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/c-current-mtlrgko0
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器是一个在图形界面中模拟传统文本终端的程序，让你通过键盘输入命令并查看程序的文本输出。
+
+✻ Cooked for 3s · done 12:50 PM
+
+❯ /model                                                                                                                
+  ⎿  Set model to Fable 5.1 for this session only
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+
+   
+                                                                     
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+===== c — hooks =====
+(none)
+
+===== c — summary =====
+key=s focused="Fable" dialog=none post.requested_model=undefined post.source=undefined to_model=undefined receipts.set=[] kept=[] statusline=claude-fable-5-1→claude-fable-5-1 settingsChanged=false parsers={"pickerStillOpen":false,"dialogOnGrid":false,"receiptVerdictModel":null,"cancelledNeedle":false,"dialogOpenOnStream":false}
+
+===== settings guard =====
+{"settings":{"mutatedByProbe":false,"restored":true,"changedKeys":[]},"claudeJson":{"checked":true,"removed":["/private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj","/private/tmp/sonata-sync-2026-09/session-scoped-switch/b-fresh-mtlrgd9d","/private/tmp/sonata-sync-2026-09/session-scoped-switch/c-current-mtlrgko0"],"verified":true,"survivors":3507}}
+
+===== version at end =====
+2.1.259 (Claude Code)

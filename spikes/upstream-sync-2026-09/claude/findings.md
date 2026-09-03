@@ -4445,3 +4445,205 @@ declared, NOT adopted — Sonata brokers prompts), Stop hook (blocking-Stop fix
 irrelevant — the sink is fire-and-forget). Watermark advanced **2.1.258 → 2.1.259**.
 Everything else in the 39 entries touches no Sonata surface (triage file).
 
+# D2 U4 — the session-scoped model/effort switch: picker + `s` (probed + built 2026-09-03, binary 2.1.259, orchestrator inline)
+
+Woody's F68 ruling (direction 1: session-scoped, ONE drive path) and the
+second-batch ruling (effort: accept + register if no affordance). Executed inline
+after four engineer dispatches were killed by API 529s (opus-5 ×3, fable ×1)
+before any edit. Probe `m2-session-scoped-switch.mjs`; captures
+`m2-session-scoped-switch.abc.capture.txt` (arms a/b/c, one pass of the committed
+harness), `m2-session-scoped-switch.defg.capture.txt` (arms d/e/f/g), and
+`m2-session-scoped-switch.run1-defg-crashed.capture.txt` (a crashed first d–g run,
+kept for F107). Pin 2.1.259 start+end on every run. Settings guard on, BOTH files:
+`settings.json` unmutated by every `s` leg (0 arms), the one Enter leg (e1b)
+restored per arm; `~/.claude.json` probe keys self-cleaned after each run
+(3 + 4 + 3 removed, verified). All three captures: 0 hits for `$HOME` / username /
+`claude.ai` links.
+
+## F101 — every offered alias via picker + `s`: applied, session-only, `requested_model` per row (MEASURED, arm a)
+
+`--model fable` session WITH history (one warm-up turn), then for each alias: bare
+`/model`, walk to the row by LABEL with grid-verified arrows, press `s`.
+
+| alias | picker row | dialog | `PostModelSwitch.requested_model` | `to_model` | statusline `model.id` after | `settings.json` |
+|---|---|---|---|---|---|---|
+| `opus[1m]` | `Opus (1M context)` | raised, answered Yes → Post +66 ms | **`opus[1m]`** | `claude-opus-5[1m]` | `claude-opus-5[1m]` | unchanged |
+| `opus` | **NO ROW** | — | — | — | — | unchanged (Esc'd) |
+| `sonnet` | `Sonnet` | none | `sonnet` | `claude-sonnet-5` | `claude-sonnet-5` | unchanged |
+| `haiku` | `Haiku` | none | `haiku` | `claude-haiku-4-5-20251001` | `claude-haiku-4-5-20251001` | unchanged |
+| `fable` | `Fable` | none | **`claude-fable-5-1[1m]`** | `claude-fable-5-1` | `claude-fable-5-1` | unchanged |
+
+`source` = `"picker"` on every Post. Receipt: `⎿ Set model to <display> for this
+session only` (frames; the persisting tail is absent). Two cells decide the design:
+
+1. **The F89 unmeasured cell is closed**: the `Opus (1M context)` row reports
+   `requested_model:"opus[1m]"` — the alias Sonata holds.
+2. **The Fable row does NOT report its alias**: `requested_model` is
+   `claude-fable-5-1[1m]` (2/2 runs), `to_model` is the canonical
+   `claude-fable-5-1`. U3's alias-only match would never settle a Fable switch.
+   The settle now matches alias OR that measured form OR `to_model` against the
+   canonical id (`claudeModelSwitchMatches`, table `CLAUDE_MODEL_ALIASES`) — a
+   `PostModelSwitch`'s `to_model`, never a Pre's (F84).
+
+And **plain `opus` has no picker row** (the picker's only Opus row is the 1M one).
+Sonata offers `opus` as a launch model (`--model opus` resolves) and its session
+menu lists it; through the picker it is unreachable. Shipped: a NAMED `failed`
+("Claude's model picker has no row for Opus 5; start a new chat with it instead")
+with no walk and one grid-verified Esc. → REGISTER (product): keep `opus` in the
+session menu (honest failure) or drop it there (see F108).
+
+Only the FIRST switch after the warm-up raised the cache-miss dialog (opus[1m]);
+sonnet/haiku/fable applied directly — consistent with F16's "the dialog depends on
+the size of the history being re-read", and irrelevant to the drive, which parks
+whenever the dialog appears (F105).
+
+## F102 — arms b/c: no history → no dialog; `s` on the CURRENT row fires NOTHING (MEASURED)
+
+- **b** (fresh spawn, `fable`, `s` on Haiku): applied, no dialog, Post `haiku`,
+  settings unchanged.
+- **c** (`s` on the row already marked ✔ current): **no hook, no receipt, no
+  statusline change, picker closes**. A drive that waited for a Post here would
+  time out into needs-attention on a switch that had nothing to do. Shipped: a
+  target row carrying ✔ is Esc'd (grid-identified) and settled as a no-op.
+
+## F103 — arm d: the cancel shapes, and the picker that comes BACK (MEASURED, decisive for the relay)
+
+| action | receipt | hooks | picker after | settings |
+|---|---|---|---|---|
+| Esc on the picker (row focused, no `s`) | `⎿ Kept model as Fable 5.1` | none | closed | unchanged |
+| `s` → dialog → **Esc** | `Kept model as Fable 5.1` | Pre ×2 (`haiku`; second `to_model` drifts to sonnet — F84 again), **no Post** | **STILL OPEN** (`pickerOpenAfterAnswer: true`) | unchanged |
+| `s` → dialog → **No** row | `Kept model as Fable 5.1` | Pre ×2, no Post | **STILL OPEN** | unchanged |
+
+A No/Esc on the dialog returns to the PICKER — the codex consent's Enter-on-Cancel
+shape, now on claude. The S7 relay is therefore extended: an INJECTED No is Enter
+trailed by one deferred Esc (the codex Cancel's mechanism), and a NATIVE No/Esc
+reaches `settleParkedCancel`, which Escs the picker only if the GRID shows it.
+Both are grid-verified or measured-certain; neither is blind. The
+`claudeCacheMissCancelled` needle stays as the stream witness; its `Kept …` line
+is printed on every cancel shape, and — F19 — can replay, so the picker's
+absence from the grid remains the second witness for a plain-picker cancel.
+
+## F104 — arm e: `/effort` is a SLIDER with its own `s` — effort CAN be session-scoped (MEASURED, overturns the "accept and register" default)
+
+Bare `/effort` opens (+152 ms):
+
+```
+   Effort
+                             Faster                                                 Smarter
+                             ──────────▲────────────────────────────────┆──────────────────
+                             low     medium     high     xhigh      max       ultracode
+                                                                          xhigh + workflows
+   ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
+```
+
+- **e1**: → then `s` → cache-miss dialog (+624 ms, `Change effort level?`) →
+  Yes → receipt `⎿ Set effort level to high (this session only): Comprehensive
+  implementation …`, statusline `medium → high`, **`settings.json` UNCHANGED**, no
+  hooks of any kind (effort has no hook — F88 holds).
+- **e1b** (the persisting form): ← then **Enter** → statusline `high → medium`,
+  `settings.json` `modelSettings["claude-fable-5-1"].effortLevel = "medium"`
+  WRITTEN (guard restored it). The Enter/`s` asymmetry is exactly the model
+  picker's.
+- **e2**: inside the `/model` picker, → moves its in-place effort line (`◐ Medium
+  effort` → `● High effort (default)`), and `s` there applied BOTH (receipt `Set
+  model to Fable 5.1 for this session only with high effort`, statusline
+  `fable/medium → fable/high`, settings unchanged, no dialog on that leg).
+
+So Woody's second-batch default ("effort: accept + register") is NOT needed: the
+affordance exists. Shipped: the effort axis is a slider drive — bare `/effort`,
+▲ located by column (nearest tick label), one ←/→ per tick with the ▲ re-read
+after each press, then `s`; settled by the `Set effort level to …` receipt (the
+existing needle covers the `(this session only)` wording). The staged Save runs
+model then effort as two pickers (the `/model` picker's in-place effort is a
+one-step alternative — REGISTERED, not taken: it changes two axes on one key and
+its dialog/receipt semantics for the combined case are one leg deep).
+
+## F105 — arm f: the F19 repaint on the `s` path — the hook is immune, the window is quiet (MEASURED)
+
+`opus[1m]` ↔ `haiku` (banner-reshaping) via picker+`s`, both legs: Post
+`requested_model` correct both ways (+69 ms after the dialog answer on leg 1; no
+dialog on leg 2). The last 4096-char window after leg 2 carried **0** `Set model
+to` and **0** `Kept model as` lines — on the picker path the receipt is one line
+with no persisting tail and the redraw did not replay it into the window. U3's
+gate (grid-absence + cancel-exit beat + Post wins) stays as designed; nothing in
+this arm reached it.
+
+## F106 — arm g: no arming window (MEASURED, F15 re-confirmed at 2.1.259)
+
+Down sent at +0 ms after the picker's first paint moved the focus
+(`Fable → Sonnet`); two more Downs 60 ms apart landed as expected (wrapping to
+`Default (recommended)`). The drive needs no pacing beyond its own re-read.
+
+## F107 — METHOD: an open picker turns the next Enter into a PERSISTED switch (MEASURED by accident, run1)
+
+The first d–g run crashed on a harness bug (`KEYS.right` undefined → `pty.write(undefined)`)
+after arm d's dialog-Esc had left the picker OPEN (F103) and the next arm typed
+`/model` + Enter into it: the Enter landed on the focused row (`3. Fable ✔`) and
+printed `⎿ Set model to Fable 5.1 and saved as your default for new sessions` — a
+PERSISTED default switch. It happened to equal the user's pin (`fable`), so the
+guard saw no byte change; on any other row it would have rewritten the default.
+Kept as `m2-session-scoped-switch.run1-defg-crashed.capture.txt` because it is the
+sharpest measurement of why the engine's external-clear path Escs an abandoned
+picker (`clearPendingControlSwitch`, `pickerOpen`) and why every rollback Esc is
+grid-verified. Two harness fixes followed (ARROW_LEFT/RIGHT constants; the warm-up
+typed its full prompt — the crashed run typed 20 characters). Captures are now
+named per arm set so a later run can never overwrite an earlier arm's record — the
+first a/b/c capture WAS overwritten by the crashed run and re-measured (identical
+on every cell).
+
+## F108 — what shipped, verification, register
+
+**Shipped (app/):**
+- `tui-parsers-claude.ts`: `CLAUDE_MODEL_ALIASES` (alias ↔ picker row ↔ display ↔
+  id ↔ picker `requested_model`, MEASURED), `claudeModelSwitchMatches`,
+  `claudeModelPickerOpen` / `parseClaudeModelPicker` (grid), `claudeEffortPickerOpen`
+  / `parseClaudeEffortSlider` (grid, ▲-to-nearest-label).
+- `control-switch-engine.ts`: the `value` axis (slash drive) is REMOVED; the
+  `claude-picker` axis replaces it — opening (grid) → navigating (one validated
+  arrow per read, rows by label / ticks by index) → applying (`s`; dialog → PARK,
+  effort receipt → settle, model hook → settle) → closing (grid-verified Esc
+  rollback → `failed` named or needs-attention). `parked-confirm` gains
+  `fromPicker`; injected No = Enter + deferred Esc; native No/Esc → grid-checked
+  Esc of the returned picker. External clear mid-picker → one Esc.
+  `noteModelSwitchConfirmed(requestedModel, toModel)`.
+- `terminal-host.ts` / `runtime-controller.ts`: `to_model` rides the seam.
+- `tui-parsers-common.ts`: `ARROW_LEFT` / `ARROW_RIGHT`.
+- Renderer: two doc comments; no user-facing copy existed for the persisting
+  behaviour (nothing to delete).
+- Tests: `control-switch-engine` smoke 51/51 (claude cases rewritten to the picker
+  drive + 12 new: readiness needle, validated walk, unexpected jump → grid-verified
+  Esc, native Esc mid-walk → NO blind Esc, `opus` → named failure, current row →
+  no-op, drift → needs-attention `drift`, effort slider both directions, staged
+  model→effort, Fable id match, Post-before-`s` ignored, injected/native No on a
+  picker dialog, external clear); `midsession-receipt` + picker/slider/matcher
+  cases on the MEASURED fixtures (`claude-midsession/model-picker-2.1.259.txt`,
+  `effort-slider-2.1.259.txt`, `effort-slider-after-right-2.1.259.txt`,
+  `model-picker-cachemiss-2.1.259.txt`); `e2e:cli-start-without-prompt` FIXED
+  (the selected option's accessible name is `<label> selected`, so an exact
+  `High` match failed once `high` became the default — test-only fix);
+  `e2e:midsession-switch` — **GREEN on the real CLI for the first time since F21**,
+  and now a FENCE for F68: `settingsUnchanged: true` (byte-level) after a
+  drawer-relayed `Opus 5 High → Sonnet 5 Low` switch.
+
+**Verification (foreground):** `npm run build` ✓; `smoke:control-switch-engine`
+51 ok; `smoke:midsession-receipt` OK; `cli-signal-state`, `provider-launch-settings`,
+`codex-runtime-settings`, `reading-composer-selectors` OK; `midsession-codex-model`
+OK on re-run (first run: real-codex timing on arm A, `needs-attention` — pre-existing
+flake class); `e2e:cli-start-without-prompt`, `e2e:midsession-permission-switch`,
+`e2e:midsession-switch` all `success: true`; **full `npm run smoke` 148/148**
+(`native-image-attachments` green again — the API 529 storm is over). Codex bytes:
+`git diff --name-only | grep -i codex` → none. `~/.claude/settings.json` `model`
+still `fable` at the end of the slice.
+
+**REGISTER:**
+1. **`opus` in the session menu** (F101): keep it (honest named failure on pick)
+   or filter it from `sessionModelOptions()` (it stays a launch option). Product
+   call — the current shape is honest but a dead-end row.
+2. **`/model` picker's in-place effort** (F104 e2): a one-key model+effort switch;
+   not taken (one leg deep). Candidate simplification of the staged Save.
+3. **`ultracode` / `auto` effort tiers** are on the slider; Sonata does not offer
+   them (SL-4 F17 stands) — the slider drive would reach `ultracode` if asked.
+4. **F20 closure**: `/effort` Enter persists per-model; `s` does not — the "effort
+   sibling nobody has looked for" (sync plan F20 register) is now measured and
+   shipped session-scoped.
+

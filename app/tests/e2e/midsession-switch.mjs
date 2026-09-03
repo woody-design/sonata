@@ -14,15 +14,25 @@ import { chooseDraftProvider, sendFirstPrompt, waitForEngagement } from "./helpe
 //   3. selecting a model injects `/model <id>` and the chip FOLLOWS the live
 //      statusline once the receipt lands (the switch actually took).
 //
-// A mid-session switch persists `model`/`effortLevel` into ~/.claude/settings.json
-// (measured). This test snapshots those two fields and restores them in `finally`
-// so it leaves the user's real config as it found it.
+// Since D2 U4 (2026-09-03) a mid-session switch is SESSION-SCOPED: the drive is
+// the picker's `s` key, MEASURED to leave ~/.claude/settings.json byte-unchanged
+// (m2 arms a/b/e/f), where the old `/model <id>` slash persisted `model`/
+// `effortLevel` (F68 — the one pollution Sonata caused). This test therefore
+// FENCES that invariant: the file's bytes after the switch must equal the bytes
+// before. The field-level restore below stays as the safety net for a failure.
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-midsession-e2e-"));
 const evidenceDir = process.env.SONATA_MIDSESSION_EVIDENCE
   ? fs.mkdtempSync(path.join(os.tmpdir(), "sonata-midsession-evidence-"))
   : null;
 const claudeSettingsPath = path.join(os.homedir(), ".claude", "settings.json");
 const settingsBackup = readClaudeSettingsDefaults();
+const settingsBytesBefore = (() => {
+  try {
+    return fs.readFileSync(claudeSettingsPath, "utf8");
+  } catch {
+    return null;
+  }
+})();
 
 let electronApp = null;
 let page = null;
@@ -282,6 +292,19 @@ try {
     await page.screenshot({ path: path.join(evidenceDir, "04-after-save.png") });
   }
 
+  // The D2 U4 invariant: the session-scoped switch wrote NOTHING to the user's
+  // durable config. Byte-level, taken after both legs settled.
+  const settingsBytesAfter = (() => {
+    try {
+      return fs.readFileSync(claudeSettingsPath, "utf8");
+    } catch {
+      return null;
+    }
+  })();
+  const settingsUnchanged = settingsBytesAfter === settingsBytesBefore;
+  if (!settingsUnchanged) {
+    throw new Error("the mid-session switch WROTE ~/.claude/settings.json — the session-scoped drive must not");
+  }
   console.log(
     JSON.stringify(
       {
@@ -298,6 +321,7 @@ try {
         usedDrawer,
         switchedLabel,
         effortApplied,
+        settingsUnchanged,
         success: true,
       },
       null,
@@ -326,7 +350,19 @@ try {
   if (electronApp) {
     await electronApp.close();
   }
-  restoreClaudeSettingsDefaults(settingsBackup);
+  // Safety net only: a passing run changed nothing, so this is a no-op write-back
+  // of identical bytes; a failing run puts the user's file back exactly.
+  if (settingsBytesBefore !== null) {
+    try {
+      if (fs.readFileSync(claudeSettingsPath, "utf8") !== settingsBytesBefore) {
+        fs.writeFileSync(claudeSettingsPath, settingsBytesBefore, "utf8");
+      }
+    } catch {
+      restoreClaudeSettingsDefaults(settingsBackup);
+    }
+  } else {
+    restoreClaudeSettingsDefaults(settingsBackup);
+  }
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
 }
 

@@ -1968,10 +1968,12 @@ export class TerminalHost extends EventEmitter {
    * subscribing to hooks itself.
    *
    * This is the model axis's SETTLE, not a corroboration: see
-   * `ControlSwitchEngine.noteModelSwitchConfirmed`.
+   * `ControlSwitchEngine.noteModelSwitchConfirmed`. `toModel` (the payload's
+   * canonical `to_model`) rides along since D2 U4: the picker's Fable row reports
+   * `requested_model` as `claude-fable-5-1[1m]`, so the alias match needs the id.
    */
-  noteModelSwitchConfirmed(requestedModel: string): void {
-    this.controlSwitch.noteModelSwitchConfirmed(requestedModel);
+  noteModelSwitchConfirmed(requestedModel: string, toModel: string | null = null): void {
+    this.controlSwitch.noteModelSwitchConfirmed(requestedModel, toModel);
   }
 
   /**

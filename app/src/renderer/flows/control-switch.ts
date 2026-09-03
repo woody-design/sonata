@@ -78,7 +78,8 @@ export async function applyClaudeControlSwitch(
 
 /** Apply a STAGED model+effort Save (S7 Part 1). Compares the staged pair to the
  *  session's current and dispatches the changed axes as ONE logical switch:
- *   - claude → `switchClaudeStaged` (sequential `/model`+`/effort`, the cache-miss
+ *   - claude → `switchClaudeStaged` (the session-scoped picker drive: bare `/model`
+ *     then `/effort`, applied with `s` — D2 U4; the cache-miss
  *     confirm relayed via the drawer between them);
  *   - codex → the existing `codex-model` two-level picker with the pair (value =
  *     staged model, from = staged effort as the level-2 target — one picker run).

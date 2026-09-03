@@ -535,7 +535,9 @@ function renderSessionCodexAccessMenu(view: TaskViewState): HTMLElement {
 
 /** The live session's model + effort switch menu — a STAGED selector (S7 Part 1).
  *  Row clicks STAGE a (model, effort) pair (no CLI); Save applies the changed axes
- *  as ONE logical switch (claude: sequential `/model`+`/effort`, the cache-miss
+ *  as ONE logical switch (claude: the session-scoped PICKER drive — bare `/model`
+ *  then `/effort`, each applied with the CLI's `s` key so the user's durable
+ *  default is never written (D2 U4, F68/F89); the cache-miss
  *  confirm relayed via the drawer). Same visual family as the New Chat launch menu
  *  (renderSettingSection), with the staged pick accent-marked and the session's
  *  live value a muted "Current". No CLI-default caption (removed S6). */

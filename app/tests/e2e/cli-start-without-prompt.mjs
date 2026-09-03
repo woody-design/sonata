@@ -248,7 +248,14 @@ async function chooseLaunchOption(page, heading, label) {
   if (!(await section().isVisible().catch(() => false))) {
     await page.locator("#model-chip").click();
   }
-  await section().getByRole("menuitemradio", { name: label, exact: true }).click();
+  // The accessible name of the SELECTED option is `<label> selected` (the badge
+  // `renderSettingSection` appends), so an exact-name match fails whenever the
+  // wanted option is already the default — which `High` became when
+  // `DEFAULT_CLAUDE_SETTINGS.defaultReasoningEffort` moved to `high`. Anchor the
+  // label as a leading word instead (D2 U4, 2026-09-03).
+  await section()
+    .getByRole("menuitemradio", { name: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`) })
+    .click();
 }
 
 async function addBitmapDraft(page, text) {

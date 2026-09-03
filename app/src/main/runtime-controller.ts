@@ -2757,8 +2757,12 @@ export class RuntimeController {
     if (event === "PostModelSwitch") {
       const requestedModel =
         typeof payload.requested_model === "string" ? payload.requested_model.trim() : "";
+      // `to_model` (canonical id) travels too since D2 U4: a picker-driven switch of
+      // the Fable row reports `requested_model` as `claude-fable-5-1[1m]` (m2 arm a),
+      // so the settle matches the alias OR the id — both MEASURED shapes.
+      const toModel = typeof payload.to_model === "string" ? payload.to_model.trim() : null;
       if (requestedModel) {
-        active.terminalHost.noteModelSwitchConfirmed(requestedModel);
+        active.terminalHost.noteModelSwitchConfirmed(requestedModel, toModel || null);
       }
     }
 

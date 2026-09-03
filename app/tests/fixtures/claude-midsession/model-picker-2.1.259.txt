@@ -1,0 +1,41 @@
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/session-scoped-switch/a-aliases-mtlreeaj
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ 终端模拟器（terminal emulator）是一个把现代图形界面里的窗口伪装成传统文本终端的程序，让你能在其中输入命令并查看 shell
+  及其它命令行程序的文本输出。
+
+✻ Baked for 3s · done 12:49 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, 
+   specify with --model.
+
+     1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
+   ❯ 2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
+     3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
+     4. Sonnet                 Sonnet 5 · Efficient for routine tasks
+     5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+   ◐ Medium effort ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel
+
