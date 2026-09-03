@@ -4375,3 +4375,73 @@ is the user's config).
   U5; re-run when the API recovers.
 - Codex bytes untouched (`git diff --name-only | grep -i codex` → none).
 
+# D2 U6 — upstream-sync claude 2.1.258 → 2.1.259 (probed 2026-09-03, binary 2.1.259, orchestrator inline)
+
+Triage: `private/upstream/2026-09-03-claude-2.1.259-triage.md` — 39 changelog
+entries, 11 touch a Sonata surface, 2 needed a probe. Probe `q37-2.1.259-delta.mjs`,
+one arm per run, per-arm captures `q37-2.1.259-delta.armA.capture.txt` /
+`.armB.capture.txt`. Pin 2.1.259 start AND end on both runs (no drift). Settings
+guard on, both files: `settings.json` unmutated (0 arms), `~/.claude.json` probe key
+self-cleaned after each arm (`removed: 1, verified: true`) — the U5 bracket's first
+production use. Both captures 0 hits for `$HOME`/username/`claude.ai` links. Ran
+during the "Elevated errors for multiple models" API incident (status.claude.com,
+Identified 13:41 UTC) — arm B's turns nevertheless completed (haiku is not on the
+incident's model list; the fable turn happened to succeed).
+
+## F98 — arm A: the trust-dialog boot ceremony is UNCHANGED at 2.1.259, and trust is remembered (MEASURED, PASS)
+
+Fresh `git init` cwd, production argv shape (`--permission-mode default`):
+- dialog appears; **default `❯` row is still `No, exit`**; affirm row `Yes, I trust
+  this folder` present (SL-1's F1 shape holds — `bootTrusted`'s Down-then-verify
+  choreography unchanged);
+- verify-and-retry Down focused the affirm row on the first attempt (`down#1:
+  affirmFocused=true`); Enter reached the composer; idle footer needles all true
+  (`? for shortcuts`, `manual mode on`, `← for agents`);
+- **second boot in the same cwd: no dialog, straight to the composer** — the
+  changelog's "workspace trust no longer resets" holds in the single-session form
+  Sonata cares about (`trustRemembered=true`).
+No Sonata change. Rows re-stamped: trust dialog / boot ceremony.
+
+## F99 — arm B: a frontmatter `model:` per-turn switch is INVISIBLE to both structured channels (MEASURED, decisive for the register)
+
+Session `--model fable`, production `--settings` from `dist/` (which now writes
+`PostModelSwitch` itself — the probe layered only `PreModelSwitch`), a project-local
+command `.claude/commands/q37-haiku.md` with `model: haiku` frontmatter.
+
+| observation | result |
+|---|---|
+| hooks fired for the `/q37-haiku` turn | `UserPromptSubmit` +87 ms, `Stop` +2849 ms — **NO `PreModelSwitch`, NO `PostModelSwitch`** |
+| statusline mirror before / during / after | `claude-fable-5-1` / **no change** / `claude-fable-5-1` |
+| receipt on the stream | none (no `Set model to …`, no `Kept …`) |
+| **which model answered** (transcript `assistant.message.model`) | **`claude-haiku-4-5-20251001`** for both assistant records of that turn |
+| next plain turn | `claude-fable-5-1` (transcript), no hooks beyond `UserPromptSubmit`/`Stop` |
+| `~/.claude/settings.json` | unchanged (guard) |
+
+So at 2.1.259 the changelog's "frontmatter `model:` honoured in interactive
+sessions" is REAL — the turn ran on Haiku — and it is a **third kind of model
+change** Sonata has no channel for: not a `/model` switch (no receipt, no hook), not
+a persisted default (settings untouched), not reflected in the statusline. For U3's
+engine this is safe by construction (no hook → nothing to settle, no pending → no
+false settle). For the READING surface it means the session menu's "current model"
+mark and the model that produced a given message can disagree for exactly the
+turns a skill/command pins a model. The only witness is the transcript's per-record
+`model` field, which Sonata already parses for other reasons.
+
+**REGISTER (product): per-message model attribution.** Should the reading surface
+show the model that actually produced a message (from the transcript) rather than
+only the session's current model? Today a user who runs a `model: haiku` skill in a
+Fable session sees a Fable chip over a Haiku answer. Honest-display question for
+Woody; no drive/mirror change needed. Not fixed here.
+
+## F100 — re-stamps and the watermark
+
+Re-stamped to 2.1.259 on measurement: trust dialog / boot ceremony (F98); hook
+census + injection shape + mid-session switch strings (U3's F93 two-arm spot-check
+at 2.1.259 — payload keys, `requested_model`, `source`, timings, double-Pre all
+unchanged — plus arm B's production-written `PostModelSwitch` entry). Re-stamped on
+changelog reading only (no probe, no Sonata contract touched): resume (`--resume`
+attachment-payload fix — positive), permission modes (`--permission-prompts none`
+declared, NOT adopted — Sonata brokers prompts), Stop hook (blocking-Stop fix
+irrelevant — the sink is fire-and-forget). Watermark advanced **2.1.258 → 2.1.259**.
+Everything else in the 39 entries touches no Sonata surface (triage file).
+
