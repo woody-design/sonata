@@ -847,6 +847,10 @@ function driveToParkedCacheMiss(start) {
   engine.ingest(CACHE_MISS_CHUNK_HEAD);
   engine.ingest(CACHE_MISS_CHUNK_NO_ROW);
   assert.equal(lastEvent(host.events).phase, "parked", "the cache-miss dialog parks the relay");
+  // While parked the GRID shows the dialog (it is static until a key is pressed);
+  // since the review round the relay's Enter is gated on exactly that (M5), so the
+  // fake viewport must say what the real one would.
+  host.screen = CACHE_MISS_CHUNK_HEAD + CACHE_MISS_CHUNK_NO_ROW;
   return { host, engine };
 }
 
@@ -1122,6 +1126,7 @@ await check("B5: a chunk-split park reads its cursor from the snapshot, not from
     assert.equal(parked.phase, "parked");
     assert.equal(parked.dialog, "claude-cachemiss");
     engine.ingest(CACHE_MISS_TRAILING_BYTES);
+    host.screen = CACHE_MISS_CHUNK_HEAD + CACHE_MISS_CHUNK_NO_ROW; // the dialog is on the grid while parked (M5 gate)
     const writesBefore = host.writes.length;
     engine.answerParkedControlConfirm(1);
     assert.deepEqual(host.writes.slice(writesBefore), ["\r"], "the snapshot's cursor is on the chosen row → confirm now");
@@ -1179,11 +1184,14 @@ await check("U4: a NATIVE No leaves the picker open — the relay closes it with
 await check("B5: a native cursor move during the park outranks the snapshot", async () => {
   const { host, engine } = driveToParkedCacheMiss();
   try {
-    host.screen = "❯ ";
+    // The user arrowed to row 2 INSIDE the dialog: the grid still shows the dialog
+    // (cursor on No), the stream carries the move.
+    host.screen = "Switch model?\nthe full history gets re-read on your next message.\n  1. Yes, switch to Sonnet 5\n❯ 2. No, go back";
     engine.ingest(NATIVE_MOVE_TO_NO);
     const writesBefore = host.writes.length;
     engine.answerParkedControlConfirm(2);
     assert.deepEqual(host.writes.slice(writesBefore), ["\r", ESC], "already on row 2 per the scan → Enter (+ the picker-closing Esc)");
+    host.screen = "❯ "; // the dialog and the picker are gone by the time `Kept …` prints
     engine.ingest(CLAUDE_MODEL_CANCEL);
     await delay(PARKED_CANCEL_VERIFY_WAIT_MS);
     const settled = lastEvent(host.events);
@@ -1415,6 +1423,84 @@ await check("U4: an EXTERNAL clear mid-picker Escs the open picker exactly once"
     const before = host.writes.length;
     engine.clear(); // a run starting / PTY teardown
     assert.deepEqual(host.writes.slice(before), [ESC], "an abandoned picker would eat the next keystroke — close it");
+  } finally {
+    engine.clear();
+  }
+});
+
+
+// ── review round (D2 U4): B1 / M3 / M4 ────────────────────────────────────────
+
+await check("U4/B1: a parked-relay FAILURE on a picker-raised dialog also closes the RETURNED picker (two grid-verified Escs)", async () => {
+  const { host, engine } = driveToParkedCacheMiss();
+  try {
+    // The user answered Yes in the drawer; the cursor is on row 1 → Enter →
+    // `confirming`. Then nothing arrives (hook lost): the 4 s settle window fires.
+    engine.answerParkedControlConfirm(1);
+    assert.equal(host.writes[host.writes.length - 1], "\r", "Enter on the chosen row");
+    // Simulate the timeout path directly through its measured screen sequence:
+    // after the rollback Esc the DIALOG closes and the PICKER is back (F103).
+    host.screen = modelPickerFocused("Sonnet");
+    await delay(4300); // PARKED_CONFIRM_SETTLE_TIMEOUT_MS (4000) → failParked → Esc
+    const escsAfterFirst = host.writes.filter((w) => w === ESC).length;
+    assert.equal(escsAfterFirst, 1, "the first Esc (the dialog) has been written");
+    assert.equal(engine.hasPending(), true, "…and the relay has NOT concluded while the picker is on the grid");
+    // The verify tick reads the grid, sees the picker, Escs it; the next tick sees the composer.
+    await delay(1000);
+    host.screen = COMPOSER_IDLE_GRID;
+    await delay(1000);
+    assert.equal(host.writes.filter((w) => w === ESC).length, 2, "the second Esc closed the returned picker");
+    assert.equal(engine.hasPending(), false, "…and only then did the relay conclude");
+    assert.equal(lastEvent(host.events).phase, "needs-attention", "needs-attention, with no picker left to eat the next prompt");
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("U4/M3: a transcript line above the picker cannot forge a focused row", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    engine.injectClaudeControlSwitch("model", "haiku");
+    // ADAPTED: the user's earlier prompt `❯ 5. Haiku please` sits in the transcript
+    // ABOVE the picker; the real cursor is on Fable.
+    host.screen = modelPickerFocused("Fable").replace("   Select model", "❯ 5. Haiku please\n   Select model");
+    engine.ingest("(paint)");
+    assert.equal(host.writes[host.writes.length - 1], ARROW_DOWN, "the drive walks from Fable — it did not press `s` on a forged Haiku");
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("U4/M4: an opening frame with rows but no legible cursor arms the nav timeout (no permanent pending)", async () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    engine.injectClaudeControlSwitch("model", "haiku");
+    // ADAPTED: rows painted, `❯` not yet.
+    host.screen = modelPickerFocused("Fable").replace("   ❯ 3. Fable", "     3. Fable");
+    engine.ingest("(paint without cursor)");
+    assert.deepEqual(host.writes.slice(2), [], "nothing pressed without a cursor");
+    assert.equal(engine.hasPending(), true, "pending, awaiting the cursor…");
+    host.screen = COMPOSER_IDLE_GRID; // the user closed it natively meanwhile
+    await delay(2800 + 800);
+    assert.equal(engine.hasPending(), false, "…but bounded: the nav timeout concluded it");
+    assert.equal(lastEvent(host.events).phase, "needs-attention");
+    assert.ok(!host.writes.includes(ESC), "and no blind Esc — the grid showed no picker");
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("U4/M5: the parked Enter is gated on the dialog still being on the GRID", () => {
+  const { host, engine } = driveToParkedCacheMiss();
+  try {
+    // The user answered natively; the dialog is gone and the PICKER is back, but
+    // the stream still holds the dialog's cursor bytes.
+    host.screen = modelPickerFocused("Sonnet");
+    const before = host.writes.length;
+    engine.answerParkedControlConfirm(1); // snapshot cursor is on row 1 → would Enter
+    assert.deepEqual(host.writes.slice(before), [], "NO Enter — the grid shows no dialog (an Enter here would hit the picker = persisted switch)");
   } finally {
     engine.clear();
   }

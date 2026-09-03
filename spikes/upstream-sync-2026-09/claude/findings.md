@@ -4501,10 +4501,13 @@ whenever the dialog appears (F105).
 
 - **b** (fresh spawn, `fable`, `s` on Haiku): applied, no dialog, Post `haiku`,
   settings unchanged.
-- **c** (`s` on the row already marked ✔ current): **no hook, no receipt, no
-  statusline change, picker closes**. A drive that waited for a Post here would
-  time out into needs-attention on a switch that had nothing to do. Shipped: a
-  target row carrying ✔ is Esc'd (grid-identified) and settled as a no-op.
+- **c** (`s` on the row already marked ✔ current): **no hook, no statusline
+  change, picker closes** — and the CLI DOES print `⎿ Set model to Fable 5.1 for
+  this session only` (the arm's own "after" frame; the probe's stream-side
+  `receipts.set=[]` is a window artifact on every applied arm, review M7). A
+  drive that waited for a Post here would time out into needs-attention on a
+  switch that had nothing to do. Shipped: a target row carrying ✔ is Esc'd
+  (grid-identified) and settled as a no-op — equivalent outcome, no `s` needed.
 
 ## F103 — arm d: the cancel shapes, and the picker that comes BACK (MEASURED, decisive for the relay)
 
@@ -4646,4 +4649,51 @@ still `fable` at the end of the slice.
 4. **F20 closure**: `/effort` Enter persists per-model; `s` does not — the "effort
    sibling nobody has looked for" (sync plan F20 register) is now measured and
    shipped session-scoped.
+
+## F109 — REVIEW ROUND (2026-09-03): 1 blocking + 5 minor, all taken
+
+Independent review of `afe7c23`. Everything below is a follow-up commit; the
+red lines it enforces are the slice's own.
+
+- **B1 (BLOCKING, taken) — a parked-relay FAILURE left the returned picker open.**
+  `failParked` wrote one Esc (closing the dialog), `onParkedCloseVerify` cleared
+  the pending — and on a picker-raised dialog the Esc RETURNS to the still-open
+  picker (F103). A cleared pending un-gates delivery; the next prompt's Enter on
+  that picker is the persisted default switch F107 measured. Fix: for
+  `fromPicker` relays the close-verify reads the GRID, Escs the picker if it is
+  there (bounded by `PARKED_CONFIRM_MAX_ROLLBACK_ESCS`), re-verifies, and
+  concludes only when it is gone — fallback-armed so a read that never calls back
+  still concludes. Smoke `U4/B1` pins two Escs then needs-attention.
+- **M2 (taken) — the `applying` timeout dropped the pending with a possibly-open
+  picker.** Now a grid read Escs the picker if shown (`claudePickerOnScreen` is
+  false on both the composer and the dialog — it can never answer a dialog).
+- **M3 (taken) — `parseClaudeModelPicker` scanned the whole viewport,
+  first-match.** A transcript line `❯ 5. Haiku please` above the picker could
+  forge a focused row. Rows are now scoped below the `Select model` title and
+  focus is the LAST `❯` row (the file's cursor convention). Smoke `U4/M3`.
+- **M4 (taken) — an opening frame with rows but no legible `❯` left the switch
+  pending with NO timer.** The nav timeout is armed on that transition; and
+  `failClaudePicker` arms its close-verify tick BEFORE the grid read (a read that
+  never calls back still terminates after ≤4 ticks). Smoke `U4/M4`.
+- **M5 (taken) — the parked Enter was stream-cursor-driven with no grid check.**
+  The stream retains the dialog's bytes after it closes; behind it now sits the
+  PICKER, so a late Enter is a persisted switch. The Enter is gated on
+  `claudeCacheMissDialogOpen(grid)`; a gone dialog is left to the settle paths.
+  Smoke `U4/M5`.
+- **M6 (taken) — inventory row 52's "per-model effort memory FALSIFIED" was
+  itself falsified by F104/F88** (the FILE remembers effort per model; the banner
+  follows it on a model switch); row 67's narrative still described the `value`
+  axis and the alias-only match. Both corrected.
+- **M7 (taken) — F102's "no receipt" for `s` on the current row was a probe
+  window artifact**; the frame shows `⎿ Set model to Fable 5.1 for this session
+  only`. Corrected in place; shipped behaviour unchanged (no-op either way).
+- Reviewer's residual, stated: the effort slider parser has no width guard; if
+  the slider or labels line ever WRAPS at a narrow pane, `▲` and the label
+  centres could come from different segments → a wrong session effort (never a
+  persisted write). REGISTERED; a `levels.length >= 5` guard is the cheap fence.
+
+Verification after the round: engine smoke **55/55**, `midsession-receipt` OK,
+full `npm run smoke` **148/148**, `e2e:midsession-switch` GREEN again
+(`usedDrawer: true` — the drawer path now runs through the M5 grid gate —
+`settingsUnchanged: true`).
 

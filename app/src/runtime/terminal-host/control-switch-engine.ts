@@ -133,10 +133,12 @@ const PARKED_CONFIRM_CANCEL_VERIFY_MS = 900;
 /** Navigation bound: the parked dialogs have 2 rows, so any row is one press
  *  away; 6 absorbs a dropped/duplicated repaint. Exhausting it → Esc + attention. */
 const PARKED_CONFIRM_MAX_NAV_STEPS = 6;
-/** Esc bound across a parked relay's lifetime — spent by the failure rollback and
- *  by the native-Cancel picker close. One Esc closes any ONE of these screens
- *  (codex 0.146.0: the consent replaces the picker rather than stacking over it),
- *  so the cap is the safety net for a screen whose modal never clears. */
+/** Esc bound across a parked relay's lifetime — spent by the failure rollback,
+ *  by the native-Cancel picker close, and (D2 U4) by the second Esc a claude
+ *  picker-raised dialog needs: its Esc returns to the still-open picker (F103),
+ *  so a failure exit is dialog-Esc THEN picker-Esc, each grid-verified. Codex's
+ *  consent replaces its picker (0.146.0), so one Esc is that whole stack. The
+ *  cap is the safety net for a screen whose modal never clears. */
 const PARKED_CONFIRM_MAX_ROLLBACK_ESCS = 3;
 /** How many rows each whitelisted dialog renders (MEASURED). The relay refuses a
  *  row outside its dialog's range — the renderer only offers valid rows, so this
@@ -319,6 +321,9 @@ type PendingControlSwitch =
       attentionReason: ControlSwitchAttentionReason | null;
       /** A NAMED failure to report as `failed` (vs the generic needs-attention). */
       failError: string | null;
+      /** Close-verify ticks taken while `closing` — bounds the grid-read loop so a
+       *  `readScreen` that never calls back (host contract) still terminates. */
+      closeTicks: number;
       timer: NodeJS.Timeout | null;
     }
   | {
@@ -817,6 +822,7 @@ export class ControlSwitchEngine {
       rollbackEscs: 0,
       attentionReason: null,
       failError: null,
+      closeTicks: 0,
       timer: null,
     };
     this.emitControlSwitchState("pending", { kind, value });
@@ -952,6 +958,13 @@ export class ControlSwitchEngine {
         pending.target = target.label;
         pending.phase = "navigating";
         this.clearClaudePickerTimer(pending);
+        if (cursor === null) {
+          // The rows parsed but the `❯` did not (review M4): the picker is static,
+          // so no further frame will re-drive this — arm the nav window now rather
+          // than leave the switch pending with no timer at all.
+          this.armClaudePickerTimeout(CLAUDE_PICKER_NAV_TIMEOUT_MS);
+          return;
+        }
       }
     } else {
       const slider = parseClaudeEffortSlider(screen);
@@ -1100,15 +1113,28 @@ export class ControlSwitchEngine {
     pending.phase = "closing";
     // Every rollback Esc is GRID-verified, the first one included: a user who
     // Esc'd the picker natively mid-walk has already closed it, and an Esc on the
-    // idle composer is the blind key the red line forbids. Read, then decide.
+    // idle composer is the blind key the red line forbids. Read, then decide —
+    // with the verify tick armed FIRST as the fallback (review M4), so a
+    // `readScreen` that never calls back (allowed by the host contract) still
+    // terminates instead of stranding a pending that gates delivery forever.
+    this.armClaudePickerCloseVerify(pending);
     this.host.readScreen((screen) => {
       const current = this.pendingControlSwitch;
       if (!current || current.axis !== "claude-picker" || current.phase !== "closing") {
         return;
       }
+      this.clearClaudePickerTimer(current);
       current.pickerOpen = this.claudePickerOnScreen(current.kind, screen);
       this.rollbackClaudePicker(current);
     });
+  }
+
+  private armClaudePickerCloseVerify(
+    pending: Extract<PendingControlSwitch, { axis: "claude-picker" }>,
+  ): void {
+    const timer = setTimeout(() => this.onClaudePickerCloseVerify(), CLAUDE_PICKER_CLOSE_VERIFY_MS);
+    timer.unref?.();
+    pending.timer = timer;
   }
 
   private rollbackClaudePicker(
@@ -1120,25 +1146,33 @@ export class ControlSwitchEngine {
       this.host.writePty(ESC);
       this.host.endSonataWrite();
       pending.rollbackEscs += 1;
-      const timer = setTimeout(() => this.onClaudePickerCloseVerify(), CLAUDE_PICKER_CLOSE_VERIFY_MS);
-      timer.unref?.();
-      pending.timer = timer;
+      this.armClaudePickerCloseVerify(pending);
       return;
     }
     this.finishClaudePickerFailure(pending);
   }
 
+  /** One close-verify tick: read the grid, Esc again if the picker is still up
+   *  (bounded), else conclude. Re-arms itself as a FALLBACK before reading, so a
+   *  read that never calls back still reaches a conclusion after a few ticks. */
   private onClaudePickerCloseVerify(): void {
     const pending = this.pendingControlSwitch;
-    if (!pending || pending.axis !== "claude-picker") {
+    if (!pending || pending.axis !== "claude-picker" || pending.phase !== "closing") {
       return;
     }
     pending.timer = null;
+    pending.closeTicks += 1;
+    if (pending.closeTicks > 4) {
+      this.finishClaudePickerFailure(pending); // the grid never answered — conclude, no more keys
+      return;
+    }
+    this.armClaudePickerCloseVerify(pending);
     this.host.readScreen((screen) => {
       const current = this.pendingControlSwitch;
       if (!current || current.axis !== "claude-picker" || current.phase !== "closing") {
         return;
       }
+      this.clearClaudePickerTimer(current);
       current.pickerOpen = this.claudePickerOnScreen(current.kind, screen);
       this.rollbackClaudePicker(current);
     });
@@ -1174,6 +1208,18 @@ export class ControlSwitchEngine {
     pending.timer = null;
     if (pending.phase === "applying") {
       const { kind, value } = pending;
+      // Review M2: if `s` never took, the PICKER is still up — and a dropped
+      // pending un-gates delivery, whose Enter on a picker is a PERSISTED switch.
+      // Esc it only when the grid shows it (`claudePickerOnScreen` reads false on
+      // both the composer and the cache-miss dialog, so this can never answer a
+      // dialog). The dialog case stays untouched, as before.
+      this.host.readScreen((screen) => {
+        if (this.claudePickerOnScreen(kind, screen) && this.host.hasPty()) {
+          this.host.beginSonataWrite();
+          this.host.writePty(ESC);
+          this.host.endSonataWrite();
+        }
+      });
       pending.pickerOpen = false;
       this.clearPendingControlSwitch();
       this.emitControlSwitchState("needs-attention", { kind, value, reason: "interstitial" });
@@ -2440,6 +2486,24 @@ export class ControlSwitchEngine {
     pending.awaitingCursor = null;
     this.clearParkedTimer(pending);
     if (cursor === pending.targetRow) {
+      if (pending.dialog === "claude-cachemiss") {
+        // The claude cursor comes off the STREAM, which retains the dialog's bytes
+        // after it closes. Since D2 U4 the screen behind the dialog is the PICKER
+        // (F103), so an Enter that lands after a native answer is a PERSISTED
+        // switch, not a submitted composer line (review M5). Gate the Enter on the
+        // GRID still showing the dialog; a gone dialog is left to the settle paths
+        // (`Kept …` / the hook), which know how to conclude it.
+        this.host.readScreen((screen) => {
+          const current = this.pendingControlSwitch;
+          if (!current || current.axis !== "parked-confirm" || current.phase !== "navigating") {
+            return;
+          }
+          if (claudeCacheMissDialogOpen(screen)) {
+            this.pressParkedConfirm(current);
+          }
+        });
+        return;
+      }
       this.pressParkedConfirm(pending);
       return;
     }
@@ -2844,11 +2908,13 @@ export class ControlSwitchEngine {
   }
 
   /** An ACTIVE phase (navigating / confirming / cancel) got stuck — the screen is
-   *  unrecognized. RED LINE: Esc the dialog once (measured clean: claude Esc =
-   *  cancel → composer; codex consent Esc → composer, 0.146.0 — it replaced the
-   *  picker, so one Esc is the whole stack), verify, then needs-attention. NEVER
-   *  retry, NEVER guess a row. (waiting-user has no timeout, so this only fires
-   *  after the user has answered.) */
+   *  unrecognized. RED LINE: Esc the dialog once, verify, then needs-attention.
+   *  NEVER retry, NEVER guess a row. (waiting-user has no timeout, so this only
+   *  fires after the user has answered.) What the Esc lands on differs per dialog
+   *  and the verify step knows it: codex consent Esc → composer (0.146.0 — it
+   *  replaced the picker); claude cache-miss Esc → back to the PICKER when the
+   *  dialog was raised by the picker's `s` (F103, D2 U4) — `onParkedCloseVerify`
+   *  then Escs that picker too, grid-verified, before concluding. */
   private failParked(
     pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
   ): void {
@@ -2872,11 +2938,55 @@ export class ControlSwitchEngine {
       return;
     }
     pending.timer = null;
-    const { originKind, value } = pending;
-    const reason: ControlSwitchAttentionReason =
-      pending.dialog === "codex-consent" ? "consent" : "interstitial";
-    this.clearPendingControlSwitch();
-    this.emitControlSwitchState("needs-attention", { kind: originKind, value, reason });
+    const conclude = () => {
+      const current = this.pendingControlSwitch;
+      if (!current || current.axis !== "parked-confirm" || current.phase !== "closing") {
+        return;
+      }
+      const { originKind, value } = current;
+      const reason: ControlSwitchAttentionReason =
+        current.dialog === "codex-consent" ? "consent" : "interstitial";
+      this.clearPendingControlSwitch();
+      this.emitControlSwitchState("needs-attention", { kind: originKind, value, reason });
+    };
+    // Review B1 (D2 U4): the rollback Esc closed the DIALOG, and on a picker-raised
+    // dialog that returns to the still-open PICKER (F103). Concluding here would
+    // drop the pending, un-gate delivery, and hand the next prompt's Enter to the
+    // picker — a PERSISTED default switch (F107). So: read the grid, Esc the
+    // picker if it is there (bounded), verify again; conclude only when it is gone.
+    // Fallback-armed first, so a read that never calls back still concludes.
+    if (
+      pending.dialog === "claude-cachemiss" &&
+      pending.fromPicker &&
+      (pending.originKind === "model" || pending.originKind === "effort") &&
+      pending.rollbackEscs < PARKED_CONFIRM_MAX_ROLLBACK_ESCS
+    ) {
+      const kind = pending.originKind;
+      const fallback = setTimeout(conclude, PARKED_CONFIRM_CANCEL_VERIFY_MS);
+      fallback.unref?.();
+      pending.timer = fallback;
+      this.host.readScreen((screen) => {
+        const current = this.pendingControlSwitch;
+        if (!current || current.axis !== "parked-confirm" || current.phase !== "closing") {
+          return;
+        }
+        this.clearParkedTimer(current);
+        if (this.claudePickerOnScreen(kind, screen) && this.host.hasPty()) {
+          this.controlSwitchScan = "";
+          this.host.beginSonataWrite();
+          this.host.writePty(ESC);
+          this.host.endSonataWrite();
+          current.rollbackEscs += 1;
+          const timer = setTimeout(() => this.onParkedCloseVerify(), PARKED_CONFIRM_CANCEL_VERIFY_MS);
+          timer.unref?.();
+          current.timer = timer;
+          return;
+        }
+        conclude();
+      });
+      return;
+    }
+    conclude();
   }
 
   private clearPendingControlSwitch(): void {

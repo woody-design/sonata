@@ -1084,7 +1084,13 @@ export function claudeModelPickerOpen(screenText: string): boolean {
  *  digit and either the `✔` mark or the two-space gap before the description. */
 export function parseClaudeModelPicker(screenText: string): ClaudeModelPicker {
   const rows: ClaudeModelPickerRow[] = [];
-  for (const line of cleanTerminal(screenText).split("\n")) {
+  const lines = cleanTerminal(screenText).split("\n");
+  // Scope to the picker: rows live BELOW the `Select model` title. The transcript
+  // above it stays visible and claude renders user prompts with a leading `❯ `,
+  // so a whole-viewport scan could read `❯ 4. Sonnet please` as a focused row
+  // (review M3). Focus is the LAST `❯` row, the file's convention for cursors.
+  const titleAt = lines.findIndex((line) => /^\s*Select model\s*$/.test(line));
+  for (const line of lines.slice(titleAt >= 0 ? titleAt + 1 : 0)) {
     const match = CLAUDE_MODEL_PICKER_ROW_RE.exec(line);
     if (!match) {
       continue;
@@ -1096,7 +1102,8 @@ export function parseClaudeModelPicker(screenText: string): ClaudeModelPicker {
     }
     rows.push({ digit: Number(match[2] ?? "0"), label, current: /✔/.test(rest), focused: match[1] === "❯" });
   }
-  return { rows, focused: rows.find((row) => row.focused)?.label ?? null };
+  const focusedRows = rows.filter((row) => row.focused);
+  return { rows, focused: focusedRows.length > 0 ? (focusedRows[focusedRows.length - 1]?.label ?? null) : null };
 }
 
 /** The `/effort` slider is on the SCREEN. Footer names the `s` key; the tick
