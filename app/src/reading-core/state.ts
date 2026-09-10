@@ -804,7 +804,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       menu: null,
       message: null,
       model: {
-        codex: "gpt-5.6-sol",
+        codex: "gpt-6-astra",
         claude: "opus",
       },
       reasoningEffort: {
@@ -844,7 +844,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     cliSetupRun: null,
     cliSessionStartBlocked: {},
     defaultModel: {
-      codex: "gpt-5.6-sol",
+      codex: "gpt-6-astra",
       claude: "opus",
     },
     defaultReasoningEffort: {

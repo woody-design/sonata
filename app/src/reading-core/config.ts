@@ -27,14 +27,29 @@ export const MODEL_OPTIONS: Record<
   RuntimeProvider,
   Array<{ label: string; value: string | null }>
 > = {
+  // Codex's list mirrors the CLI's own `/model` picker — the rows THIS account
+  // is served, in the picker's order. RE-WALKED at codex 0.154.0 (2026-09-10,
+  // spikes/codex-0.154-gpt-6-astra/q36, a live `/model` open through the
+  // production TerminalHost): FIVE rows — gpt-6-astra `(default)` / gpt-5.6-sol
+  // `(current)` / gpt-5.6-terra / gpt-5.6-luna / gpt-5.5. The three "legacy"
+  // rows 0.152.1 served (gpt-5.4, gpt-5.4-mini) and the earlier
+  // gpt-5.3-codex-spark are GONE from the catalog (`models_cache.json` does not
+  // even list them hidden), so they are pruned here — a row Sonata offers that
+  // the picker cannot show is a drive the mid-session switch can only roll back
+  // from (D5). NOTE the launch itself tolerates a pruned slug: MEASURED (q36 arm
+  // C) `-m gpt-5.4` boots to a ready composer whose footer reads `gpt-5.4 high`,
+  // and the picker subtitle still advertises `codex -m` for legacy access — so
+  // a persisted task on a pruned model still reopens; `modelValueLabel` renders
+  // its bare slug. The catalog is SERVER-mutable; re-walk every sync.
+  //
+  // Labels are cosmetic on this side: the drive walks the picker by SLUG
+  // (`parseCodexModelLevel1`), unlike Claude's label-keyed lookup below.
   codex: [
+    { label: "6 Astra", value: "gpt-6-astra" },
     { label: "5.6 Sol", value: "gpt-5.6-sol" },
     { label: "5.6 Terra", value: "gpt-5.6-terra" },
     { label: "5.6 Luna", value: "gpt-5.6-luna" },
     { label: "5.5", value: "gpt-5.5" },
-    { label: "5.4", value: "gpt-5.4" },
-    { label: "5.4 Mini", value: "gpt-5.4-mini" },
-    { label: "5.3 Codex Spark", value: "gpt-5.3-codex-spark" },
     { label: "Native Default", value: null },
   ],
   // Claude's list is re-walked against the CLI's own `/model` picker each sync
@@ -133,13 +148,20 @@ export const SPEED_OPTIONS: Array<{ label: string; value: LaunchSpeedMode }> = [
 ];
 
 // Codex gates its top reasoning tiers per model, surfaced in the CLI's own
-// `/model` picker (verified against codex 0.144.4, spikes/codex-effort-max-ultra/):
-// Sol/Terra offer both Max and Ultra; Luna offers Max but NOT Ultra; the 5.5
-// and 5.4 families offer neither. The CLI does not validate `-c
+// `/model` picker (first verified against codex 0.144.4,
+// spikes/codex-effort-max-ultra/): Sol/Terra offer both Max and Ultra; Luna
+// offers Max but NOT Ultra; 5.5 offers neither. The CLI does not validate `-c
 // model_reasoning_effort` at launch (it echoes any string), so this menu — not
 // the launch — is where an unsupported combination must be kept off the table.
-const CODEX_MAX_MODELS = new Set(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
-const CODEX_ULTRA_MODELS = new Set(["gpt-5.6-sol", "gpt-5.6-terra"]);
+//
+// gpt-6-astra joined BOTH sets on MEASUREMENT (codex 0.154.0, q36 arm A step 4):
+// its level-2 row 5 reads `More reasoning…  Max and Ultra consume usage limits
+// faster`, and entering it opens the `Advanced Reasoning` submenu with `1. Max`
+// and `2. Ultra` — the same shape Sol has. Its own default tier is Low
+// (`1. Low (default)`), which is why Sonata's seeded default effort (High) is
+// injected explicitly rather than left to the model.
+const CODEX_MAX_MODELS = new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
+const CODEX_ULTRA_MODELS = new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra"]);
 
 // Claude fast mode (native since 2.1.205) is Opus-only per Anthropic's release
 // notes; we therefore gate Fast to Opus and never inject fastMode onto another

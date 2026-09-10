@@ -212,7 +212,7 @@ try {
     createdManifest.schemaId === "sonata.task-manifest.v1" &&
     codexMenuCopyMatches &&
     createdManifest.task.provider === "codex" &&
-    createdManifest.task.model === "gpt-5.6-sol" &&
+    createdManifest.task.model === "gpt-6-astra" &&
     createdManifest.task.reasoningEffort === "high" &&
     createdManifest.task.speedMode === "fast" &&
     createdManifest.task.codexPermissionMode === "full-access" &&
@@ -221,7 +221,7 @@ try {
     createdManifest.task.titleOrigin === "automatic" &&
     activeHeaderTitle === createdManifest.task.title &&
     reopenedHeaderTitle === createdManifest.task.title &&
-    createdReport?.runtime?.model === "gpt-5.6-sol" &&
+    createdReport?.runtime?.model === "gpt-6-astra" &&
     createdReport?.runtime?.reasoningEffort === "high" &&
     createdReport?.runtime?.speedMode === "fast" &&
     !selectedFolderManifestExists &&

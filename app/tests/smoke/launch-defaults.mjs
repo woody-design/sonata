@@ -31,15 +31,18 @@ check("fresh Sonata settings normalize to no record", freshSonata.lastUsedProvid
 check("fresh main surface defaults to Light", DEFAULT_READING_SETTINGS.mode === "light");
 check("initial last-used mirror is absent", initialState.lastUsedProvider === null);
 check("initial New Chat draft is Claude", initialState.taskDraft.provider === "claude");
-check("fresh Codex model is 5.6 Sol", DEFAULT_CODEX_SETTINGS.defaultModel === "gpt-5.6-sol");
+// gpt-6-astra since 2026-09-10 (codex 0.154.0 promoted it to the picker's
+// `(default)` row — MEASURED, spikes/codex-0.154-gpt-6-astra/q36). Effort stays
+// High deliberately: Astra's own default tier is Low.
+check("fresh Codex model is 6 Astra", DEFAULT_CODEX_SETTINGS.defaultModel === "gpt-6-astra");
 check("fresh Codex effort is High", DEFAULT_CODEX_SETTINGS.defaultReasoningEffort === "high");
 check(
-  "normalized Codex defaults stay 5.6 Sol High",
-  freshCodex.defaultModel === "gpt-5.6-sol" && freshCodex.defaultReasoningEffort === "high",
+  "normalized Codex defaults stay 6 Astra High",
+  freshCodex.defaultModel === "gpt-6-astra" && freshCodex.defaultReasoningEffort === "high",
 );
 check(
-  "initial draft stays 5.6 Sol High",
-  initialState.taskDraft.model.codex === "gpt-5.6-sol" &&
+  "initial draft stays 6 Astra High",
+  initialState.taskDraft.model.codex === "gpt-6-astra" &&
     initialState.taskDraft.reasoningEffort.codex === "high",
 );
 check(

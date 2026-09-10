@@ -127,13 +127,13 @@ try {
   await claudeMenu.waitFor({ state: "hidden" });
 
   // Codex model & effort: the settings menu clamps a now-gated effort on a model
-  // switch (Sol offers Ultra; Luna does not) — Ultra must never survive the
+  // switch (Astra offers Ultra; Luna does not) — Ultra must never survive the
   // switch to Luna (it lands on Extra High), the same rule as the launch menu.
   const codexModelRow = defaultModelGroup.locator(".settings-row", {
     hasText: "Codex model & effort",
   });
   const codexModelPopup = codexModelRow.locator(".settings-popup");
-  await codexModelPopup.filter({ hasText: "5.6 Sol · High" }).waitFor({ state: "visible" });
+  await codexModelPopup.filter({ hasText: "6 Astra · High" }).waitFor({ state: "visible" });
   await codexModelPopup.click();
   const codexMenu = codexModelRow.locator(".settings-popup-menu");
   await codexMenu.waitFor({ state: "visible" });

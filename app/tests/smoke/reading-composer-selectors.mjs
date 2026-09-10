@@ -399,14 +399,16 @@ const run = (status, extra = {}) => ({
 {
   assert.deepEqual(
     CFG.MODEL_OPTIONS.codex.map(({ label, value }) => ({ label, value })),
+    // MEASURED at codex 0.154.0 (2026-09-10, spikes/codex-0.154-gpt-6-astra/q36):
+    // the live picker serves exactly these five, in this order, astra marked
+    // `(default)`. gpt-5.4 / gpt-5.4-mini / gpt-5.3-codex-spark are absent from
+    // the catalog and therefore from this list.
     [
+      { label: "6 Astra", value: "gpt-6-astra" },
       { label: "5.6 Sol", value: "gpt-5.6-sol" },
       { label: "5.6 Terra", value: "gpt-5.6-terra" },
       { label: "5.6 Luna", value: "gpt-5.6-luna" },
       { label: "5.5", value: "gpt-5.5" },
-      { label: "5.4", value: "gpt-5.4" },
-      { label: "5.4 Mini", value: "gpt-5.4-mini" },
-      { label: "5.3 Codex Spark", value: "gpt-5.3-codex-spark" },
       { label: "Native Default", value: null },
     ],
     "codex model list follows the current native order and slugs",
@@ -470,17 +472,17 @@ const run = (status, extra = {}) => ({
     "Sol exposes both Max and Ultra and the Codex-app Light label",
   );
   // Complete Max/Ultra per-model gate matrix (codex 0.144.4 /model picker,
-  // spikes/codex-effort-max-ultra/). Every codex model + Native Default (null)
-  // is pinned, so dropping a model from an allowlist OR leaking a gated tier
-  // onto a model that lacks it fails here. Ungated tiers stay present for all.
+  // spikes/codex-effort-max-ultra/; astra row MEASURED at 0.154.0, q36 — its
+  // `Advanced Reasoning` submenu lists Max AND Ultra). Every codex model +
+  // Native Default (null) is pinned, so dropping a model from an allowlist OR
+  // leaking a gated tier onto a model that lacks it fails here. Ungated tiers
+  // stay present for all.
   const CODEX_EFFORT_GATE = [
+    { model: "gpt-6-astra", max: true, ultra: true },
     { model: "gpt-5.6-sol", max: true, ultra: true },
     { model: "gpt-5.6-terra", max: true, ultra: true },
     { model: "gpt-5.6-luna", max: true, ultra: false },
     { model: "gpt-5.5", max: false, ultra: false },
-    { model: "gpt-5.4", max: false, ultra: false },
-    { model: "gpt-5.4-mini", max: false, ultra: false },
-    { model: "gpt-5.3-codex-spark", max: false, ultra: false },
     { model: null, max: false, ultra: false },
   ];
   for (const { model, max, ultra } of CODEX_EFFORT_GATE) {
@@ -520,14 +522,7 @@ const run = (status, extra = {}) => ({
       `Claude ${model ?? "Native Default"} offers only Standard`,
     );
   }
-  for (const model of [
-    "gpt-5.6-sol",
-    "gpt-5.6-luna",
-    "gpt-5.5",
-    "gpt-5.4-mini",
-    "gpt-5.3-codex-spark",
-    null,
-  ]) {
+  for (const model of ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.5", null]) {
     assert.deepEqual(
       speedValues("codex", model),
       ["default", "fast"],
@@ -580,12 +575,23 @@ const run = (status, extra = {}) => ({
     "Opus 5 Extra High",
     "spawn settings via the A2 label tables",
   );
+  // A task persisted on a model the catalog has since PRUNED (gpt-5.4-mini left
+  // the picker at 0.154.0) must still render — `modelValueLabel` falls back to
+  // the bare slug rather than to nothing, so the card keeps saying what the
+  // session actually ran on.
   assert.equal(
     C.sessionModelSummaryLabel(
       view({ task: task({ provider: "codex", model: "gpt-5.4-mini", reasoningEffort: "max" }) }),
     ),
-    "5.4 Mini Max",
-    "codex short label; a known value outside the current picker still has a friendly label",
+    "gpt-5.4-mini Max",
+    "a persisted value outside the current picker renders as its slug, never blank",
+  );
+  assert.equal(
+    C.sessionModelSummaryLabel(
+      view({ task: task({ provider: "codex", model: "gpt-6-astra", reasoningEffort: "high" }) }),
+    ),
+    "6 Astra High",
+    "the new default renders with its short label",
   );
   assert.equal(
     C.sessionModelSummaryLabel(

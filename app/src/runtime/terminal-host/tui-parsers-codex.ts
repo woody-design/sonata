@@ -311,6 +311,16 @@ export function parseCodexPermissionReceipt(rawScan: string): CodexPermissionMod
 //                    catalog is SERVER-mutable with no CLI release), and it is why
 //                    the D5 rollback target in the real-CLI smoke had to become a
 //                    synthetic never-served slug rather than a real legacy one.
+//                    RE-MEASURED 0.154.0 (2026-09-10, spikes/codex-0.154-gpt-6-astra/
+//                    q36): FIVE rows — `1. gpt-6-astra (default)` / `› 2. gpt-5.6-sol
+//                    (current)` / terra / luna / gpt-5.5; the 5.4 pair is gone
+//                    again. NEW: a `(default)` marker on a MODEL row (it marks the
+//                    account's default model, not the session's). The level-1 row
+//                    regex admits only `(current)`, so the marker is simply not
+//                    captured: the slug charclass stops at `(`, the row still
+//                    parses (astra reads as row 1 on both substrates), and
+//                    `current` stays on sol — which is the only marker the drive
+//                    preserves by. Pinned in midsession-receipt (MODEL_L1_0154).
 //   Level 2 header:  `Select Reasoning Level for gpt-5.6-sol`
 //   Level 2 rows:    `1. Low (default)  Fast…`  `2. Medium…`
 //                    `› 3. High (current)  Greater…`  `4. Extra high…`

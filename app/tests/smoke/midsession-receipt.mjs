@@ -903,6 +903,44 @@ assert.equal(
   assert.equal(l1.current, "gpt-5.6-sol", "the (current) marker stays on sol (not the cursor)");
 }
 
+// — Level 1 at codex 0.154.0: a `(default)` marker on a MODEL row. —
+//
+// PROVENANCE: MEASURED verbatim 2026-09-10 (spikes/codex-0.154-gpt-6-astra/
+// q36-astra-catalog.capture.txt, arm A step 1 — the rendered grid of a live
+// `/model` open through the production TerminalHost, spawned `-m gpt-5.6-sol`).
+// The catalog moved again: FIVE rows, gpt-6-astra promoted to row 1 and marked
+// `(default)` — the first time that marker has appeared on a model row (it was
+// level-2-only before). The 0.152.1 legacy pair (gpt-5.4 / gpt-5.4-mini) is
+// gone. This fixture does NOT replace MODEL_L1 above: both are dated
+// measurements of a server-mutable list, and the drive has to parse either.
+const MODEL_L1_0154 =
+  "Select Model and Effort  Access legacy models by running codex -m <model_name> or in your config.toml" +
+  "  1. gpt-6-astra (default)  Our most capable model for complex, demanding work." +
+  "  › 2. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks." +
+  "  3. gpt-5.6-terra          Balanced agentic coding model for everyday work." +
+  "  4. gpt-5.6-luna           Fast and affordable agentic coding model." +
+  "  5. gpt-5.5                Proven previous-generation model for coding and general work." +
+  "  Press enter to confirm or esc to go back";
+{
+  const l1 = parseCodexModelLevel1(MODEL_L1_0154);
+  assert.equal(l1.cursor, "gpt-5.6-sol", "0.154: the cursor opens on the (current) row, not the (default) one");
+  assert.equal(l1.current, "gpt-5.6-sol", "0.154: (default) on a model row is NOT read as (current)");
+  assert.equal(l1.order.get("gpt-6-astra"), 1, "0.154: astra is row 1 — the slug parses past the (default) marker");
+  assert.equal(l1.order.get("gpt-5.6-sol"), 2, "0.154: sol moved to row 2");
+  assert.equal(l1.order.get("gpt-5.5"), 5, "0.154: 5.5 is the last row");
+  assert.equal(l1.order.size, 5, "0.154: five rows, no legacy pair");
+  assert.equal(l1.byDigit.get(1), "gpt-6-astra", "0.154: digit 1 resolves to astra (the drive's neighbor lookup)");
+  assert.equal(l1.order.has("gpt-5.4"), false, "0.154: gpt-5.4 is absent (D5 → a stale Sonata row would roll back)");
+}
+// The receipt for the new default, MEASURED off the confirm press's own stream
+// delta (q36 arm A step 3): a single-digit major with no dot, which the
+// `gpt-\S+` receipt slug and the `gpt-[a-z0-9.-]+` row slug both admit.
+assert.deepEqual(
+  parseCodexModelReceipt("• Model changed to gpt-6-astra high"),
+  { model: "gpt-6-astra", effort: "high" },
+  "0.154: the astra receipt parses (no-dot major)",
+);
+
 // — Level-2 (reasoning) rows: cursor, (current), the fixed effort order, and the
 //   `More reasoning…` submenu row (recognized ONLY to refuse it, D6). Parsing the
 //   COMBINED (L1+L2) frame proves the level slices don't bleed into each other. —

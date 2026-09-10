@@ -95,19 +95,18 @@ try {
   );
 
   await chooseDraftProvider(page, "codex");
-  await page.locator("#model-chip", { hasText: "5.6 Sol High" }).click();
+  await page.locator("#model-chip", { hasText: "6 Astra High" }).click();
+  // The live picker's five rows at codex 0.154.0 (spikes/codex-0.154-gpt-6-astra/q36).
   assert.deepEqual(await settingOptionLabels(page, "Model"), [
+    "6 Astra",
     "5.6 Sol",
     "5.6 Terra",
     "5.6 Luna",
     "5.5",
-    "5.4",
-    "5.4 Mini",
-    "5.3 Codex Spark",
     "Native Default",
   ]);
-  // Sol offers both gated top tiers (Max between Extra High and Ultra) — codex
-  // 0.144.4 /model picker, spikes/codex-effort-max-ultra/.
+  // Astra offers both gated top tiers (Max between Extra High and Ultra) —
+  // codex 0.154.0 `Advanced Reasoning` submenu, q36 arm A step 4.
   assert.deepEqual(await settingOptionLabels(page, "Reasoning"), [
     "Light",
     "Medium",
@@ -123,7 +122,7 @@ try {
   }
 
   await settingSection(page, "Reasoning").locator("button", { hasText: "Ultra" }).click();
-  await page.locator("#model-chip", { hasText: "5.6 Sol Ultra" }).waitFor({ state: "visible" });
+  await page.locator("#model-chip", { hasText: "6 Astra Ultra" }).waitFor({ state: "visible" });
   await settingSection(page, "Model").locator("button", { hasText: "5.6 Luna" }).click();
   await page.locator("#model-chip", { hasText: "5.6 Luna Extra High" }).waitFor({
     state: "visible",
@@ -146,31 +145,23 @@ try {
   // survive here as an unsupported launch combination.
   await settingSection(page, "Reasoning").locator("button", { hasText: "Max" }).click();
   await page.locator("#model-chip", { hasText: "5.6 Luna Max" }).waitFor({ state: "visible" });
-  await settingSection(page, "Model").locator("button", { hasText: /^5\.4$/ }).click();
-  await page.locator("#model-chip", { hasText: "5.4 Extra High" }).waitFor({ state: "visible" });
-  const fiveFourReasoning = await settingOptionLabels(page, "Reasoning");
+  await settingSection(page, "Model").locator("button", { hasText: /^5\.5$/ }).click();
+  await page.locator("#model-chip", { hasText: "5.5 Extra High" }).waitFor({ state: "visible" });
+  const fiveFiveReasoning = await settingOptionLabels(page, "Reasoning");
   assert.equal(
-    fiveFourReasoning.includes("Max"),
+    fiveFiveReasoning.includes("Max"),
     false,
-    "switching to 5.4 removes Max and falls back to Extra High",
+    "switching to 5.5 removes Max and falls back to Extra High",
   );
-  assert.equal(fiveFourReasoning.includes("Ultra"), false, "5.4 offers no Ultra either");
+  assert.equal(fiveFiveReasoning.includes("Ultra"), false, "5.5 offers no Ultra either");
 
   console.log(
     JSON.stringify(
       {
         claudeModels: ["Fable 5.1", "Opus 5 (1M context)", "Opus 5", "Sonnet 5", "Haiku 4.5"],
-        codexModels: [
-          "5.6 Sol",
-          "5.6 Terra",
-          "5.6 Luna",
-          "5.5",
-          "5.4",
-          "5.4 Mini",
-          "5.3 Codex Spark",
-        ],
+        codexModels: ["6 Astra", "5.6 Sol", "5.6 Terra", "5.6 Luna", "5.5"],
         ultraFallback: "5.6 Luna Extra High",
-        maxFallback: "5.4 Extra High",
+        maxFallback: "5.5 Extra High",
         success: true,
       },
       null,
