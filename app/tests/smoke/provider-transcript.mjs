@@ -14,6 +14,7 @@ const {
   locateSessionFile,
 } = require("../../dist/runtime/provider-transcript/index");
 const { userPromptDisplay } = require("../../dist/reading-core/selectors/turns");
+const { normalizePromptForMatch, unwrapPastedContent } = require("../../dist/shared/prompt-markers");
 const { codexPermissionModeFromTurnContext } = require("../../dist/shared/types/codex-settings");
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-provider-transcript-"));
@@ -149,6 +150,36 @@ check("claude: command invocation, context injection, and sidechain are handled"
   assert.equal(upserts[0].command, "/architect");
   assert.equal(upserts[2].text, "Second question");
   assert.notEqual(upserts[0].turnKey, upserts[2].turnKey);
+});
+
+check("claude 2.1.280: a pasted_content-wrapped user record renders and matches as the user's own text", () => {
+  // MEASURED 2026-09-23 (claude 2.1.280, this repo's own Sonata session): the
+  // CLI marks a paste over 800 chars / 2 line breaks and stores the WRAPPED form
+  // — leading "\n\n", newline after the open tag, newline before the close tag,
+  // and the close tag carries the id attribute. Sonata delivers via bracketed
+  // paste, so every multi-line prompt arrives like this. Before the unwrap the
+  // run ↔ turn text pairing failed: the prompt showed twice and the run's turn
+  // fell back to "could not be read structurally".
+  const typed = "mid-session 切换我觉的可以全部砍掉，两边都是。\n关于需要我定的\n1. 同意\n2. 同意现在剪掉";
+  const wrapped = `\n\n<pasted_content id="7f40">\n${typed}\n</pasted_content id="7f40">\n`;
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s2p" });
+  const upserts = normalizer.consumeLine(
+    claudeLine({
+      type: "user",
+      uuid: "u-pasted",
+      promptId: "p-pasted",
+      promptSource: "typed",
+      timestamp: "2026-09-23T17:41:45.000Z",
+      message: { role: "user", content: wrapped },
+    }),
+  );
+  assert.deepEqual(upserts.map((block) => block.kind), ["user-message"]);
+  assert.equal(upserts[0].text, typed, "the bubble shows what the user wrote, not the paste envelope");
+  // The delivery / run-index / hook back-stamp matcher agrees on both sides.
+  assert.equal(normalizePromptForMatch(wrapped), normalizePromptForMatch(typed));
+  // Two pastes in one message, and a plain prompt, are both handled.
+  assert.equal(unwrapPastedContent('a\n<pasted_content id="1">\nb\n</pasted_content id="1">\nc <pasted_content id="2">d</pasted_content>'), "a\nb\nc d");
+  assert.equal(unwrapPastedContent("no envelope here"), "no envelope here");
 });
 
 check("claude: local command turn followed by typed prompt attributes reply to prompt turn", () => {

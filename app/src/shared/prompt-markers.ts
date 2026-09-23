@@ -38,6 +38,24 @@ export function stripImageMarkers(value: string): string {
 }
 
 /**
+ * Claude Code 2.1.280 marks a paste over 800 characters or over 2 line breaks
+ * by wrapping it in `<pasted_content id="…">…</pasted_content>` and writes that
+ * WRAPPED form into the transcript's user record (MEASURED 2026-09-23: leading
+ * `\n\n`, a newline after the open tag, a newline before the close tag, and
+ * the close tag carries the id attribute too — `</pasted_content id="7f40">`).
+ * Sonata delivers every prompt as a bracketed paste, so every multi-line prompt
+ * arrives wrapped, and the run ↔ turn pairing (exact text equality) fails:
+ * the prompt renders twice and the run's turn falls back to "could not be read
+ * structurally". Unwrap on both the display and the matching side. Tolerant of
+ * attributes on either tag and of several pastes in one message.
+ */
+export const PASTED_CONTENT_RE = /<pasted_content\b[^>]*>\n?([\s\S]*?)\n?<\/pasted_content\b[^>]*>/g;
+
+export function unwrapPastedContent(value: string): string {
+  return value.replace(PASTED_CONTENT_RE, "$1");
+}
+
+/**
  * Canonical form for a "same prompt?" equality test: newline-normalize, drop
  * image markers, collapse horizontal whitespace, trim. Idempotent, and a no-op
  * on marker-free single-line text (so a plain prompt still equals itself). This
@@ -46,7 +64,7 @@ export function stripImageMarkers(value: string): string {
  * agree. Aggressive by design; never use it for display.
  */
 export function normalizePromptForMatch(value: string): string {
-  return stripImageMarkers(value.replace(/\r\n?/g, "\n").trim())
+  return stripImageMarkers(unwrapPastedContent(value.replace(/\r\n?/g, "\n")).trim())
     .replace(/[ \t]+/g, " ")
     .trim();
 }

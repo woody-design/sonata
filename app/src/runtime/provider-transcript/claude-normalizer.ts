@@ -10,6 +10,7 @@ import type {
   TranscriptAttachment,
   TranscriptBlock,
 } from "../../shared/types/transcript";
+import { unwrapPastedContent } from "../../shared/prompt-markers";
 import {
   boundText,
   INPUT_PREVIEW_LIMIT,
@@ -731,7 +732,10 @@ function toolResultText(content: unknown): string {
 }
 
 function cleanUserText(text: string): string {
-  const withoutReminders = text
+  // 2.1.280 wraps a multi-line paste in `<pasted_content id="…">` and stores
+  // the wrapped form; the reading bubble shows what the user wrote, not the
+  // CLI's paste envelope (see `unwrapPastedContent`).
+  const withoutReminders = unwrapPastedContent(text)
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/g, "");
   return withoutReminders.trim();
