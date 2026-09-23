@@ -257,29 +257,45 @@ await check("back-stamp reads through [Image #N]: image echo stamps, image twin 
   }
 });
 
-await check("echo-swallow reads through [Image #N]: a settled run's image echo spawns no phantom run", async () => {
-  // 2026-07-05: a run that settled by quiescence before its UserPromptSubmit
-  // fired gets its late echo swallowed. An image echo is decorated; unless
-  // swallow reads through the markers it falls through to beginRun and spawns a
-  // phantom run (decorated prompt, no output to ever close it) → another
-  // un-attributed run → another husk card.
+await check("a DUPLICATE UserPromptSubmit (same prompt_id) of a settled run spawns no phantom run", async () => {
+  // X2 fix round (ruling 1): runs begin only from the CLI's UserPromptSubmit, so
+  // the one "echo" left is the same hook delivered twice. It is recognized by the
+  // CLI's own prompt_id, never by text (a decorated image echo reads the same).
   const events = [];
   const host = makeHost(events);
   try {
     host.ptyProcess = fakePty();
     host.activeRun = null;
-    host.recentAttributionRun = {
-      id: "run-settled",
-      prompt: "do the thing",
-      expiresAt: Date.now() + 5000,
-    };
+    host.recentAttributionRun = { id: "run-settled", promptId: "pid-echo", expiresAt: Date.now() + 5000 };
     host.beginRunFromHook("[Image #1] do the thing", { promptId: "pid-echo" });
     assert.ok(
       !events.some((event) => event.type === "run:started"),
-      "decorated echo of a settled run is swallowed — no phantom run",
+      "a duplicate hook for the settled run is swallowed — no phantom run",
     );
   } finally {
     host.dispose();
+  }
+});
+
+await check("identical text is a NEW turn when the prompt_id differs or is absent", async () => {
+  // The inverse pin: with the write no longer beginning runs, two identical
+  // prompts sent back to back are two turns. Text identity must not swallow the
+  // second (the pre-fix-round text swallow would have).
+  for (const promptId of ["pid-2", null]) {
+    const events = [];
+    const host = makeHost(events);
+    try {
+      host.ptyProcess = fakePty();
+      host.activeRun = null;
+      host.recentAttributionRun = { id: "run-settled", promptId: "pid-1", expiresAt: Date.now() + 5000 };
+      host.beginRunFromHook("do the thing", { promptId });
+      assert.ok(
+        events.some((event) => event.type === "run:started"),
+        `same text, prompt_id ${promptId ?? "absent"} → a new run`,
+      );
+    } finally {
+      host.dispose();
+    }
   }
 });
 

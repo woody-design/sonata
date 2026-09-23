@@ -16,10 +16,10 @@ import { createRequire } from "node:module";
 // panel has two materially different shapes:
 //
 //   PHASE 1 — a stop followed at once by a send (the original bug report's
-//     shape). The send must find the stop's `cliInputMaybeDirty` already set,
-//     or the pre-submit kill-line flood is skipped and the paste concatenates
-//     onto the prompt Esc restored into the composer. And the send legitimately
-//     disarms the stop's one-shot Esc retry — asserted behaviourally.
+//     shape). The send carries only the user's paste — no kill-line flood in
+//     front of it (X2 fix round, ruling 2: whatever the Esc restored stays in
+//     the composer, as at a terminal). And the send legitimately disarms the
+//     stop's one-shot Esc retry — asserted behaviourally.
 //
 //   PHASE 2 — a stop with nothing sent after it, which leaves that Esc retry
 //     armed. A fresh panel then surfaces and `noteToolActivityAfterStop`
@@ -39,10 +39,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { TerminalHost } = require("../../dist/runtime");
 
-// Mirrors of terminal-host constants the byte-ordering assertion reads. Built
-// from char codes so no control byte is a literal in this source file.
+// Built from char codes so no control byte is a literal in this source file.
 const KILL_LINE = String.fromCharCode(0x15);
-const CLI_INPUT_CLEAR_MIN_KILLS = 40;
 const BARE_ESC = "\\u001b(?![[O])";
 
 const taskId = "task-stop-over-approval-smoke";
@@ -157,6 +155,9 @@ try {
   // === PHASE 0: boot, one run, one panel ===================================
   await waitUntil(() => host.acceptsPromptInput(), 5000, "idle composer");
   host.submitPrompt(promptText);
+  // COMPOSED: the CLI's own UserPromptSubmit — since X2's fix round the only
+  // thing that begins a run (the write never does).
+  host.beginRunFromHook(promptText);
   await waitUntil(
     () => events.some((event) => event.type === "run:started"),
     5000,
@@ -213,19 +214,17 @@ try {
   );
   check("isApprovalActive() is false after the stop", host.isApprovalActive() === false);
 
-  // A send right after the stop — its bytes are ORDERED behind the stop's own
-  // composer hygiene. A missing flood means the send did not see
-  // `cliInputMaybeDirty`: the Esc-restored prompt would then be concatenated
-  // with this paste (review 1).
+  // A send right after the stop carries only the user's own bytes: no Ctrl+U
+  // flood between the stop's Esc and the paste (ruling 2).
   host.submitPrompt(heldText);
   await waitUntil(() => readLog().includes(heldText), 5000, "the send reaching the CLI");
   const logAfterStop = readLog();
   const heldPasteAt = logAfterStop.indexOf(heldText);
   const preSubmitWindow = logAfterStop.slice(logBeforeStop.length, heldPasteAt);
-  const floodBeforePaste = new RegExp(`${KILL_LINE}{${CLI_INPUT_CLEAR_MIN_KILLS},}`).test(preSubmitWindow);
+  const floodBeforePaste = preSubmitWindow.includes(KILL_LINE);
   check(
-    "the pre-submit kill-line flood precedes the send's paste",
-    floodBeforePaste,
+    "no kill-line bytes precede the send's paste",
+    !floodBeforePaste,
     `window=${JSON.stringify(preSubmitWindow.slice(0, 120))}`,
   );
 
@@ -296,7 +295,7 @@ try {
     runId,
     detectedRunId: detected.payload.runId,
     detectedKind: detected.payload.kind,
-    preSubmitFloodBeforeSendPaste: floodBeforePaste,
+    killLineBeforeSendPaste: floodBeforePaste,
     decisions: decisionsSoFar().map((event) => ({
       decision: event.payload.decision,
       encodedAs: event.payload.encodedAs,

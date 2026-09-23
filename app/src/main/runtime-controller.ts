@@ -685,7 +685,7 @@ export class RuntimeController {
       // The panel's option 1, made explicit: /compact is this spawn's first
       // message, so it rides the boot hold — written once when the resumed CLI
       // first reaches its prompt, ahead of anything the user sends meanwhile.
-      activeTask.terminalHost.submitPromptWhenReady("/compact");
+      activeTask.terminalHost.submitPromptWhenReady("/compact", { fromUser: false });
     }
 
     for (const source of persistedSources) {
@@ -2652,10 +2652,10 @@ export class RuntimeController {
     }
 
     // `UserPromptSubmit` is the authoritative "a turn is starting" signal — the
-    // CLI just began (or dequeued) a prompt. Begin the run from it (no-op if the
-    // idle-send path already began one). This is what makes mid-turn
-    // write-through honest: a queued send's run starts when the CLI dequeues it,
-    // not when Sonata wrote the bytes. Symmetric with the Stop-hook completion.
+    // CLI just began (or dequeued) a prompt. It is the ONLY place a prompt's run
+    // begins (X2 fix round, ruling 1): Sonata's write never starts one, so a
+    // prompt the CLI holds (its invisible-character review) or queues shows no
+    // run until the CLI takes it up. Symmetric with the Stop-hook completion.
     if (event === "UserPromptSubmit") {
       const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
       active.terminalHost.beginRunFromHook(prompt, {

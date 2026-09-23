@@ -418,7 +418,7 @@ function sessionState({
   // approval, and an empty composer all speak exactly as before.
   assert.equal(
     composerPlaceholder(view, true, false, true),
-    "Codex is working — Enter queues your message",
+    "Codex is working — Enter sends your message to the CLI",
     "an active run still outranks the diagnosis (the CLI is plainly working)",
   );
   assert.equal(

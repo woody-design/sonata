@@ -150,12 +150,12 @@ const run = (status, extra = {}) => ({
   );
   assert.equal(
     p(view({ pendingApproval: true }), false, true),
-    "Claude is working — Enter queues your message",
+    "Claude is working — Enter sends your message to the CLI",
     "pendingApproval reads as working (the composer is hidden behind the drawer — S2)",
   );
   assert.equal(
     p(view(), true, false),
-    "Claude is working — Enter queues your message",
+    "Claude is working — Enter sends your message to the CLI",
     "active run",
   );
   assert.equal(p(view({ live: false })), "Message Claude — resumes this session", "dormant view");

@@ -1046,14 +1046,13 @@ export async function stopRun(): Promise<void> {
   // releases by itself and nothing has to remember to clear it. A stale entry is
   // inert for the same reason (it can only ever match its own run again). Review
   // round 1 found the earlier sentinel-bearing key broke exactly this: one run
-  // wore two names across the report/delivery propagation boundary, which BOTH
+  // wore two names across the report/live-state propagation boundary, which BOTH
   // released the latch mid-run and let a stale sentinel block a later run's
   // honest stop. See `activeRunKey`.
   //
   // A run the view cannot NAME leaves this unlatched (`activeRunKey` null while
-  // the composer still shows ■ from the union bit). Only reachable for delivery
-  // payloads recorded before `activeRunId` existed — never in a live session,
-  // where the boolean and the id are set from one host read.
+  // the composer still shows ■ from the union bit). Not produced by a live host,
+  // where the boolean and the id are set from one read — the defensive fallback.
   const stopTargetRunId = activeRunKey(view);
   if (stopTargetRunId !== null) {
     if (view.stopRequestedRunId === stopTargetRunId) {
@@ -1101,6 +1100,32 @@ export async function stopRun(): Promise<void> {
   } finally {
     render();
   }
+}
+
+/**
+ * The user's words came back unsent (`prompt:unsent`, X2 fix round F6): the CLI
+ * exited before it ever reached a prompt, or a Stop dropped a send still waiting
+ * on the previous one. Hand them back to the session's composer, ahead of
+ * anything typed since (the D2 restore rule), and say so once. No retry and no
+ * persistence — the user decides whether to send again.
+ */
+export function restoreUnsentPrompt(taskId: string, text: string, reason: "pty-exit" | "stop"): void {
+  const view = taskViewForId(state, taskId);
+  if (!view) {
+    return;
+  }
+  const active = state.activeTaskId === taskId;
+  const current = active ? elements.promptInput.value : view.composerDraft;
+  const restored = current.trim() ? `${text}\n${current}` : text;
+  view.composerDraft = restored;
+  if (active) {
+    elements.promptInput.value = restored;
+  }
+  view.status =
+    reason === "stop"
+      ? "Not sent — stopped before it reached the CLI. Your message is back in the composer."
+      : "Not sent — the CLI exited before it was ready. Your message is back in the composer.";
+  render();
 }
 
 export async function refreshReport(taskId = state.activeTaskId): Promise<void> {
@@ -1233,7 +1258,7 @@ export function setViewMode(mode: ViewMode): void {
   // The terminal is its own window now: "switch to terminal" opens and focuses
   // it, and there is no in-pane Read/Terminal switch to toggle. Keeping this as
   // the single choke point lets every "surface the terminal" caller (approvals,
-  // modals, slash commands, the delivery queue) keep working unchanged.
+  // modals, slash commands) keep working unchanged.
   if (mode === "terminal") {
     surfaceTerminalWindow();
   }

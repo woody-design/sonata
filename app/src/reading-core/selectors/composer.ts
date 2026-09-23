@@ -326,10 +326,13 @@ export function composerPlaceholder(
   // (No pendingApproval branch: the composer is hidden behind the drawer
   // whenever an approval is pending — drawer S2; the string was dead.)
   if (pendingApproval) {
-    return `${providerName} is working — Enter queues your message`;
+    return `${providerName} is working — Enter sends your message to the CLI`;
   }
+  // Claim-free on purpose (X2 fix round, F8): a mid-turn Send is written to the
+  // CLI at once, and what the CLI does with it — claude queues it, codex may
+  // steer the running turn — is the CLI's own (unmeasured for codex) behaviour.
   if (activeRun) {
-    return `${providerName} is working — Enter queues your message`;
+    return `${providerName} is working — Enter sends your message to the CLI`;
   }
   // Ranked ABOVE the dormant arm on purpose: the two shapes of S4 failure land on
   // opposite sides of `live` (a missing binary leaves the pty dead and the session

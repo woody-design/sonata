@@ -131,9 +131,11 @@ function rawRequest(frameObject) {
 }
 
 // hello
-const hello = await request("hello", { protocolVersion: 1, client: "smoke" });
+const hello = await request("hello", { protocolVersion: 2, client: "smoke" });
 assert.equal(hello.result.app, "sonata");
-assert.equal(hello.result.protocolVersion, 1);
+// 2 since subtraction X2 removed `sessionSnapshot.delivery` and the delivery:*
+// notifications (see LOCAL_API_PROTOCOL_VERSION).
+assert.equal(hello.result.protocolVersion, 2);
 
 // sessionIndex passes through; absent includeArchived → undefined options
 // (today's call shape — the controller then applies its own default).

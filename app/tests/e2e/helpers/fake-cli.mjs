@@ -111,6 +111,45 @@ ${authArm}`;
 }
 
 /**
+ * Node source for the one CLI signal a run now depends on (X2 fix round, ruling
+ * 1: a run begins ONLY on the CLI's own UserPromptSubmit, never at Sonata's
+ * write). Defines `firePromptHooks(chunk)`: feed it every stdin chunk and, for
+ * each submitted paste (a bracketed paste followed by the CSI-u Enter Sonata
+ * presses), it drops a `UserPromptSubmit` hook payload into `<runtimeDir>/hooks`
+ * the way the CLI's injected hook shim does (tmp + rename). COMPOSED to the
+ * payload fields the controller reads (`hook_event_name`, `prompt`,
+ * `prompt_id`); no `session_id`/`transcript_path`, so no transcript adoption is
+ * attempted. Expects `fs`, `path` and `runtimeDir` in scope.
+ */
+export function fakePromptHookSource() {
+  return `let promptHookBuffer = "";
+let promptHookSeq = 0;
+function firePromptHooks(chunk) {
+  if (!runtimeDir) { return; }
+  promptHookBuffer += String(chunk);
+  for (;;) {
+    const enterAt = promptHookBuffer.indexOf("\\u001b[13u");
+    if (enterAt === -1) { break; }
+    const before = promptHookBuffer.slice(0, enterAt);
+    promptHookBuffer = promptHookBuffer.slice(enterAt + 5);
+    const start = before.lastIndexOf("\\u001b[200~");
+    const end = before.lastIndexOf("\\u001b[201~");
+    if (start === -1 || end < start) { continue; }
+    const prompt = before.slice(start + 6, end);
+    const hooksDir = path.join(runtimeDir, "hooks");
+    fs.mkdirSync(hooksDir, { recursive: true });
+    const file = path.join(hooksDir, "hook-" + Date.now().toString(36) + "-" + process.hrtime.bigint().toString(36) + ".json");
+    fs.writeFileSync(file + ".tmp", JSON.stringify({
+      hook_event_name: "UserPromptSubmit",
+      prompt,
+      prompt_id: "fake-prompt-" + (++promptHookSeq),
+    }));
+    fs.renameSync(file + ".tmp", file);
+  }
+}`;
+}
+
+/**
  * The whole fake CLI, as node source.
  *
  * @param {"claude"|"codex"} provider
@@ -118,17 +157,20 @@ ${authArm}`;
  *   readyOutput?: string,
  *   records?: ReadonlyArray<"spawned"|"spawn-record"|"spawn-count"|"spawn-argv"|"stdin">,
  *   echoStdin?: boolean,
+ *   promptHooks?: boolean,
  * }} [options]
  *   `readyOutput` — the banner + idle prompt this session paints (defaults to the
  *   provider's shape above). `records` — which observation files to leave in
  *   `SONATA_RUNTIME_DIR`. `echoStdin` — echo written bytes back to stdout, as a
- *   real composer does.
+ *   real composer does. `promptHooks` — fire the CLI's UserPromptSubmit hook for
+ *   each submitted paste (see `fakePromptHookSource`), which is what begins a run.
  */
 export function fakeCliSource(provider, options = {}) {
   const {
     readyOutput = FAKE_CLI_READY_OUTPUT[provider],
     records = [],
     echoStdin = false,
+    promptHooks = false,
   } = options;
   for (const record of records) {
     if (!RECORDS.has(record)) {
@@ -166,8 +208,9 @@ export function fakeCliSource(provider, options = {}) {
   ];
 
   const stdinHandler =
-    wants("stdin") || echoStdin
+    wants("stdin") || echoStdin || promptHooks
       ? [
+          ...(promptHooks ? [fakePromptHookSource()] : []),
           `process.stdin.on("data", (chunk) => {`,
           ...(wants("stdin")
             ? [
@@ -177,6 +220,7 @@ export function fakeCliSource(provider, options = {}) {
               ]
             : []),
           ...(echoStdin ? [`  process.stdout.write(chunk);`] : []),
+          ...(promptHooks ? [`  firePromptHooks(chunk);`] : []),
           `});`,
         ]
       : [];

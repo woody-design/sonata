@@ -46,6 +46,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fakePromptHookSource } from "../e2e/helpers/fake-cli.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -92,6 +93,14 @@ fs.writeFileSync(
   `#!/usr/bin/env node
 "use strict";
 const fs = require("node:fs");
+const path = require("node:path");
+// The per-spawn runtime dir (env, or the --settings file's directory), where the
+// CLI's hook shim drops its payloads. COMPOSED UserPromptSubmit below: since X2's
+// fix round a run begins only on that hook, never at Sonata's write.
+const hookArgv = process.argv.slice(2);
+const settingsAt = hookArgv.indexOf("--settings");
+const runtimeDir = process.env.SONATA_RUNTIME_DIR || (settingsAt >= 0 && hookArgv[settingsAt + 1] ? path.dirname(hookArgv[settingsAt + 1]) : null);
+${fakePromptHookSource()}
 const COMPOSER = "\\u001b[2J\\u001b[HFake Claude ready\\n\\u276f sonnet high ~  ? for shortcuts\\n";
 process.stdin.setEncoding("utf8");
 if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
@@ -101,6 +110,7 @@ let seen = "";
 let asked = false;
 let timer = null;
 process.stdin.on("data", (data) => {
+  firePromptHooks(data);
   seen += data;
   // Echo what was pasted, as a real composer does.
   const echoed = data.replace(/\\u001b\\[[0-9;]*[A-Za-z~]/g, "").replace(/[\\u0000-\\u001f]/g, " ").trim();

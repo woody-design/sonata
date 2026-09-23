@@ -115,7 +115,7 @@ export function removeTaskView(state: RendererState, taskId: string): boolean {
  *      (its own contract is "switching away is the natural escape and returning
  *      shows the panel again" — eviction must not destroy it), a pending
  *      approval / option-prompt / receipt, a slash "in the Terminal" pointer,
- *      or a queued delivery.
+ *      or a session that has reached a prompt or run (its sticky session state).
  *    - a per-dormant Remote Control desire (`armedOverride`) — a user setting
  *      `selectSession` does not rebuild.
  *

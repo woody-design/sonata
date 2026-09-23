@@ -94,6 +94,7 @@ import {
   refreshReport,
   refreshSessionIndex,
   resolveResumeChoice,
+  restoreUnsentPrompt,
   resumeTaskWithoutPrompt,
   selectSession,
   setViewMode,
@@ -1351,7 +1352,7 @@ async function enableRemoteControl(): Promise<void> {
         result.reason === "panel-open"
           ? "Claude is waiting on something in the CLI — answer that first."
           : result.reason === "busy"
-            ? "Claude is mid-delivery — try again in a moment."
+            ? "Sonata is still sending your last message — try again in a moment."
             : "Couldn't enable remote control.";
       renderRemoteControlPopover();
     }
@@ -2116,6 +2117,10 @@ window.sonataRuntime.onRuntimeEvent((event) => {
   if (event.type === "claude-fullscreen-offer:cleared") {
     setClaudeFullscreenOffer(event.payload.taskId, false);
     renderAttentionBanners();
+    return;
+  }
+  if (event.type === "prompt:unsent") {
+    restoreUnsentPrompt(event.payload.taskId, event.payload.text, event.payload.reason);
     return;
   }
   if (event.type === "pty:exit") {

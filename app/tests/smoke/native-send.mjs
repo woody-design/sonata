@@ -9,11 +9,14 @@
 // stdin byte-for-byte), through the production entry points:
 //
 //   A. The write shape. A send after boot reaches the host in the same call —
-//      no queue, no receipt, no item — and the CLI's stdin receives exactly the
-//      MEASURED production sequence: `ESC[200~` + text + `ESC[201~`, then the
-//      CSI-u Enter `ESC[13u` ~120ms later behind the write lock (not a
-//      synchronous `\r`: the deferred CSI-u Enter is the measured submit, see
-//      TerminalHost.submitPrompt). The paste is on the wire within one tick.
+//      no queue, no receipt, no item, and NO RUN (X2 fix round, ruling 1: a run
+//      begins only on the CLI's own UserPromptSubmit) — and the CLI's stdin
+//      receives exactly the MEASURED production sequence: `ESC[200~` + text +
+//      `ESC[201~`, then the CSI-u Enter `ESC[13u` as a SEPARATE write ~120ms
+//      later behind the write lock (F3: the fake timestamps every stdin chunk and
+//      the gap is asserted within [100, 400] ms — 120ms nominal; the floor is
+//      what a timer cannot undercut, the ceiling absorbs scheduler jitter). No
+//      Ctrl+U or any other byte the user did not write (ruling 2).
 //   B. No gate. A send mid-turn, over a flagged approval panel, and over a
 //      recognized Rewind panel is written at once, as a terminal Enter would be.
 //      The only ordering kept is byte-level: two sends inside one ~120ms paste +
@@ -22,16 +25,19 @@
 //   C. The boot hold. Sends made before the latch opens write NOTHING into the
 //      booting CLI and begin no run; when the composer paints they go out once,
 //      in order (resume `/compact`, then the user's message), never
-//      interleaved; the hold does not survive the pty.
+//      interleaved; the hold does not survive the pty, and the user's held words
+//      come back as one `prompt:unsent` (F6) — Sonata's own `/compact` does not.
 //   D. Attachments. Image paths paste one frame each in the MEASURED chip form
 //      (`ESC[200~"<path>"ESC[201~`, double-quoted — the cross-CLI form probed
 //      2026-06-26 and exercised live by native-image-attachments.mjs), then the
 //      text frame, then Enter; referenced files/folders fold into the prompt
 //      text VERBATIM (`composePromptWrite`).
 //   E. The controller path. RuntimeController.submitPrompt, called at once after
-//      createTask, lands the prompt on the fake CLI's stdin after boot, and the
-//      session snapshot carries the host's session state; no `delivery:*`
-//      event exists on the wire.
+//      createTask, lands the prompt on the fake CLI's stdin after boot; no run
+//      exists until the fake fires the CLI's UserPromptSubmit hook (COMPOSED,
+//      tests/e2e/helpers/fake-cli.mjs `fakePromptHookSource`), then one does; the
+//      session snapshot carries the host's session state; no `delivery:*` event
+//      exists on the wire.
 //
 // Fixture provenance:
 //   - the byte sequences Sonata writes are the production constants imported
@@ -48,6 +54,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fakePromptHookSource } from "../e2e/helpers/fake-cli.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -111,10 +118,19 @@ function writeFakeCli(file, logPath, { bootMs = 0, exitAtMs = null } = {}) {
     `#!/usr/bin/env node
 "use strict";
 const fs = require("node:fs");
+const path = require("node:path");
+const hookArgv = process.argv.slice(2);
+const settingsAt = hookArgv.indexOf("--settings");
+const runtimeDir = process.env.SONATA_RUNTIME_DIR || (settingsAt >= 0 && hookArgv[settingsAt + 1] ? path.dirname(hookArgv[settingsAt + 1]) : null);
+${fakePromptHookSource()}
 process.stdin.setEncoding("utf8");
 if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
 process.stdin.resume();
-process.stdin.on("data", (data) => fs.appendFileSync(${JSON.stringify(logPath)}, data));
+process.stdin.on("data", (data) => {
+  fs.appendFileSync(${JSON.stringify(logPath)}, data);
+  fs.appendFileSync(${JSON.stringify(logPath + ".chunks")}, JSON.stringify({ t: Date.now(), d: data }) + "\\n");
+  firePromptHooks(data);
+});
 setTimeout(() => process.stdout.write("\\u276f \\n? for shortcuts\\n"), ${bootMs});
 ${exitAtMs === null ? "" : `setTimeout(() => process.exit(0), ${exitAtMs});`}
 setInterval(() => {}, 1000);
@@ -147,8 +163,12 @@ function startFakeHost({ bootMs = 0, exitAtMs = null, provider = "claude" } = {}
   // above does not exit on process.exit (observed while writing this smoke).
   host.startTask({ cwd: dir, command: script, args: [], rows: 24, cols: 100 });
   const log = () => (fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8") : "");
+  const chunks = () =>
+    fs.existsSync(`${logPath}.chunks`)
+      ? fs.readFileSync(`${logPath}.chunks`, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line))
+      : [];
   const of = (type) => events.filter((event) => event.type === type);
-  return { host, dir, log, events, of, script, logPath };
+  return { host, dir, log, chunks, events, of, script, logPath };
 }
 
 // ── B/E prerequisite: the write transform (pure) ────────────────────────────
@@ -189,18 +209,26 @@ await check("a send after boot writes paste then CSI-u Enter, at once, with no g
     await delay(600); // past the post-latch send grace — the hold is not in play
     const text = "Reply with exactly: ok";
     fx.host.submitPromptWhenReady(text);
-    // Reached the host's write sequence in this very call: the run began and
-    // prompt:submitted went out synchronously — there is no queue to sit in.
+    // Reached the host's write sequence in this very call: prompt:submitted went
+    // out synchronously — there is no queue to sit in — and no run began.
     assert(fx.of("prompt:submitted").length === 1, "prompt:submitted is emitted synchronously");
-    assert(fx.host.hasActiveRun(), "the idle send began its run at write time");
-    const sentAt = Date.now();
+    assert(!fx.host.hasActiveRun(), "the write begins no run (ruling 1)");
+    assert(fx.of("prompt:submitted")[0].payload.runId === null, "prompt:submitted names no run");
     await waitUntil(() => fx.log().includes(CSI_U_ENTER), 2_000, "the Enter");
     const log = fx.log();
     assert(log === `${paste(text)}${CSI_U_ENTER}`, `stdin=${JSON.stringify(log)}`);
-    assert(Date.now() - sentAt < 1_000, "the Enter follows within the ~120ms write sequence");
+    // F3 — the measured ~120ms Enter delay, as two separate writes.
+    const pasteChunk = fx.chunks().find((chunk) => chunk.d.includes(BRACKETED_PASTE_END));
+    const enterChunk = fx.chunks().find((chunk) => chunk.d.includes(CSI_U_ENTER));
+    assert(pasteChunk && enterChunk && pasteChunk !== enterChunk, "paste and Enter arrive as separate writes");
+    const gapMs = enterChunk.t - pasteChunk.t;
+    assert(gapMs >= 100 && gapMs <= 400, `Enter follows the paste by ~120ms (measured ${gapMs}ms, allowed [100, 400])`);
 
-    // B — mid-turn: the run above is still open (the fake never ends a turn).
-    // No hold on an active run, for either provider: the CLI decides.
+    // B — mid-turn. The CLI starts a turn (COMPOSED UserPromptSubmit) that the
+    // fake never ends; a send now is written at once, for either provider — the
+    // CLI decides what a mid-turn message means.
+    fx.host.beginRunFromHook(text);
+    assert(fx.host.hasActiveRun(), "precondition: the CLI's hook began a run");
     const before = fx.log().length;
     fx.host.submitPromptWhenReady("mid-turn steer");
     await waitUntil(() => fx.log().length > before && fx.log().endsWith(CSI_U_ENTER), 2_000, "the mid-turn send");
@@ -246,9 +274,11 @@ await check("two sends inside one write sequence go out whole, in order; Stop dr
       `never spliced: ${JSON.stringify(fx.log())}`,
     );
 
-    // A run is open now (the fake never ends one). Send, then a second send
-    // that waits on the first's sequence, then Stop inside that window: the
-    // stop cancels the first's unwritten bytes AND drops the waiting second.
+    // A turn is open (COMPOSED hook). Send, then a second send that waits on the
+    // first's sequence, then Stop inside that window: the stop cancels the
+    // first's unwritten bytes AND drops the waiting second — whose words come
+    // back as `prompt:unsent` (F6).
+    fx.host.beginRunFromHook("first");
     const before = fx.log().length;
     fx.host.submitPromptWhenReady("third");
     fx.host.submitPromptWhenReady("fourth");
@@ -256,6 +286,11 @@ await check("two sends inside one write sequence go out whole, in order; Stop dr
     await delay(500);
     const after = fx.log().slice(before);
     assert(!after.includes("third") && !after.includes("fourth"), `nothing trails the stop: ${JSON.stringify(after)}`);
+    const unsent = fx.of("prompt:unsent");
+    assert(
+      unsent.length === 1 && unsent[0].payload.text === "fourth" && unsent[0].payload.reason === "stop",
+      `the dropped send's words come back: ${JSON.stringify(unsent.map((event) => event.payload))}`,
+    );
   } finally {
     fx.host.dispose();
   }
@@ -281,9 +316,7 @@ await check("sends before the prompt are held, then written once, in order, not 
       log === `${paste("/compact")}${CSI_U_ENTER}${paste("the user's first message")}${CSI_U_ENTER}`,
       `held messages go out in order, each paste+Enter whole: ${JSON.stringify(log)}`,
     );
-    const latchedAt = fx.of("session:state").find((event) => event.payload.bootLatched)?.at ?? null;
-    const firstRunAt = fx.of("run:started")[0]?.at ?? null;
-    assert(latchedAt !== null && firstRunAt !== null && firstRunAt >= latchedAt, "the run begins at write time, after the latch");
+    assert(fx.of("run:started").length === 0, "writing the held messages begins no run either");
 
     // After the latch the hold is gone for good: a send is written at once.
     const before = fx.log().length;
@@ -297,9 +330,18 @@ await check("sends before the prompt are held, then written once, in order, not 
 await check("the boot hold dies with the pty — a relaunch sends nothing on its own", async () => {
   const fx = startFakeHost({ bootMs: 60_000, exitAtMs: 300 });
   try {
+    fx.host.submitPromptWhenReady("/compact", { fromUser: false });
     fx.host.submitPromptWhenReady("held for a CLI that never booted");
     await waitUntil(() => fx.of("pty:exit").length === 1, 5_000, "the pty exit");
     assert(fx.host.bootLatched() === false, "the dead pty never latched");
+    // F6: the user's held words come back once; Sonata's own /compact does not.
+    const unsent = fx.of("prompt:unsent");
+    assert(
+      unsent.length === 1 &&
+        unsent[0].payload.text === "held for a CLI that never booted" &&
+        unsent[0].payload.reason === "pty-exit",
+      `one prompt:unsent with the user's text: ${JSON.stringify(unsent.map((event) => event.payload))}`,
+    );
     // Relaunch on the same host with a CLI that boots at once.
     writeFakeCli(fx.script, fx.logPath, { bootMs: 0 });
     fx.host.startTask({ cwd: fx.dir, command: fx.script, args: [], rows: 24, cols: 100 });
@@ -390,9 +432,14 @@ await check("RuntimeController.submitPrompt right after createTask lands after b
     assert(log() === "", "nothing reaches the booting CLI");
     await waitUntil(() => log().endsWith(CSI_U_ENTER), 8_000, "the held first message");
     assert(log() === `${paste(`first message\n"${refFile}"`)}${CSI_U_ENTER}`, `stdin=${JSON.stringify(log())}`);
+    // The fake fires the CLI's UserPromptSubmit on that Enter (COMPOSED); the
+    // run begins on it — through the real HookWatcher and controller handler.
+    await waitUntil(() => events.some((event) => event.type === "run:started"), 8_000, "the hook-begun run");
+    const started = events.find((event) => event.type === "run:started");
+    assert(started.payload.promptId?.startsWith("fake-prompt-"), "the run carries the CLI's prompt_id");
     const snapshot = controller.readSessionSnapshot(taskId);
     assert(snapshot.sessionState?.bootLatched === true, "the snapshot carries the host's session state");
-    assert(snapshot.sessionState?.activeRun === true, "…including the run the send began");
+    assert(snapshot.sessionState?.activeRun === true, "…including the run the CLI began");
     assert(!("delivery" in snapshot), "the snapshot has no delivery field");
     assert(
       events.every((event) => !String(event.type).startsWith("delivery:")),

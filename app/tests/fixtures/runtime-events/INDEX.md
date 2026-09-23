@@ -27,7 +27,10 @@ the recording predates it) — and then DEDUPED per task to the new emitter's
 emit-on-change contract (591 → 124; 467 were byte-identical re-announcements of
 the kept fields). All 45 `delivery:receipt` lines were dropped (no such event
 exists). Every other line is byte-identical. Totals, histogram and table below
-are recomputed.)_
+are recomputed. Caveat: the adapted `bootLatched` flips carry the RECORDED
+latch timing (the old pump flipped it around the first send), not the host's
+"reached its prompt" timing, and the recorded `run:started` events carry the
+old write-time run start.)_
 
 ## NOT in this corpus (mandatory hand-written adversarial fixtures for C2)
 

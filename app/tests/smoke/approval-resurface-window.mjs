@@ -239,6 +239,9 @@ setInterval(() => {}, 1000);
     });
     await delay(400); // let the composer paint
     host.submitPrompt("create two files");
+    // COMPOSED: the CLI's own UserPromptSubmit — since X2's fix round the only
+    // thing that begins a run (the write never does).
+    host.beginRunFromHook("create two files");
     await waitUntil(
       () => events.some((e) => e.type === "approval:detected"),
       6000,
@@ -342,6 +345,9 @@ setInterval(() => {}, 1000);
     });
     await delay(400);
     host.submitPrompt("run echo");
+    // COMPOSED: the CLI's own UserPromptSubmit — since X2's fix round the only
+    // thing that begins a run (the write never does).
+    host.beginRunFromHook("run echo");
     // The broker held this request, timed out, and Sonata is about to raise its
     // native card — arm the resurface recognition BEFORE the card paints.
     host.noteBrokerApprovalExpiry();

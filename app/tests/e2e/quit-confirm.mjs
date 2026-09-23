@@ -77,7 +77,7 @@ const project = path.join(root, "project");
 for (const dir of [fakeBin, project]) {
   fs.mkdirSync(dir, { recursive: true });
 }
-fs.writeFileSync(path.join(fakeBin, "claude"), fakeCliSource("claude", { echoStdin: true }), {
+fs.writeFileSync(path.join(fakeBin, "claude"), fakeCliSource("claude", { echoStdin: true, promptHooks: true }), {
   mode: 0o755,
 });
 fs.chmodSync(path.join(fakeBin, "claude"), 0o755);

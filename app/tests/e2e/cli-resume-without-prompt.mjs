@@ -36,6 +36,9 @@ fs.writeFileSync(
 );
 fs.writeFileSync(imagePath, redPngBytes());
 installFakeCli(fakeBin, "claude", {
+  // The CLI's UserPromptSubmit is what begins a run (X2 fix round); this fake
+  // fires it for each submitted paste (COMPOSED, helpers/fake-cli.mjs).
+  promptHooks: true,
   readyOutput: "Fake Claude ready\n❯ opus xhigh ~\n",
   records: ["spawn-count", "spawn-argv", "stdin"],
 });

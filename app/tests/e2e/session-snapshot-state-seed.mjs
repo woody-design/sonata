@@ -57,6 +57,9 @@ fs.writeFileSync(
   `${JSON.stringify({ defaultPermissionMode: "default", defaultRemoteControl: false }, null, 2)}\n`,
 );
 installFakeCli(fakeBin, "claude", {
+  // The CLI's UserPromptSubmit is what begins a run (X2 fix round); this fake
+  // fires it for each submitted paste (COMPOSED, helpers/fake-cli.mjs).
+  promptHooks: true,
   readyOutput: "Fake Claude ready\n❯ opus xhigh ~\n",
   records: ["stdin"],
   echoStdin: true,
@@ -86,6 +89,12 @@ try {
   await main.keyboard.press("Enter");
   const taskId = await waitForActiveTask(main);
   await waitFor(() => readStdin(taskId).includes("boot this session"), "the held first message");
+  // The run begins on the CLI's own UserPromptSubmit (the fake fires it on the
+  // Enter), not at the write — wait for it, or the Stop below could land first.
+  await waitFor(
+    async () => (await placeholder(main)) === "Claude is working — Enter sends your message to the CLI",
+    "the hook-begun run",
+  );
   // End the turn from the CLI's own Stop hook, so the session is IDLE when it is
   // reopened. This matters: an active run makes the composer speak from the run,
   // which would let this test pass without ever consulting the session state.

@@ -82,7 +82,7 @@ try {
   // A4 — atomic buffer-flush: a keystroke during an automation write SEQUENCE
   // buffers and flushes AFTER it, so the two byte streams never interleave.
   fs.writeFileSync(inputLogPath, "", "utf8"); // reset the log for a clean ordering read
-  host.submitPrompt("AUTOMATION", { createRun: false }); // schedules deferred text+Enter (lock held)
+  host.submitPrompt("AUTOMATION", { control: true }); // schedules deferred text+Enter (lock held)
   host.writeUserInput("HUMAN\r"); // arrives mid-sequence → must buffer
   await delay(600); // let the deferred writes + flush complete
   const ordered = readLog();

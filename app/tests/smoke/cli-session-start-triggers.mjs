@@ -364,12 +364,16 @@ const HEALTHY_FACTS = {
   const { controller, events, blocked, bootLatched } = makeController(readiness, "active-run");
   try {
     const task = await controller.createTask({ provider: "claude", cwd: workspace });
-    // A real send is what starts a real run: sent at once after spawn, it rides the
-    // boot hold — the host latches once the fixture's prompt is on screen, the held
-    // bytes go out, and the host begins the turn. The fixture never paints a SECOND
-    // prompt, so the run stays open, which is precisely the state this block is
-    // about.
+    // Sent at once after spawn, the prompt rides the boot hold — the host latches
+    // once the fixture's prompt is on screen and the held bytes go out. The run
+    // then begins on the CLI's own UserPromptSubmit (X2 fix round: never at the
+    // write); this shell fixture fires no hooks, so that hook is COMPOSED here,
+    // through the same host entry point the controller's hook handler calls. The
+    // fixture never paints a SECOND prompt, so the run stays open, which is
+    // precisely the state this block is about.
     controller.submitPrompt(task.task.id, "hello");
+    await waitFor(bootLatched, 10_000, "the boot latch");
+    controller.taskRuntimes.get(task.task.id).terminalHost.beginRunFromHook("hello");
     await waitFor(
       () => events.some((event) => event.type === "run:started"),
       10_000,

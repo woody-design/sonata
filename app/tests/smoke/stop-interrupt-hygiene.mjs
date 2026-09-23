@@ -7,22 +7,21 @@ import { createRequire } from "node:module";
 // submitPrompt's deferred text/Enter timers could fire AFTER a stop —
 // starting the very turn the user stopped. Fenced here:
 //   1. stopRun cancels pending deferred PROMPT writes (no post-stop paste).
-//   2. stopRun arms the belt clear — a Ctrl+U flood sized from the session's
-//      high-water pasted line count (2×lines+2, floor 40) so a 1-line
-//      mid-turn steer can't undersize the flood for a multi-line turn. The
-//      belt does NOT consume the dirty flag (slow-restore coverage).
-//   3. The next submission prefixes the same flood ahead of its paste and is
-//      the only consumer of the flag.
-//   4. The one-shot Esc resend fires ONLY on post-stop tool evidence inside
+//   2. Sonata sends no bytes the user did not write (X2 fix round, ruling 2):
+//      no Ctrl+U kill-line flood after a stop or ahead of the next send — an
+//      Esc-restored prompt stays in the CLI composer for the user, exactly as
+//      at a terminal. (Replaces the belt/prefix-flood fences of 2026-07-17.)
+//   3. The one-shot Esc resend fires ONLY on post-stop tool evidence inside
 //      [1200ms, 45s], never at idle, never into a new run (a blind repeat
 //      opens Claude's rewind menu / prefills Codex's edit-previous buffer),
 //      and carries the stopped run's id for the durable report. The lower bound
 //      was 800ms until the 2026-08-03 upstream sync measured claude 2.1.220's
 //      Esc-pair rewind window as (700, 800] — see the boundary case below.
-//   5. A lone human Esc in the Terminal during a run marks the line dirty.
-// Fake pty, no real CLI.
+// Runs begin only on the CLI's own UserPromptSubmit (X2 fix round, ruling 1),
+// so every case that needs a live run simulates that hook (COMPOSED) with
+// `beginRunFromHook` right after the send. Fake pty, no real CLI.
 const require = createRequire(import.meta.url);
-const { TerminalHost, KILL_LINE, ESC, CSI_U_ENTER } = require("../../dist/runtime");
+const { TerminalHost, ESC, CSI_U_ENTER } = require("../../dist/runtime");
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const failures = [];
@@ -52,7 +51,13 @@ function fakePty(writes) {
 }
 
 const isEsc = (write) => write === ESC;
-const isKillFlood = (write) => write.length > 0 && [...write].every((ch) => ch === KILL_LINE);
+const KILL_LINE = String.fromCharCode(0x15);
+const hasKillLine = (writes) => writes.some((write) => write.includes(KILL_LINE));
+/** Send, then the CLI's own UserPromptSubmit (COMPOSED) — what begins a run. */
+function sendAndStart(host, text) {
+  host.submitPrompt(text);
+  host.beginRunFromHook(text);
+}
 const hasPaste = (writes) => writes.some((write) => write.includes(PASTE_START));
 const hasEnter = (writes) => writes.some((write) => write.includes(CSI_U_ENTER));
 
@@ -73,78 +78,20 @@ await check("stopRun cancels the deferred text/Enter writes of a just-sent promp
   }
 });
 
-await check("belt clear: a floored kill flood lands after the settle delay; the flag stays armed", async () => {
+await check("no kill-line bytes: not after a stop, not ahead of the next send", async () => {
   const writes = [];
   const host = makeHost();
   try {
     host.ptyProcess = fakePty(writes);
-    host.submitPrompt("line one\nline two\nline three");
-    await delay(250); // let the paste + Enter fire so nothing is canceled
-    assert.ok(hasPaste(writes), "precondition: the prompt pasted");
-    await host.stopRun({ inspectDelayMs: 500 });
-    await delay(1_200); // CLI_INPUT_CLEAR_DELAY_MS = 900
-    const floods = writes.filter(isKillFlood);
-    assert.equal(floods.length, 1, "exactly one belt flood");
-    assert.equal(floods[0].length, 40, "small prompts flood at the floor (wrapped-line blanket)");
-    // Review F1: the belt must NOT stand the submit-time guard down — a
-    // restore landing after 900ms is only covered by the pre-submit prefix.
-    writes.length = 0;
-    host.submitPrompt("sent after the belt fired");
-    await delay(250);
-    const floodIndex = writes.findIndex(isKillFlood);
-    const pasteIndex = writes.findIndex((write) => write.includes(PASTE_START));
-    assert.ok(floodIndex !== -1 && floodIndex < pasteIndex, "the post-belt send still pre-clears");
-  } finally {
-    host.dispose();
-  }
-});
-
-await check("flood sizing rides the session high-water, not the last (steering) send", async () => {
-  const writes = [];
-  const host = makeHost();
-  try {
-    host.ptyProcess = fakePty(writes);
-    const bigPrompt = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n");
-    host.submitPrompt(bigPrompt); // starts the run; high-water 30
-    await delay(250);
-    host.submitPrompt("one-line mid-turn steer"); // write-through; must NOT shrink the flood
+    sendAndStart(host, "line one\nline two\nline three");
     await delay(250);
     await host.stopRun({ inspectDelayMs: 500 });
-    await delay(1_200);
-    const floods = writes.filter(isKillFlood);
-    assert.equal(floods.length, 1, "one belt flood");
-    assert.equal(
-      floods[0].length,
-      30 * 2 + 2,
-      "the flood covers the interrupted 30-line turn, not the 1-line steer (review F2)",
-    );
-  } finally {
-    host.dispose();
-  }
-});
-
-await check("fast resend: the next submission prefixes the flood; the belt stands down", async () => {
-  const writes = [];
-  const host = makeHost();
-  try {
-    host.ptyProcess = fakePty(writes);
-    host.submitPrompt("first prompt");
+    await delay(1_200); // past where the retired 900ms belt used to fire
+    sendAndStart(host, "sent after the stop");
     await delay(250);
-    await host.stopRun({ inspectDelayMs: 500 });
-    writes.length = 0;
-    host.submitPrompt("second prompt"); // beats the 900ms belt
-    await delay(250);
-    const floodIndex = writes.findIndex(isKillFlood);
-    const pasteIndex = writes.findIndex((write) => write.includes(PASTE_START));
-    assert.ok(floodIndex !== -1, "the resend pre-clears the dirty line");
-    assert.ok(pasteIndex !== -1, "the resend still pastes");
-    assert.ok(floodIndex < pasteIndex, "the flood lands BEFORE the paste");
-    await delay(1_200);
-    assert.equal(
-      writes.filter(isKillFlood).length,
-      1,
-      "the belt must not fire a second flood after the prefix consumed the flag",
-    );
+    assert.ok(!hasKillLine(writes), "Sonata wrote no Ctrl+U anywhere");
+    const last = writes.filter((write) => write.includes(PASTE_START)).at(-1) ?? "";
+    assert.equal(last, `${PASTE_START}sent after the stop\x1b[201~`, "the next send is only the user's paste");
   } finally {
     host.dispose();
   }
@@ -156,7 +103,7 @@ await check("Esc resend fires once on post-stop tool evidence, inside the window
   const host = makeHost(events);
   try {
     host.ptyProcess = fakePty(writes);
-    host.submitPrompt("runaway turn");
+    sendAndStart(host, "runaway turn");
     const stoppedRunId = host.activeRun?.id ?? null;
     assert.ok(stoppedRunId, "precondition: the send began a run");
     await delay(250);
@@ -209,35 +156,15 @@ await check("Esc resend never fires into a new run, and a new send disarms it", 
   const host = makeHost();
   try {
     host.ptyProcess = fakePty(writes);
-    host.submitPrompt("first turn");
+    sendAndStart(host, "first turn");
     await delay(250);
     await host.stopRun({ inspectDelayMs: 500 });
-    host.submitPrompt("second turn"); // supersedes the stop
+    sendAndStart(host, "second turn"); // supersedes the stop
     await delay(250);
     const baseline = writes.filter(isEsc).length;
     assert.equal(host.stopEscRetry, null, "a new send disarms the armed retry");
     host.noteToolActivityAfterStop();
     assert.equal(writes.filter(isEsc).length, baseline, "no Esc into the new turn");
-  } finally {
-    host.dispose();
-  }
-});
-
-await check("a lone human Esc during a run marks the CLI line dirty for the next send", async () => {
-  const writes = [];
-  const host = makeHost();
-  try {
-    host.ptyProcess = fakePty(writes);
-    host.submitPrompt("native interrupt incoming");
-    await delay(250);
-    assert.ok(host.activeRun, "precondition: a run is active");
-    host.writeUserInput(ESC); // human presses Esc in the Terminal window
-    writes.length = 0;
-    host.submitPrompt("typed after the native interrupt");
-    await delay(250);
-    const floodIndex = writes.findIndex(isKillFlood);
-    const pasteIndex = writes.findIndex((write) => write.includes(PASTE_START));
-    assert.ok(floodIndex !== -1 && floodIndex < pasteIndex, "the next send pre-clears");
   } finally {
     host.dispose();
   }
@@ -253,10 +180,10 @@ await check("codex /stop inspection stands down when a NEW run started (stop→e
   });
   try {
     host.ptyProcess = fakePty(writes);
-    host.submitPrompt("codex turn to stop");
+    sendAndStart(host, "codex turn to stop");
     await delay(250);
     await host.stopRun({ inspectDelayMs: 300, forceSlashStop: true });
-    host.submitPrompt("corrected turn sent before the inspection"); // the S2 happy path
+    sendAndStart(host, "corrected turn sent before the inspection"); // the S2 happy path
     await delay(700);
     assert.ok(
       !writes.some((write) => write.includes("/stop")),
@@ -277,7 +204,7 @@ await check("codex /stop inspection still runs when nothing new started", async 
   });
   try {
     host.ptyProcess = fakePty(writes);
-    host.submitPrompt("codex turn to stop");
+    sendAndStart(host, "codex turn to stop");
     await delay(250);
     await host.stopRun({ inspectDelayMs: 300, forceSlashStop: true });
     await delay(700);

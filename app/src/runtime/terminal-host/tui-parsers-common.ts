@@ -7,10 +7,6 @@
 export const ARROW_UP = "\x1b[A";
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
-/** Ctrl+U — kill-line in both CLIs' composers. Idempotent on an empty line
- *  (probe C2/C6/X2, claude 2.1.212 + codex 0.144.5); per-LINE on Claude, so
- *  multi-line clears send a counted flood (see cliInputClearFlood). */
-export const KILL_LINE = "\x15";
 
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;

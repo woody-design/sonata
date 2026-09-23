@@ -10,7 +10,22 @@
  * Product/sonata-eink/docs/contracts-v2.md, Part A (FROZEN 2026-07-07).
  */
 
-export const LOCAL_API_PROTOCOL_VERSION = 1;
+/**
+ * Protocol 2 (2026-09-23, subtraction X2) — a REMOVAL, so a bump (the contract's
+ * rule: additive never bumps). Sonata no longer keeps delivery state:
+ *   - `sessionSnapshot` returns `sessionState: {taskId, activeRun, activeRunId,
+ *     bootLatched} | null` where it returned `delivery` (no shim);
+ *   - the `delivery:state` and `delivery:receipt` notifications are gone; the
+ *     host's `session:state` (same four fields, on change) and `prompt:unsent`
+ *     (text handed back when a send is dropped unwritten) are new;
+ *   - `submitPrompt` still answers `{accepted: true}`: written to the CLI at
+ *     once, or — before the CLI first reaches its prompt — held and written when
+ *     it does. A run appears only when the CLI starts one (`run:started` from
+ *     its own UserPromptSubmit), never at the write.
+ * The companions' frozen contract (contracts-v2.md) predates this and needs the
+ * same note.
+ */
+export const LOCAL_API_PROTOCOL_VERSION = 2;
 
 export interface LocalApiSettings {
   enabled: boolean;

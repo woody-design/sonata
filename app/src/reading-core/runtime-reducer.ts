@@ -463,7 +463,7 @@ export function reduceRuntimeEvent(
     // other clearer is `run:started` — which cannot arrive, because the composer
     // it would come from is the slot this form is holding. So the card sits there
     // with no exit at all. The division that settles it: resolving a form on a
-    // LIVE session is main's (it owns the keys and the delivery gate); retiring
+    // LIVE session is main's (it owns the keys and the slot); retiring
     // one with its session is the renderer's, here.
     //
     // Cleared to exactly what an `option-prompt:resolved(answers: null)` clears —

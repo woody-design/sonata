@@ -758,14 +758,11 @@ exactly today's behaviour**. There is deliberately no generic error UI for a
 failure Sonata cannot name; `unknown` stays permissive here too.
 
 Two details of that pair are easy to get backwards. The window reads
-`acceptsPromptInput()` and *not* the delivery boot latch, because the latch flips
-inside the delivery pump and therefore stays shut on a session nobody has sent
-anything to — keying on it would diagnose every "Start CLI" that opens a session
-without a prompt. The pre-latch-exit trigger has the opposite constraint: the
-process is gone, so there is nothing left to scrape, and the latch is the one
-DURABLE record that a prompt was once reached. Its imprecision runs the harmless
-way — a healthy session nobody sent to, then quit, costs one probe that finds
-nothing and says nothing.
+`acceptsPromptInput()` — is a composer showing right now — which is the question it
+asks. The pre-latch-exit trigger reads the terminal host's one-shot boot latch
+(`TerminalHost.bootLatched()`, opened the first time the CLI reaches its prompt,
+send or no send): the process is gone, so there is nothing left to scrape, and the
+latch is the one DURABLE record that a prompt was once reached.
 
 **Never offer to start a second copy of a CLI that is already waiting for input.**
 The recovery is the vendor's install command, or the CLI itself — except in two
@@ -780,8 +777,8 @@ grid hides the task's own, and finishing the login in that copy is the worst out
 available: the machine facts go green, the banner retires on them, and this session's
 PTY stays parked forever with its prompt held — the eternal pin, rebuilt by its own
 cure. Finishing it in the task's own PTY instead genuinely heals (the CLI paints its
-composer, `acceptsPromptInput()` turns true, the pump latches, the queued prompt goes
-out). A DEAD pty keeps the button: there is nothing to point at, so a fresh spawn is
+composer, `acceptsPromptInput()` turns true, the boot latch opens, the held prompt
+goes out). A DEAD pty keeps the button: there is nothing to point at, so a fresh spawn is
 the only door.
 
 **Two surfaces, two questions, two predicates.** The BANNER speaks about the
@@ -807,8 +804,8 @@ Chat send CREATES a session, so sending onto a dead provider manufactures a
 conversation that can never boot. An existing chat's send goes into a conversation
 that already exists, and both failure shapes leave it honest: with the CLI absent
 the pty is gone, so the send is a resume the user may well want to retry; with it
-signed out the pty is alive and the delivery queue holds the prompt until the boot
-latch opens — which is what finishing the login **in that session's own PTY** does.
+signed out the pty is alive and the boot hold keeps the prompt until the boot latch
+opens — which is what finishing the login **in that session's own PTY** does.
 
 ## The Preview window (satellite)
 

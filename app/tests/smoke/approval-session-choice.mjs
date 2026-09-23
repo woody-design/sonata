@@ -103,6 +103,9 @@ try {
   });
 
   host.submitPrompt("Trigger a fake Claude file read approval.");
+  // COMPOSED: the CLI's own UserPromptSubmit — since X2's fix round the only
+  // thing that begins a run (the write never does).
+  host.beginRunFromHook("Trigger a fake Claude file read approval.");
   await waitUntil(
     () => {
       const detected = events.find(

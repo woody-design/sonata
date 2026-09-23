@@ -50,7 +50,7 @@ import { normalizeTerminalDimensions, type TerminalDimensions } from "../termina
 import { loginShellPath, mergePath } from "./login-shell-path";
 import { TerminalScrollback } from "./terminal-scrollback";
 import { TaskScreenModel } from "./task-screen-model";
-import { ARROW_DOWN, ARROW_UP, cleanTerminal, ESC, KILL_LINE } from "./tui-parsers-common";
+import { ARROW_DOWN, ARROW_UP, cleanTerminal, ESC } from "./tui-parsers-common";
 import {
   CLAUDE_MODE_LINE_ON_SCREEN_RE,
   claudeFullscreenOfferOpen,
@@ -162,12 +162,6 @@ const APPROVAL_SCAN_CADENCE_MS = 120;
  *  (research 2026-07-24): each IPC crossing costs far more than the byte copy
  *  inside a batch. */
 const PTY_BATCH_COALESCE_MS = 5;
-/** How long after the stop Esc the belt-clear fires. The prompt-restore is
- *  effectively immediate — present at the earliest measured snapshot, +300ms
- *  (probe C10) — so 900ms is comfortably past it; the belt is cosmetic
- *  cleanliness, and the submit-time prefix flood (the dirty flag's only
- *  consumer) is the correctness defense for any latency tail. */
-const CLI_INPUT_CLEAR_DELAY_MS = 900;
 /** Esc-retry admissibility window after a stop: a PreToolUse hook landing
  *  inside it proves the turn survived the Esc. The lower bound skips the
  *  in-flight hook race (a tool that had already started before the Esc
@@ -189,8 +183,8 @@ const STOP_ESC_RETRY_MIN_MS = 1200;
 const STOP_ESC_RETRY_WINDOW_MS = 45_000;
 /**
  * Ctrl+C — codex's turn interrupt since 0.152.x, and a LOADED BYTE. Defined here
- * rather than beside `ESC`/`KILL_LINE` in tui-parsers-common deliberately: those
- * are inert parsing/editing primitives that any module may reach for, and this
+ * rather than beside `ESC` in tui-parsers-common deliberately: those are inert
+ * parsing/editing primitives that any module may reach for, and this
  * one is not safe to write without the state check `stopInterruptKey()` performs.
  * The byte and the reason it is dangerous should not be separable.
  *
@@ -239,12 +233,6 @@ const LIVE_TURN_STATUSES: ReadonlySet<RunStatus> = new Set<RunStatus>([
   "waiting-for-approval",
   "resumed-after-approval",
 ]);
-/** Flood bounds. The floor blankets visually-WRAPPED long lines (kill
- *  granularity for wrapped lines is unprobed — review F2) and any small
- *  restore regardless of bookkeeping; the cap only bounds pathological
- *  inputs. Each kill is one byte — overshoot costs nothing (probe C9/X3). */
-const CLI_INPUT_CLEAR_MIN_KILLS = 40;
-const CLI_INPUT_CLEAR_MAX_KILLS = 600;
 let terminalGenerationSequence = 0;
 
 function nextTerminalGeneration(explicit?: number): number {
@@ -546,10 +534,10 @@ interface SnapshotEntry {
 interface RecentAttributionRun {
   id: RunId;
   expiresAt: number;
-  /** The finished run's prompt — lets a LATE UserPromptSubmit echo (file-queue
-   *  latency) be recognized as belonging to the run that already ran, instead
-   *  of beginning a phantom run for it. */
-  prompt: string;
+  /** The finished run's prompt id (the CLI's own `prompt_id` / `turn_id`) — lets
+   *  a DUPLICATE UserPromptSubmit for the run that already ran be recognized
+   *  instead of beginning a phantom run for it. Null when the hook carried none. */
+  promptId: string | null;
 }
 
 /**
@@ -884,27 +872,18 @@ export class TerminalHost extends EventEmitter {
   // at most one write sequence, by byte-level atomicity (a previous send's paste
   // + Enter still in flight). No receipts, no retry, no per-message state; they
   // die with the pty (clearBootHold) and with a Stop (stopRun).
-  private heldSends: Array<{ text: string; attachments: PromptAttachmentSubmission[] }> = [];
+  private heldSends: Array<{
+    text: string;
+    attachments: PromptAttachmentSubmission[];
+    /** The user's own words (not Sonata's resume `/compact`): handed back to
+     *  the composer if the send is dropped unwritten (`prompt:unsent`). */
+    fromUser: boolean;
+  }> = [];
   private heldSendFlushTimer: NodeJS.Timeout | null = null;
   // Emit-on-change for `session:state`: the serialized payload last put on the
   // wire, or null before the first one of this pty.
   private lastSessionStateFingerprint: string | null = null;
-  // The CLI's input line may hold text Sonata did not put there on purpose —
-  // Esc-interrupt restores the interrupted prompt into the composer (probe
-  // C1/X1). While set, the next injection prefixes a kill-line flood; the
-  // post-stop belt timer also clears the line in place but does NOT consume
-  // the flag (review F1: the restore's latency has no probed lower tail, so
-  // only a consuming injection — whose flood provably precedes its own paste
-  // — may stand the guard down).
-  private cliInputMaybeDirty = false;
-  private cliInputClearTimer: NodeJS.Timeout | null = null;
   private slashStopTimer: NodeJS.Timeout | null = null;
-  // Monotonic high-water line count of prompt text pasted this session —
-  // sizes the kill flood. The restore is the INTERRUPTED TURN's prompt, not
-  // necessarily the last submission (a 1-line mid-turn steer must not
-  // undersize the flood for a 10-line turn — review F2), so this only
-  // ratchets up; overshoot kills are free no-ops (probe C9/X3).
-  private cliDirtyLineHighWater = 1;
   // One-shot Esc resend, armed by stopRun, fired ONLY on unambiguous
   // turn-alive evidence (a PreToolUse hook after the stop). Never fires at
   // idle: a repeated Esc there opens Claude's rewind menu / prefills Codex's
@@ -1255,7 +1234,10 @@ export class TerminalHost extends EventEmitter {
    * local API) so a later send can never overtake a held one. Control sends
    * that act on a live turn (`/stop`) call {@link submitPrompt} directly.
    */
-  submitPromptWhenReady(text: string, options: { attachments?: PromptAttachmentSubmission[] } = {}): void {
+  submitPromptWhenReady(
+    text: string,
+    options: { attachments?: PromptAttachmentSubmission[]; fromUser?: boolean } = {},
+  ): void {
     const attachments = options.attachments ?? [];
     if (!text.trim() && attachments.length === 0) {
       return;
@@ -1267,7 +1249,11 @@ export class TerminalHost extends EventEmitter {
       this.submitPrompt(text, { attachments });
       return;
     }
-    this.heldSends.push({ text, attachments: attachments.map((attachment) => ({ ...attachment })) });
+    this.heldSends.push({
+      text,
+      attachments: attachments.map((attachment) => ({ ...attachment })),
+      fromUser: options.fromUser ?? true,
+    });
     this.scheduleHeldSendFlush();
   }
 
@@ -1333,12 +1319,21 @@ export class TerminalHost extends EventEmitter {
     this.scheduleHeldSendFlush();
   }
 
-  /** Drop every send not yet written. */
-  private dropHeldSends(): void {
+  /** Drop every send not yet written. The user's own words are not lost
+   *  silently: one `prompt:unsent` hands their text back to the composer
+   *  (fix round, F6). Nothing is persisted and nothing is retried. */
+  private dropHeldSends(reason: "pty-exit" | "stop"): void {
+    const unsent = this.heldSends
+      .filter((send) => send.fromUser)
+      .map((send) => send.text.trim())
+      .filter((text) => text.length > 0);
     this.heldSends = [];
     if (this.heldSendFlushTimer) {
       clearTimeout(this.heldSendFlushTimer);
       this.heldSendFlushTimer = null;
+    }
+    if (unsent.length > 0) {
+      this.emitEvent("prompt:unsent", { taskId: this.taskId, text: unsent.join("\n\n"), reason });
     }
   }
 
@@ -1346,7 +1341,7 @@ export class TerminalHost extends EventEmitter {
    *  process (exit, dispose, respawn) — a relaunch sends nothing unless the
    *  user sends again. */
   private clearBootHold(): void {
-    this.dropHeldSends();
+    this.dropHeldSends("pty-exit");
     this.clearBootLatchPoll();
   }
 
@@ -1964,15 +1959,6 @@ export class TerminalHost extends EventEmitter {
       this.lastHumanInputAt = Date.now();
       this.scheduleHumanInputSettle();
     }
-    // A lone Esc typed into the Terminal window during a run is the human
-    // interrupting natively — the CLI restores the interrupted prompt into
-    // its input box just like a Sonata stop (probe C1/X1). Mark the line dirty
-    // so the next Sonata injection pre-clears instead of concatenating. Flag
-    // only — NO belt timer: the human is driving the terminal and may want
-    // to edit the restored text right there.
-    if (data === ESC && this.activeRun) {
-      this.cliInputMaybeDirty = true;
-    }
     if (this.sonataWriting) {
       this.pendingHumanInput += data;
       return;
@@ -2092,7 +2078,6 @@ export class TerminalHost extends EventEmitter {
     };
     this.pendingDeferredWrites.add(handle);
 
-    this.writeCliInputClearFlood("pre-submit");
     schedule(ATTACHMENT_EFFECT_POLL_MS, () => {
       void this.renderedImageMarkerCount().then((beforePasteCount) => {
         if (canceled || settled || !this.ptyProcess) {
@@ -2132,10 +2117,6 @@ export class TerminalHost extends EventEmitter {
                 );
               if (effectSatisfied || timedOut) {
                 this.ptyProcess.write(CSI_U_ENTER);
-                // An effect can still materialize after the bounded fallback.
-                // The next send must fence the composer even when this one
-                // appeared clean at Enter time (probe P2).
-                this.cliInputMaybeDirty = true;
                 if (needsCodexSkillMentionEnter(this.profile.provider, trimmed)) {
                   // Codex's bare-$name popup consumes the first Enter to insert
                   // the mention (probe s3b); the second remains owned by this
@@ -2310,7 +2291,7 @@ export class TerminalHost extends EventEmitter {
 
   submitPrompt(
     text: string,
-    options: { createRun?: boolean; attachments?: PromptAttachmentSubmission[] } = {},
+    options: { control?: boolean; attachments?: PromptAttachmentSubmission[] } = {},
   ): PromptSubmission | null {
     const attachments = options.attachments ?? [];
     const trimmed = text.trim();
@@ -2330,32 +2311,24 @@ export class TerminalHost extends EventEmitter {
     // check keeps "/cmd + a referenced file" classified as a prompt, not a slash.
     const kind: RunKind =
       trimmed.startsWith("/") && !trimmed.includes("\n") && attachments.length === 0 ? "slash" : "prompt";
-    const runText = trimmed || attachmentPromptTitle(attachments.length);
-    // Begin a run ONLY when the composer is idle (no active run). A mid-turn
-    // send (write-through, either provider) must NOT beginRun here: beginRun
-    // would finish the live turn as "closed by next input" and orphan it. Its
-    // run instead begins when the CLI takes it up and fires UserPromptSubmit
-    // (beginRunFromHook) — the honest start moment. createRun:false (e.g.
-    // /stop) never begins.
-    const run =
-      options.createRun === false || this.activeRun ? null : this.beginRun(runText, kind);
+    // No run begins here (subtraction X2 fix round, ruling 1). Writing bytes
+    // is not the CLI starting a turn: the CLI may hold a prompt (its
+    // invisible-character review), queue it behind a live turn, or be asked
+    // something else entirely. A run begins only on the CLI's own signal —
+    // `UserPromptSubmit` (beginRunFromHook) — so Sonata never shows a turn the
+    // CLI has not started.
     const submittedAt = new Date().toISOString();
 
     this.taskReady = false;
-    this.approvalActive = false;
-    this.lastApprovalKind = null;
-    this.lastApprovalDecision = null;
-    this.lastApprovalDecisionAt = null;
-    this.approvalSuppressedInSettleWindow = false;
-    this.brokerAnsweredFingerprint = null;
-    this.clearApprovalSettleTimer();
-    // A run-starting send supersedes any armed stop-Esc retry: an Esc fired
-    // now would kill the very turn this submission is starting. A control
-    // send (createRun:false — the codex /stop follow-up) is PART of the stop
-    // and must not shorten the retry window (review F5).
-    const submissionOwner: "prompt" | "control" =
-      options.createRun === false ? "control" : "prompt";
-    if (submissionOwner === "prompt") {
+    // Approval state is NOT reset here (fix round, F7): it follows its own
+    // signals (the scrape, the broker, the turn-end hooks). A send that answers
+    // a native panel is reconciled by those, like a keystroke typed in the CLI.
+    //
+    // A prompt send supersedes any armed stop-Esc retry: an Esc fired now would
+    // kill the turn this prompt may be starting. A control send (the codex
+    // /stop follow-up) is PART of the stop and must not shorten the retry
+    // window (review F5).
+    if (!options.control) {
       this.stopEscRetry = null;
     }
     // Hold the write-lock across the whole sync+deferred sequence so a human
@@ -2364,23 +2337,14 @@ export class TerminalHost extends EventEmitter {
     // synchronous attachment writes; each deferred write keeps the depth > 0
     // until it fires, so endSonataWrite() below does not release early.
     this.beginSonataWrite();
-    // Suspenders for the post-stop belt: if the CLI's input line may still
-    // hold an Esc-restored prompt (fast resend beat the belt timer, or the
-    // belt was skipped behind an approval), kill it before ANY of this
-    // submission's bytes land — otherwise the paste concatenates onto it
-    // (probe C1/C8). No-op on a clean line.
-    // Ratchet the flood high-water: prompt lines + one line per pasted
-    // attachment path (each is its own composer line).
-    this.cliDirtyLineHighWater = Math.max(
-      this.cliDirtyLineHighWater,
-      trimmed.split("\n").length + attachments.length,
-    );
+    // Only the user's bytes go out (fix round, ruling 2): no kill-line flood in
+    // front of the paste. A composer holding text — claude's Esc-restored
+    // prompt after a stop, say — receives the paste as a terminal would.
     // Attachment sends press Enter asynchronously, after the effect-verified
     // paste; a plain send pastes on the next tick and presses Enter ~120ms later.
     if (attachments.length > 0) {
       this.deferAttachmentSubmission(attachments, trimmed);
     } else {
-      this.writeCliInputClearFlood("pre-submit");
       this.deferSonataWrite(0, () => {
         if (this.ptyProcess && trimmed) {
           this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
@@ -2410,15 +2374,9 @@ export class TerminalHost extends EventEmitter {
     // Release the initial begin; the deferred writes hold the depth until they
     // fire, so the lock spans the full sequence.
     this.endSonataWrite();
-    // The run this submission belongs to: a freshly-begun run (idle send), or —
-    // for a control action that doesn't start one (createRun:false, e.g. /stop)
-    // — the run it acts upon. A mid-turn write-through has NO run yet (null);
-    // its run begins later on the UserPromptSubmit hook.
-    const submissionRunId = run
-      ? run.id
-      : options.createRun === false
-        ? this.activeRun?.id ?? null
-        : null;
+    // A control send acts on the run already under way; a prompt send has no
+    // run yet — its run begins on the CLI's UserPromptSubmit.
+    const submissionRunId = options.control ? this.activeRun?.id ?? null : null;
     this.emitEvent("prompt:submitted", {
       taskId: this.taskId,
       runId: submissionRunId,
@@ -2438,10 +2396,11 @@ export class TerminalHost extends EventEmitter {
    * Hook-driven run-start (Claude). The CLI fired `UserPromptSubmit` — a turn is
    * genuinely beginning now (either the first send, or a queued mid-turn send
    * the CLI just dequeued). Begin the run from the prompt the CLI actually
-   * received. No-op if a run is already active: the idle-send path already began
-   * it via submitPrompt, and this hook (arriving ~300ms later) must not restart
-   * it. This is the symmetric half of the `Stop`-hook run completion — the run
-   * lifecycle is now bracketed by authoritative CLI signals on both edges.
+   * received — since X2's fix round the ONLY way a prompt's run begins (Sonata's
+   * write never starts one). No-op if a run is already active: a second
+   * UserPromptSubmit inside a live turn does not restart it. This is the
+   * symmetric half of the `Stop`-hook run completion — the run lifecycle is
+   * bracketed by authoritative CLI signals on both edges.
    */
   beginRunFromHook(prompt: string, options: { promptId?: string | null } = {}): void {
     if (!this.ptyProcess) {
@@ -2449,9 +2408,9 @@ export class TerminalHost extends EventEmitter {
     }
     const text = prompt.trim();
     if (this.activeRun) {
-      // The hook is the echo of a run the idle-send path already began —
-      // stamp the CLI's prompt_id onto it (the exact run↔turn bridge; the
-      // write path can never know the id, only the hook does). Text identity
+      // A UserPromptSubmit inside a live turn: if the run has no prompt_id yet
+      // (begun from a hook that carried none), stamp this one when it is the
+      // same prompt (the exact run↔turn bridge). Text identity
       // guards against stamping a DIFFERENT prompt's id — but text alone
       // cannot tell TWO consecutive sends of identical text apart: a
       // just-finished twin's LATE echo would stamp ITS id onto this run and
@@ -2472,19 +2431,18 @@ export class TerminalHost extends EventEmitter {
       }
       return;
     }
-    // A slash run settles by quiescence seconds before its UserPromptSubmit
-    // clears the hook file queue (~250ms watcher + fs latency): that late
-    // event is the ECHO of the run that already ran, not a new turn — begun,
-    // it would be a phantom run with no output to ever close it. Text
-    // identity inside the attribution window recognizes exactly the echo; a
-    // human typing a command natively in the terminal (different text, or no
-    // fresh completion) still gets its run.
+    // A DUPLICATE UserPromptSubmit for the run that just finished (same CLI
+    // prompt_id) is not a new turn — begun, it would be a phantom run with no
+    // output to ever close it. Keyed on the CLI's id, never on text: since the
+    // write no longer begins runs, two identical prompts sent back to back are
+    // two turns, and text identity would swallow the second one.
     if (
+      options.promptId &&
       this.recentAttributionRun &&
       this.recentAttributionRun.expiresAt > Date.now() &&
-      samePromptModuloCliDecoration(this.recentAttributionRun.prompt, text)
+      this.recentAttributionRun.promptId === options.promptId
     ) {
-      this.debugCompletion(`hook-echo swallowed "${text.slice(0, 40)}"`);
+      this.debugCompletion(`duplicate hook swallowed "${text.slice(0, 40)}"`);
       return;
     }
     const kind: RunKind = text.startsWith("/") && !text.includes("\n") ? "slash" : "prompt";
@@ -3049,28 +3007,16 @@ export class TerminalHost extends EventEmitter {
     // tried to stop (probe S0, stop-after-send race). A send still waiting on
     // that sequence is the same class of unwritten bytes: drop it too.
     this.cancelPendingDeferredWrites();
-    this.dropHeldSends();
+    this.dropHeldSends("stop");
     // WHICH key, decided from the run pointer read in this same breath — see
     // `stopInterruptKey`. Read BEFORE `finishActiveRun` below nulls the pointer.
     const interrupt = this.stopInterruptKey();
     this.writeRaw(interrupt.key);
-    // An Esc interrupt restores the interrupted prompt into the CLI's own input
-    // box when the turn had produced nothing yet (probe C1/X1, claude
-    // 2.1.212 + codex 0.144.5) — and a canceled text write can likewise
-    // strand a pasted prompt there. Either way the next injection would
-    // concatenate onto it: mark the line dirty, clear it once the TUI
-    // settles (belt), and let the next submission's prefix flood cover a
-    // straggler (suspenders).
-    //
-    // Kept unconditional even though a codex Ctrl+C interrupt leaves the composer
-    // EMPTY (q31 s1: the composer read `› Ask Codex to do anything` after the
-    // press — codex's own placeholder — while the prompt stayed in the transcript
-    // as history). The flag's other producer is the canceled text write above,
-    // which is key-independent, and its cost when wrong is a kill-line flood into
-    // an already-empty composer — the designed harmless no-op (probe C2/C6/X2).
-    // Deriving it from the key would trade that no-op for a concatenation bug.
-    this.cliInputMaybeDirty = true;
-    this.armCliInputClear();
+    // An Esc interrupt restores the interrupted prompt into claude's own input
+    // box when the turn had produced nothing yet (probe C1/X1). Sonata leaves it
+    // there (fix round, ruling 2 — no kill-line flood): the user keeps or clears
+    // it in the CLI, exactly as at a terminal, and a later Send is pasted after
+    // whatever the composer holds.
     // Arm the one-shot resend ONLY when the key written was Esc: if a PreToolUse
     // hook lands after this stop, the turn provably survived it (swallowed key) —
     // resend once. Never armed behind a Ctrl+C; see `stopEscRetry` for the two
@@ -3086,11 +3032,9 @@ export class TerminalHost extends EventEmitter {
     //
     // POSITIONED HERE, NOT NEXT TO THE INTERRUPT KEY (review 1): the emit is
     // synchronously RE-ENTRANT (eventSink → RuntimeController.handleRuntimeEvent),
-    // so any send it could trigger on this stack must find the stop state above
-    // already written — `cliInputMaybeDirty` (or its pre-submit kill-line flood is
-    // skipped and a paste CONCATENATES onto an Esc-restored prompt) and
-    // `stopEscRetry` (or a send's own `stopEscRetry = null` is clobbered by this
-    // method's re-arm).
+    // so any send it could trigger on this stack must find `stopEscRetry` above
+    // already written (or that send's own `stopEscRetry = null` is clobbered by
+    // this method's re-arm).
     this.settleApprovalAsStopKeyDeny(stoppedRunId, interrupt.encodedAs);
     this.emitEvent("run:stop-requested", {
       taskId: this.taskId,
@@ -3121,63 +3065,6 @@ export class TerminalHost extends EventEmitter {
       });
     }, inspectDelayMs);
     this.slashStopTimer.unref?.();
-  }
-
-  /** Arm (or re-arm) the post-stop belt clear of the CLI input line. */
-  private armCliInputClear(): void {
-    if (this.cliInputClearTimer) {
-      clearTimeout(this.cliInputClearTimer);
-    }
-    this.cliInputClearTimer = setTimeout(() => {
-      this.cliInputClearTimer = null;
-      this.writeCliInputClearFlood("post-stop settle");
-    }, CLI_INPUT_CLEAR_DELAY_MS);
-    this.cliInputClearTimer.unref?.();
-  }
-
-  /**
-   * Clear the CLI's input line with a counted kill-line flood. Ctrl+U kills
-   * per-LINE on Claude (an emptied line can cost a second kill), so the
-   * flood is sized from the session's high-water pasted line count — the
-   * restore is the interrupted TURN's prompt, not necessarily the last
-   * submission (review F2) — with a floor for wrapped lines; every extra
-   * kill on an empty line is a no-op (probe C2/C6/C8/C9/X2/X3).
-   *
-   * Only the `pre-submit` path consumes the dirty flag: its flood provably
-   * precedes its own paste, so the line is clean when it matters. The belt
-   * path leaves the flag armed — the restore's latency has no probed lower
-   * tail, and a belt that fired before a slow restore must not stand the
-   * submit-time guard down (review F1). The belt also skips (flag kept)
-   * while an approval owns the screen, another automation write is
-   * mid-sequence, or a co-present human typed in the terminal within the
-   * activity window (their in-terminal edit of the restored text must not be
-   * wiped — review F7).
-   */
-  private writeCliInputClearFlood(reason: "pre-submit" | "post-stop settle"): boolean {
-    if (!this.cliInputMaybeDirty || !this.ptyProcess) {
-      return false;
-    }
-    if (reason !== "pre-submit") {
-      if (this.approvalActive || this.sonataWriteDepth > 0 || this.isHumanActivelyTyping()) {
-        return false;
-      }
-    }
-    const kills = Math.min(
-      Math.max(this.cliDirtyLineHighWater * 2 + 2, CLI_INPUT_CLEAR_MIN_KILLS),
-      CLI_INPUT_CLEAR_MAX_KILLS,
-    );
-    const flood = KILL_LINE.repeat(kills);
-    if (reason === "pre-submit") {
-      this.cliInputMaybeDirty = false;
-      // Caller (submitPrompt) already holds the write-lock; write directly so
-      // the flood lands ahead of the attachment/text pastes in order.
-      this.ptyProcess.write(flood);
-    } else {
-      this.beginSonataWrite();
-      this.ptyProcess.write(flood);
-      this.endSonataWrite();
-    }
-    return true;
   }
 
   /**
@@ -3213,8 +3100,6 @@ export class TerminalHost extends EventEmitter {
     // simply no-ops), which is the ordinary take-over shape. `retry.runId` for
     // the same recordability reason the stop events use it (review F4).
     this.settleApprovalAsStopKeyDeny(retry.runId, "Esc");
-    this.cliInputMaybeDirty = true;
-    this.armCliInputClear();
     // The stopped run's id makes the resend recordable: run-index drops
     // null-runId stop events, which would leave the durable report blind to
     // every retry (review F4).
@@ -3285,16 +3170,10 @@ export class TerminalHost extends EventEmitter {
    *  dirty flag must not act on the next session). */
   private clearStopHygieneState(): void {
     this.cancelPendingDeferredWrites();
-    if (this.cliInputClearTimer) {
-      clearTimeout(this.cliInputClearTimer);
-      this.cliInputClearTimer = null;
-    }
     if (this.slashStopTimer) {
       clearTimeout(this.slashStopTimer);
       this.slashStopTimer = null;
     }
-    this.cliInputMaybeDirty = false;
-    this.cliDirtyLineHighWater = 1;
     this.stopEscRetry = null;
   }
 
@@ -3822,7 +3701,7 @@ export class TerminalHost extends EventEmitter {
     const approvalGuardBlockedSlashStop = shouldSubmitSlashStop && this.approvalActive;
     let slashStopSent = false;
     if (shouldSubmitSlashStop && !approvalGuardBlockedSlashStop && this.ptyProcess) {
-      this.submitPrompt("/stop", { createRun: false });
+      this.submitPrompt("/stop", { control: true });
       slashStopSent = true;
     }
 
@@ -4122,7 +4001,7 @@ export class TerminalHost extends EventEmitter {
     this.recentAttributionRun = {
       id: finished.id,
       expiresAt: Date.now() + this.postCompletionAttributionMs,
-      prompt: finished.prompt,
+      promptId: finished.promptId ?? null,
     };
     this.lastFinishedPrompt = {
       text: finished.prompt.trim(),
@@ -4918,9 +4797,9 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       // in ALL FOUR modes (measured `⏸ manual mode on` / `⏵⏵ accept edits on
       // (shift+tab to cycle)` / `⏸ plan mode on (shift+tab to cycle)` /
       // `⏵⏵ auto mode on (shift+tab to cycle)`), and it is the one footer string
-      // Sonata ALREADY depends on elsewhere — S2's permission-switch receipt
-      // reads it — so a reword breaks a loud, tested path instead of only this
-      // quiet one. The phrases are REUSED from that parser
+      // Sonata ALREADY depends on elsewhere — the readiness footer needle reads
+      // it — so a reword breaks a loud, tested path instead of only this quiet
+      // one. The phrases are REUSED from that parser
       // (`CLAUDE_MODE_LINE_ON_SCREEN_RE`), never restated here.
       //
       // HONEST LIMIT — this redundancy does not restore production readiness on
@@ -5180,10 +5059,6 @@ function tomlString(value: string): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function attachmentPromptTitle(count: number): string {
-  return count === 1 ? "[Image attachment]" : `[${count} image attachments]`;
 }
 
 // "This hook echo is that stored prompt" — the equivalence relation for every

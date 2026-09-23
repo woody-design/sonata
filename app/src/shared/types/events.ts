@@ -119,7 +119,7 @@ export type TaskStartedEvent = BaseRuntimeEvent<
  *  Esc-interrupt, codex). The between-runs poller that also fed this —
  *  along with the `task:accepts-input` boot announcement — was retired in
  *  S6 (starved by the idle TUI's control-only heartbeat; boot readiness is
- *  the delivery pump's structural poll). */
+ *  the terminal host's one-shot boot latch). */
 export type TaskReadyEvent = BaseRuntimeEvent<
   "task:ready",
   {
@@ -222,7 +222,7 @@ export type CodexTrustDialogClearedEvent = BaseRuntimeEvent<
  * exists for the same reason: SL-3 taught Sonata to HOLD the boot latch here
  * (`claudeFullscreenOfferOpen` → `isFullscreenOfferOpen()` inside
  * `acceptsPromptInput()`), which is correct and silent — the task reads
- * "starting", the queued prompt waits, and nothing tells the user the CLI is
+ * "starting", a held first message waits, and nothing tells the user the CLI is
  * parked on a question only they can answer.
  *
  * Sonata cannot (and must NEVER) auto-answer it. MEASURED (SL-3 F8, claude
@@ -276,7 +276,7 @@ export type ClaudeFullscreenOfferClearedEvent = BaseRuntimeEvent<
  * readiness S4; plan D10, L5). Raised for exactly two diagnosable shapes, both
  * observed by the runtime controller and then confirmed by a fresh probe:
  *
- *  - the PTY died before the delivery boot latch ever opened — a missing binary
+ *  - the PTY died before the boot latch ever opened — a missing binary
  *    fails `execvp` inside the pty, so the process is gone in milliseconds;
  *  - the PTY is alive but no prompt appeared within the boot observation window
  *    (L5, 10s against a normal 1–3s boot) — the shape of a CLI parked on its own
@@ -363,6 +363,17 @@ export type PromptSubmittedEvent = BaseRuntimeEvent<
 >;
 
 export type SessionStateEvent = BaseRuntimeEvent<"session:state", TaskSessionState>;
+
+/**
+ * The user's words that were sent but never written: held by the boot hold when
+ * the pty exited (or was replaced) before its CLI reached a prompt, or waiting
+ * on a previous write sequence when a Stop dropped them. Handed back to the
+ * composer once; nothing is persisted or retried.
+ */
+export type PromptUnsentEvent = BaseRuntimeEvent<
+  "prompt:unsent",
+  { taskId: TaskId; text: string; reason: "pty-exit" | "stop" }
+>;
 
 export type RunStartedEvent = BaseRuntimeEvent<
   "run:started",
@@ -493,8 +504,7 @@ export type ApprovalDecisionEvent = BaseRuntimeEvent<
     encodedAs: ApprovalDecisionEncoding;
     previousKind: ApprovalKind | null;
     /** The broker ask this decision resolves (reply-channel answers). Absent
-     *  on scrape/native decisions — those resolve the RENDERED panel, keyed
-     *  by the delivery gate's scrape sentinel (S6 review P1). */
+     *  on scrape/native decisions — those resolve the RENDERED panel. */
     approvalId?: string | null;
   }
 >;
@@ -502,7 +512,7 @@ export type ApprovalDecisionEvent = BaseRuntimeEvent<
 /** A hook-broker approval timed out (S2) — the CLI is falling back to its native
  *  panel, which the scrape will surface next. NOT a decision: nothing was
  *  answered. The hook card clears, but the "user still owes an answer" truth
- *  (cli-state waiting-approval, delivery blocked) is deliberately preserved
+ *  (cli-state waiting-approval) is deliberately preserved
  *  until the native panel is answered (reviewer P1/P2). */
 export type ApprovalExpiredEvent = BaseRuntimeEvent<
   "approval:expired",
@@ -738,6 +748,7 @@ export type ProductRuntimeEvent =
   | TaskUpdatedEvent
   | PromptSubmittedEvent
   | SessionStateEvent
+  | PromptUnsentEvent
   | RunStartedEvent
   | RunUpdatedEvent
   | RunStopRequestedEvent
@@ -794,6 +805,7 @@ export type RunIndexEvent = Exclude<
   | CodexSessionResumableExitEvent
   | CliSessionStartBlockedEvent
   | SessionStateEvent
+  | PromptUnsentEvent
   | TaskUpdatedEvent
   | RemoteControlStateEvent
   | OptionPromptDetectedEvent
