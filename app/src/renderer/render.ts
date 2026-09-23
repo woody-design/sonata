@@ -23,7 +23,6 @@ import type {
 import { elements } from "./dom";
 import {
   renderApproval,
-  renderControlConfirm,
   renderOptionPrompt,
   renderResumeChoice,
 } from "./view/approvals";
@@ -206,7 +205,6 @@ export function render(): void {
   renderSidebar();
   renderApproval();
   renderOptionPrompt();
-  renderControlConfirm();
   renderResumeChoice();
   renderAttentionBanners(view);
   renderStatusStrip(view);
@@ -314,9 +312,6 @@ export function performDirective(directive: Directive): void {
       renderUsageIndicator(view);
       if (directive.chipChanged) {
         renderComposerControls(view);
-      }
-      if (directive.bannersChanged) {
-        renderAttentionBanners(view);
       }
       if (directive.popoverOpen) {
         renderComposerPopover(view);

@@ -12,9 +12,9 @@
 //
 // SKIP convention (exit code 77): a test that cannot meaningfully run in this
 // environment exits 77 after printing a single `SKIP: <reason>` line. The
-// runner counts it SKIP (not FAIL) and surfaces the reason. Two documented
-// classes self-skip today: packaged-* (no packaged app on disk) and
-// midsession-codex-* (codex's boot "Update available!" gate blocks readiness).
+// runner counts it SKIP (not FAIL) and surfaces the reason. Documented
+// self-skip classes today include packaged-* (no packaged app on disk) and the
+// live-codex smokes (codex's boot "Update available!" gate blocks readiness).
 // 77 is the conventional autotools "skipped test" code — chosen so it can never
 // collide with a genuine assertion failure (exit 1) or an uncaught throw.
 //

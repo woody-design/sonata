@@ -258,20 +258,6 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.remoteControlInject, (_event, request) =>
     runtimeController.injectRemoteControl(request.taskId),
   );
-  ipcMain.handle(IPC_CHANNELS.claudeControlSwitch, (_event, request) =>
-    runtimeController.switchClaudeControl(
-      request.taskId,
-      request.kind,
-      request.value,
-      request.from,
-    ),
-  );
-  ipcMain.handle(IPC_CHANNELS.claudeStagedSwitch, (_event, request) =>
-    runtimeController.switchClaudeStaged(request.taskId, request.model, request.effort),
-  );
-  ipcMain.handle(IPC_CHANNELS.controlConfirmAnswer, (_event, request) =>
-    runtimeController.answerControlConfirm(request.taskId, request.rowNumber),
-  );
   ipcMain.handle(IPC_CHANNELS.previewOpen, (_event, request) =>
     windowController.openPreview(request),
   );

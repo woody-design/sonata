@@ -313,10 +313,6 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "controlSwitch": null,
-            "observedPermissionModes": [
-              "default"
-            ],
             "approvalExpired": false,
             "status": "Claude is working",
             "unread": false,
@@ -635,10 +631,6 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "controlSwitch": null,
-            "observedPermissionModes": [
-              "default"
-            ],
             "approvalExpired": false,
             "status": "Claude is working",
             "unread": true,

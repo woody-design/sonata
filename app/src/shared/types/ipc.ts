@@ -76,16 +76,6 @@ export const IPC_CHANNELS = {
   usageRead: "usage:read",
   slashCommandsRead: "slash:commands:read",
   remoteControlInject: "remote-control:inject",
-  claudeControlSwitch: "claude-control:switch",
-  // Staged claude model+effort Save (S7 Part 1): apply the changed axes as ONE
-  // logical switch (`/model X` then `/effort Y`, the cache-miss drawer relaying
-  // any confirm between them). Codex staged Save reuses claudeControlSwitch's
-  // `codex-model` kind (its two-level picker already sets the pair in one run).
-  claudeStagedSwitch: "claude-control:staged",
-  // Answer a PARKED recognized-confirm dialog (S7 Part 2): relay the user's chosen
-  // row back to the choreography, which navigates+Enters it. The ONLY answer
-  // channel for a parked dialog (a drawer dismiss maps to the Cancel row).
-  controlConfirmAnswer: "control-confirm:answer",
   // Preview window (2026-07 redesign, three-truths model §6). `previewOpen`
   // opens/focuses the window and binds a task (optionally opening a tab);
   // `previewBinding` is main's push of the bound task's session; the transition
@@ -385,93 +375,6 @@ export interface RemoteControlInjectRequest {
 export type RemoteControlInjectResponse =
   | { ok: true }
   | { ok: false; reason: "no-process" | "panel-open" | "busy" };
-
-/** Which axis a mid-session switch drives. Claude: `/model <id>` / `/effort
- *  <level>` typed-command injection (S1), or `permission` via the Shift+Tab
- *  stepping engine (S2). Codex: `codex-permission` via the `/permissions` picker
- *  choreography (S3 — a three-row text-matched picker, arrows + Enter, receipt
- *  watch), and `codex-model` / `codex-effort` via the `/model` TWO-level picker
- *  choreography (S4 — level 1 = curated model rows, level 2 = reasoning rows,
- *  both text-matched; the non-selected dimension is preserved by landing on the
- *  level's `(current)`-marked row). The kind is provider-gated at both layers:
- *  the three `codex-*` kinds reach only a codex session; `model`/`effort`/
- *  `permission` only a claude session. (The `Claude` prefix in the type/method
- *  names predates S3 — one shared switch pipeline now carries both providers;
- *  not a parallel system. Renaming is deferred to S5.) */
-export type ClaudeControlSwitchKind =
-  | "model"
-  | "effort"
-  | "permission"
-  | "codex-permission"
-  | "codex-model"
-  | "codex-effort";
-
-export interface ClaudeControlSwitchRequest {
-  taskId: TaskId;
-  kind: ClaudeControlSwitchKind;
-  /** model/effort: the `/model` alias (e.g. `sonnet`) or `/effort` level (e.g.
-   *  `high`) to inject. permission: the TARGET `ClaudePermissionMode` id (e.g.
-   *  `plan`). codex-permission: the TARGET `CodexOfferedPermissionMode` id (e.g.
-   *  `approve-for-me`). codex-model: the TARGET curated model slug (e.g.
-   *  `gpt-5.6-luna`) — the picker's level-1 target. codex-effort: the TARGET
-   *  reasoning id (`low|medium|high|xhigh`) — the picker's level-2 target.
-   *  Sourced from Sonata's curated lists / the session's reachable modes, never
-   *  free text. */
-  value: string;
-  /** The session's current value for the axis, per kind:
-   *   - permission / codex-permission: the mode the session is in NOW
-   *     (`task.permissionMode` / `task.codexPermissionMode`). Claude uses it as the
-   *     Shift+Tab return-home anchor; codex uses it to skip a no-op switch.
-   *   - **codex-model: REQUIRED — the session's current reasoning effort**
-   *     (`task.reasoningEffort`). This is the ONLY source of the effort to PRESERVE
-   *     at picker level 2: MEASURED that codex drops the level-2 `(current)` marker
-   *     after a model change (it resets to the new model's default), so the effort
-   *     cannot ride that marker — the engine navigates level 2 to this explicit
-   *     value's row. Omitting it (or a non-v1 effort — Native Default / Max / Ultra,
-   *     which has no v1 row) makes the switch roll back to needs-attention BY
-   *     DESIGN. A contract refactor MUST keep threading it or every codex model
-   *     switch 100%-rolls-back.
-   *   - model / effort / codex-effort: ignored. (codex-effort preserves the model
-   *     via level-1's `(current)` marker, which IS reliable — the model is
-   *     unchanged, so it is still a marked, visible row.) */
-  from?: string;
-}
-
-/** Result of KICKING OFF a mid-session Claude control switch — the receipt(s)
- *  themselves arrive later on the `control-switch:state` event stream, never
- *  here. `wrong-provider` guards the provider seam both ways (a claude kind on a
- *  codex session — inline `/model` args burn a turn, codex has no Shift+Tab
- *  cycle — AND a `codex-permission` kind on a claude session); `not-idle` = a
- *  turn is live (switching
- *  is idle-only, no queueing); `busy` = a Sonata write (or a prior switch) is
- *  still in flight; `panel-open` = an approval screen would swallow the input;
- *  `invalid` = the caller passed a value the engine can't act on (a non-mode /
- *  non-target id, or an empty staged pair) — a caller bug, not a CLI state (kept
- *  distinct from `busy` so the notice names the real cause). */
-export type ClaudeControlSwitchResponse =
-  | { ok: true }
-  | {
-      ok: false;
-      reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider" | "invalid";
-    };
-
-/** A STAGED claude model+effort Save (S7 Part 1). `model` / `effort` carry ONLY
- *  the axes that CHANGED from the session's current pair (null = unchanged); the
- *  engine runs the changed axes as one logical switch (model first, effort queued).
- *  The renderer's Save is disabled when clean, so at least one is non-null. */
-export interface ClaudeStagedSwitchRequest {
-  taskId: TaskId;
-  model: string | null;
-  effort: string | null;
-}
-
-/** Answer a PARKED recognized-confirm dialog (S7 Part 2). `rowNumber` is the
- *  1-based CLI row the user chose in the drawer (a dismiss maps to the dialog's
- *  Cancel row). Fire-and-forget — the settle arrives on control-switch:state. */
-export interface ControlConfirmAnswerRequest {
-  taskId: TaskId;
-  rowNumber: number;
-}
 
 export interface StopRunRequest {
   taskId: TaskId;
@@ -943,22 +846,6 @@ export interface SonataRuntimeBridge {
   injectRemoteControl(
     request: RemoteControlInjectRequest,
   ): Promise<RemoteControlInjectResponse>;
-  /** Kick off a mid-session Claude `/model` / `/effort` / `permission` switch.
-   *  Resolves once the drive is on its way; the receipt(s) (settled / failed /
-   *  needs-attention) arrive asynchronously on the `control-switch:state`
-   *  event. */
-  switchClaudeControl(
-    request: ClaudeControlSwitchRequest,
-  ): Promise<ClaudeControlSwitchResponse>;
-  /** Apply a STAGED claude model+effort Save (S7 Part 1) as one logical switch —
-   *  only the changed axes, the cache-miss drawer relaying any confirm between the
-   *  two commands. Codex staged Save reuses `switchClaudeControl` with `codex-model`. */
-  switchClaudeStaged(
-    request: ClaudeStagedSwitchRequest,
-  ): Promise<ClaudeControlSwitchResponse>;
-  /** Answer a PARKED recognized-confirm dialog (S7 Part 2) — relay the user's
-   *  chosen row to the choreography (navigate+Enter). Fire-and-forget. */
-  answerControlConfirm(request: ControlConfirmAnswerRequest): Promise<void>;
   // Preview window (three-truths model §6). `openPreview` opens/focuses + binds
   // (+ optional tab); the transition methods mutate session truth in main, which
   // echoes the updated binding back through `onPreviewBinding`.

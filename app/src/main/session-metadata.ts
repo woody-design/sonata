@@ -32,10 +32,10 @@ export interface SessionMetadataLiveSession {
   autoTitle: string | null;
 }
 
-/** The controller-owned operations SessionMetadata needs. Mirrors the S4
- *  host-seam pattern (ControlSwitchEngine): thin callbacks closing over the
- *  controller, so the metadata facade owns the orchestration while the
- *  controller keeps the shared runtime/manifest primitives. */
+/** The controller-owned operations SessionMetadata needs. The host-seam
+ *  pattern: thin callbacks closing over the controller, so the metadata facade
+ *  owns the orchestration while the controller keeps the shared
+ *  runtime/manifest primitives. */
 export interface SessionMetadataHost {
   liveSession(taskId: TaskId): SessionMetadataLiveSession | null;
   /** Live tasks keyed by id — the freshest task payload for the tag-removal plan. */

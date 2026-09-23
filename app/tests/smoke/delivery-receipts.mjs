@@ -528,9 +528,6 @@ function fakeHost() {
     isApprovalActive() {
       return this.approvalActive;
     },
-    hasPendingControlSwitch() {
-      return false;
-    },
     isRewindPanelOpen() {
       return false;
     },

@@ -81,7 +81,6 @@ const VIEW_CHANGED_TYPES = new Set([
   "option-prompt:detected",
   "option-prompt:resolved",
   "remote-control:state",
-  "control-switch:state",
   "delivery:state",
   "delivery:receipt",
   "task:updated",
@@ -170,15 +169,14 @@ function expectedDirectives(state, event) {
       : [{ kind: "report-refresh", taskId }];
   }
   if (event.type === "pty:exit") {
-    // Four mutations with two different paint rules (F1 fix A; S5/B6 + addendum).
-    // A pending control switch is content-adjacent and keeps the markViewChanged
-    // family's shape, including the background unread cue — and so does either
-    // retracted drawer (approval, question form), which is the shape their own
+    // Three mutations with two different paint rules (F1 fix A; S5/B6 + addendum).
+    // Either retracted drawer (approval, question form) keeps the markViewChanged
+    // family's shape, including the background unread cue — the shape their own
     // resolution events would have painted for the same retraction. Clearing
     // `live` paints the ACTIVE view only: nothing on screen reads a background
     // view's liveness, and marking one unread because its session ended would
     // invent an attention cue.
-    if (view.controlSwitch || view.pendingApproval || view.pendingOptionPrompt) {
+    if (view.pendingApproval || view.pendingOptionPrompt) {
       return [active ? { kind: "full", taskId } : { kind: "unread-only", taskId }];
     }
     return view.live && active ? [{ kind: "full", taskId }] : [{ kind: "none" }];
@@ -1017,428 +1015,7 @@ function workingStatus(liveness) {
   assert.deepEqual(view.transcriptBlockOrder, ["B1", "A3"], "surviving-then-fresh order, no stale ids");
 }
 
-// 12) control-switch:state — the phases NOT in the corpus (S1 model/effort,
-//     S2 permission). The chip's value follows its own SSOT (statusline for
-//     model/effort, hook payload for permission), so these only drive the pending
-//     affordance / needs-attention banner / failure notice / reachable-modes set,
-//     never the chip label itself.
-{
-  const switchEvt = (phase, extra = {}) =>
-    evt("control-switch:state", {
-      taskId: "task-A",
-      kind: "model",
-      value: "sonnet",
-      phase,
-      error: null,
-      ...extra,
-    });
-
-  // pending → records the in-flight switch (dims the chip); full render active.
-  {
-    const { state, view } = seedView();
-    const d = R.reduceRuntimeEvent(state, switchEvt("pending"), NOW_MS);
-    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pending → full render");
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "model", value: "sonnet", phase: "pending" },
-      "pending records the in-flight switch",
-    );
-  }
-
-  // settled → clears the pending affordance (the statusline drives the label).
-  {
-    const { state, view } = seedView({
-      controlSwitch: { kind: "model", value: "sonnet", phase: "pending" },
-    });
-    const d = R.reduceRuntimeEvent(state, switchEvt("settled"), NOW_MS);
-    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "settled → full render");
-    assert.equal(view.controlSwitch, null, "settled drops the pending affordance");
-  }
-
-  // failed → clears the affordance and reports a one-line composer notice.
-  {
-    const { state, view } = seedView({
-      controlSwitch: { kind: "model", value: "bogus", phase: "pending" },
-      status: "Running",
-    });
-    const d = R.reduceRuntimeEvent(
-      state,
-      switchEvt("failed", { value: "bogus", error: "Claude rejected the model \"bogus\"." }),
-      NOW_MS,
-    );
-    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "failed → full render");
-    assert.equal(view.controlSwitch, null, "failed clears the pending affordance");
-    assert.equal(view.status, 'Claude rejected the model "bogus".', "failed surfaces the reason as status");
-  }
-
-  // failed with no error string → a safe default notice.
-  {
-    const { state, view } = seedView();
-    R.reduceRuntimeEvent(state, switchEvt("failed", { error: null }), NOW_MS);
-    assert.equal(view.status, "Couldn't switch — Claude rejected it.", "failed falls back to a default notice");
-  }
-
-  // needs-attention → the RED LINE banner pointer; nothing else happens.
-  {
-    const { state, view } = seedView({ status: "Ready" });
-    const d = R.reduceRuntimeEvent(
-      state,
-      switchEvt("needs-attention", { kind: "effort", value: "high" }),
-      NOW_MS,
-    );
-    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "needs-attention → full render");
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "effort", value: "high", phase: "needs-attention" },
-      "needs-attention records the pointer for the banner",
-    );
-    assert.equal(view.status, "Ready", "needs-attention does not overwrite status (banner carries it)");
-  }
-
-  // S5 item C — needs-attention carries a `reason` when the cause is known, so the
-  // banner sharpens from the generic "check the CLI" to the exact next action.
-  {
-    const { state, view } = seedView({ status: "Ready" });
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("needs-attention", { kind: "codex-model", value: "gpt-5.4", reason: "drift" }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "codex-model", value: "gpt-5.4", phase: "needs-attention", reason: "drift" },
-      "needs-attention threads the reason onto the pointer",
-    );
-  }
-
-  // S5 item D — a lingering claude model needs-attention pointer AUTO-CLEARS once
-  // the statusline mirror (the SSOT) confirms the switched value landed (the user
-  // answered the cache-miss interstitial natively). The clearing usage tick carries
-  // bannersChanged so the banner row repaints.
-  {
-    const mkSnap = (modelDisplayName, reasoningEffort) => ({
-      provider: "claude",
-      capturedAt: NOW_MS,
-      context: null,
-      limits: [],
-      modelDisplayName,
-      reasoningEffort,
-    });
-
-    // Model: value "sonnet" ↔ statusline "Sonnet 5" → cleared + bannersChanged.
-    {
-      const { state, view } = seedView({
-        controlSwitch: { kind: "model", value: "sonnet", phase: "needs-attention", reason: "interstitial" },
-      });
-      const d = R.reduceRuntimeEvent(
-        state,
-        evt("usage:updated", { taskId: "task-A", snapshot: mkSnap("Sonnet 5", "high") }),
-        NOW_MS,
-      );
-      assert.equal(view.controlSwitch, null, "statusline confirms the model landed → banner auto-clears");
-      assert.equal(
-        d.find((x) => x.kind === "usage-in-place")?.bannersChanged,
-        true,
-        "the clearing tick flags bannersChanged so the banner repaints",
-      );
-    }
-
-    // Model MISMATCH: value "sonnet" but statusline still "Opus 4.8" → NOT cleared
-    // (guards a different pending switch's banner from an unrelated tick).
-    {
-      const { state, view } = seedView({
-        controlSwitch: { kind: "model", value: "sonnet", phase: "needs-attention", reason: "interstitial" },
-      });
-      R.reduceRuntimeEvent(
-        state,
-        evt("usage:updated", { taskId: "task-A", snapshot: mkSnap("Opus 4.8", "high") }),
-        NOW_MS,
-      );
-      assert.deepEqual(
-        view.controlSwitch,
-        { kind: "model", value: "sonnet", phase: "needs-attention", reason: "interstitial" },
-        "an unrelated statusline value leaves the pointer intact",
-      );
-    }
-
-    // Effort: value "high" ↔ statusline reasoningEffort "high" → cleared.
-    {
-      const { state, view } = seedView({
-        controlSwitch: { kind: "effort", value: "high", phase: "needs-attention", reason: "interstitial" },
-      });
-      R.reduceRuntimeEvent(
-        state,
-        evt("usage:updated", { taskId: "task-A", snapshot: mkSnap("Opus 4.8", "high") }),
-        NOW_MS,
-      );
-      assert.equal(view.controlSwitch, null, "statusline confirms the effort landed → banner auto-clears");
-    }
-
-    // A PENDING (not needs-attention) pointer is untouched — auto-clear is a
-    // needs-attention-only polish; pending still settles on its own event.
-    {
-      const { state, view } = seedView({
-        controlSwitch: { kind: "model", value: "sonnet", phase: "pending" },
-      });
-      R.reduceRuntimeEvent(
-        state,
-        evt("usage:updated", { taskId: "task-A", snapshot: mkSnap("Sonnet 5", "high") }),
-        NOW_MS,
-      );
-      assert.deepEqual(
-        view.controlSwitch,
-        { kind: "model", value: "sonnet", phase: "pending" },
-        "a pending pointer is never auto-cleared by the statusline",
-      );
-    }
-  }
-
-  // Permission axis (S2): pending records a permission-kind pointer (dims the
-  // ACCESS chip); settled clears it. The label follows the hook payload, not this.
-  {
-    const { state, view } = seedView();
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("pending", { kind: "permission", value: "plan" }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "permission", value: "plan", phase: "pending" },
-      "a permission switch records a permission-kind pointer",
-    );
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("settled", { kind: "permission", value: "plan", observedModes: ["plan"] }),
-      NOW_MS,
-    );
-    assert.equal(view.controlSwitch, null, "permission settled drops the pending affordance");
-  }
-
-  // Codex permission axis (S3): pending records a codex-permission-kind pointer
-  // (dims the ACCESS chip on a codex session); settled clears it. UNLIKE claude,
-  // the label follows this event's mirror (the controller writes
-  // task.codexPermissionMode off the picker receipt) — but the reducer's job here
-  // is only the pending affordance, so it carries no observedModes.
-  {
-    const { state, view } = seedView();
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("pending", { kind: "codex-permission", value: "approve-for-me" }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "codex-permission", value: "approve-for-me", phase: "pending" },
-      "a codex permission switch records a codex-permission-kind pointer",
-    );
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("settled", { kind: "codex-permission", value: "approve-for-me" }),
-      NOW_MS,
-    );
-    assert.equal(view.controlSwitch, null, "codex-permission settled drops the pending affordance");
-    // The codex axis never touches the claude reachable-modes set.
-    assert.deepEqual(
-      view.observedPermissionModes,
-      [],
-      "codex-permission carries no observedModes — the claude reachable set is untouched",
-    );
-  }
-
-  // Codex Full Access consent gate (RED LINE 2): the choreography rolls back →
-  // needs-attention (the RED LINE banner pointer), never a silent settle.
-  {
-    const { state, view } = seedView({ status: "Ready" });
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("needs-attention", { kind: "codex-permission", value: "full-access" }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "codex-permission", value: "full-access", phase: "needs-attention" },
-      "a rolled-back codex Full Access switch records the needs-attention pointer",
-    );
-  }
-
-  // Codex model/effort axes (S4): pending records a codex-model / codex-effort
-  // pointer (dims the MODEL chip on a codex session); settled clears it. UNLIKE
-  // claude, the label follows this event's mirror (the controller writes
-  // task.model + task.reasoningEffort off the picker receipt) — but the reducer's
-  // job here is only the pending affordance, so it carries no observedModes.
-  {
-    const { state, view } = seedView();
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("pending", { kind: "codex-model", value: "gpt-5.6-luna" }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "codex-model", value: "gpt-5.6-luna", phase: "pending" },
-      "a codex model switch records a codex-model-kind pointer",
-    );
-    // The settled event carries the receipt's pair (codexModel/codexEffort) for
-    // the controller; the reducer only drops the pending affordance.
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("settled", { kind: "codex-model", value: "gpt-5.6-luna", codexModel: "gpt-5.6-luna", codexEffort: "high" }),
-      NOW_MS,
-    );
-    assert.equal(view.controlSwitch, null, "codex-model settled drops the pending affordance");
-    assert.deepEqual(view.observedPermissionModes, [], "codex-model carries no observedModes");
-  }
-  {
-    const { state, view } = seedView();
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("pending", { kind: "codex-effort", value: "xhigh" }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "codex-effort", value: "xhigh", phase: "pending" },
-      "a codex effort switch records a codex-effort-kind pointer",
-    );
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("settled", { kind: "codex-effort", value: "xhigh", codexModel: "gpt-5.6-sol", codexEffort: "xhigh" }),
-      NOW_MS,
-    );
-    assert.equal(view.controlSwitch, null, "codex-effort settled drops the pending affordance");
-  }
-  // codex-model rollback (a target row absent — D5 — or a level-2 (current) that
-  // can't be preserved): needs-attention records the RED LINE banner pointer.
-  {
-    const { state, view } = seedView({ status: "Ready" });
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("needs-attention", { kind: "codex-model", value: "gpt-5.4" }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.controlSwitch,
-      { kind: "codex-model", value: "gpt-5.4", phase: "needs-attention" },
-      "a rolled-back codex model switch records the needs-attention pointer",
-    );
-    assert.equal(view.status, "Ready", "needs-attention does not overwrite status (banner carries it)");
-  }
-
-  // observedModes MERGE (the reachable-modes set grows, never shrinks): a
-  // choreography confirms modes en route, on BOTH settle and needs-attention,
-  // de-duplicated and order-stable. Since the D4 field revision (2026-07-18) this
-  // set gates only `bypassPermissions` in the menu (auto is always offered), but
-  // the merge behavior under test is unchanged — every confirmed mode is recorded.
-  {
-    const { state, view } = seedView();
-    assert.deepEqual(view.observedPermissionModes, [], "seed: synthetic task has null mode → empty set");
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("needs-attention", { kind: "permission", value: "plan", observedModes: ["default", "auto"] }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.observedPermissionModes,
-      ["default", "auto"],
-      "needs-attention still merges the modes seen en route",
-    );
-    R.reduceRuntimeEvent(
-      state,
-      switchEvt("settled", { kind: "permission", value: "acceptEdits", observedModes: ["auto", "acceptEdits"] }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.observedPermissionModes,
-      ["default", "auto", "acceptEdits"],
-      "merge de-dupes (auto) and appends the new mode (acceptEdits), order-stable",
-    );
-  }
-
-  // task:updated reconciling permission_mode adds the mode to the reachable set
-  // (which since the D4 revision gates bypass menu-eligibility; auto is always
-  // offered, so recording it here is harmless corroboration).
-  {
-    const { state, view } = seedView();
-    R.reduceRuntimeEvent(
-      state,
-      evt("task:updated", {
-        taskId: "task-A",
-        task: { ...syntheticTask("task-A"), permissionMode: "auto" },
-        reason: "runtime-status",
-      }),
-      NOW_MS,
-    );
-    assert.deepEqual(
-      view.observedPermissionModes,
-      ["auto"],
-      "a hook reconcile to auto records it as reachable",
-    );
-  }
-
-  // A new run moots any lingering switch pointer (pending or needs-attention).
-  {
-    const { state, view } = seedView({
-      active: false,
-      controlSwitch: { kind: "model", value: "sonnet", phase: "needs-attention" },
-    });
-    R.reduceRuntimeEvent(
-      state,
-      evt("run:started", {
-        taskId: "task-A",
-        id: "run-2",
-        kind: "prompt",
-        prompt: "next",
-        title: "next",
-        status: "running",
-        lifecyclePhase: "running",
-        startedAt: "2026-07-03T12:00:00.000Z",
-        endedAt: null,
-        elapsedMs: null,
-        completionSource: null,
-        completionConfidence: null,
-      }),
-      NOW_MS,
-    );
-    assert.equal(view.controlSwitch, null, "a new run clears the stale switch pointer");
-  }
-
-  // Background variant: a switch phase on an unfocused view marks unread.
-  {
-    const { state, view } = seedView({ active: false });
-    const d = R.reduceRuntimeEvent(state, switchEvt("pending"), NOW_MS);
-    assert.deepEqual(d, [{ kind: "unread-only", taskId: "task-A" }], "bg switch → unread-only");
-    assert.equal(view.unread, true, "bg switch marks unread");
-  }
-
-  // pty:exit (S1 review fix B): a crash mid-switch drops the pointer so the chip
-  // can't stay stuck in "Switching…".
-  const ptyExit = () =>
-    evt("pty:exit", {
-      taskId: "task-A",
-      generation: 1,
-      runId: null,
-      exitCode: 1,
-      signal: null,
-      elapsedMs: 1234,
-    });
-  {
-    const { state, view } = seedView({
-      controlSwitch: { kind: "model", value: "sonnet", phase: "needs-attention" },
-    });
-    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
-    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pty:exit with a pending switch → full render");
-    assert.equal(view.controlSwitch, null, "pty:exit clears the stuck switch pointer");
-  }
-  {
-    const { state, view } = seedView();
-    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
-    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pty:exit on the active view → full render");
-    assert.equal(view.controlSwitch, null, "…and leaves controlSwitch null");
-  }
-}
-
-// 12b) F1 fix A — `pty:exit` clears `view.live`, and the composer stops offering a
+// 12) F1 fix A — `pty:exit` clears `view.live`, and the composer stops offering a
 //      send into a pty that is gone.
 //
 //      The mirror used to wait for the debounced session-index refresh (~150ms),
@@ -1456,6 +1033,13 @@ function workingStatus(liveness) {
       signal: null,
       elapsedMs: 1234,
     });
+
+  // The active view repaints fully when its session dies.
+  {
+    const { state } = seedView();
+    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pty:exit on the active view → full render");
+  }
 
   // The live, latched session a user is looking at: the placeholder promises a
   // conversation, and the composer's own copy is what turns honest.
@@ -1589,11 +1173,7 @@ function workingStatus(liveness) {
   // reading is the fence; importing the renderer would only echo it (and the
   // renderer is not loadable from a pure-core smoke besides).
   const drawerIsBlocking = (view) =>
-    Boolean(view.pendingApproval) ||
-    Boolean(view.pendingOptionPrompt) ||
-    Boolean(
-      view.controlSwitch && view.controlSwitch.phase === "parked" && view.controlSwitch.dialog,
-    );
+    Boolean(view.pendingApproval) || Boolean(view.pendingOptionPrompt);
 
   const takeOverAsk = () => hookApproval({ runId: null, approvalId: "ask-takeover" });
   const ptyExit = () =>
@@ -1650,7 +1230,7 @@ function workingStatus(liveness) {
   // Background variant: the retraction paints the SAME shape an `approval:decision`
   // would have (markViewChanged family, unread cue included) — the covered and the
   // uncovered shapes must not look different on screen. This is the one pty:exit
-  // mutation that CAN mark a background view unread; the bare exit (case 12b)
+  // mutation that CAN mark a background view unread; the bare exit (case 12)
   // still paints nothing.
   {
     const { state, view } = seedView({ active: false });

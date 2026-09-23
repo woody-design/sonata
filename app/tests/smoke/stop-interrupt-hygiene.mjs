@@ -316,13 +316,14 @@ await check("codex /stop inspection still runs when nothing new started", async 
 });
 
 // `run:stopped.slashStopSent` must report what HAPPENED, not what was intended.
-// submitPrompt has three screen-owner throws and inspectSlashStop swallows them
-// all, so a flag PREDICTED from the guards claimed a `/stop` that was never
-// written — a durable-report lie (review M4). Driven here through the reachable
-// case: codex is the only provider with `supportsSlashStop`, and a codex control
-// switch can be pending at inspection time. (The rewind throw shares the fix but
-// cannot fire on this path — that panel is claude's and claude does not send
-// `/stop` at all; the flag no longer depends on that staying true.)
+// submitPrompt has screen-owner throws and inspectSlashStop swallows them, so a
+// flag PREDICTED from the guards claimed a `/stop` that was never written — a
+// durable-report lie (review M4). No production screen owner can refuse a codex
+// `/stop` today (the pending control switch that once could was removed with the
+// mid-session drives; the Rewind panel is claude's, and claude sends no `/stop`),
+// so the refusal is FORCED here by standing a screen owner up on the instance
+// between the stop and its inspection. What is pinned is the outcome-derived
+// flag, which must not depend on which guard refused.
 await check("slashStopSent reports the OUTCOME when the /stop write is refused", async () => {
   const writes = [];
   const events = [];
@@ -337,9 +338,9 @@ await check("slashStopSent reports the OUTCOME when the /stop write is refused",
     host.submitPrompt("codex turn to stop");
     await delay(250);
     await host.stopRun({ inspectDelayMs: 300, forceSlashStop: true });
-    // A switch parks between the stop and the inspection — submitPrompt will throw.
-    const started = host.injectClaudeControlSwitch("codex-model", "gpt-5.6-sol");
-    assert.equal(started.ok, true, "precondition: a codex switch is pending");
+    // A screen owner stands up between the stop and the inspection — submitPrompt
+    // will throw its guard error.
+    host.isRewindPanelOpen = () => true;
     await delay(700);
 
     // stopRun emits the immediate "<key> sent, inspection running" report — here
@@ -352,7 +353,7 @@ await check("slashStopSent reports the OUTCOME when the /stop write is refused",
     assert.equal(
       writes.filter((write) => write.includes("/stop")).length,
       0,
-      "precondition: the pending switch really did block the /stop write",
+      "precondition: the screen owner really did block the /stop write",
     );
     assert.equal(
       stopped.at(-1).payload.slashStopSent,
@@ -371,7 +372,6 @@ await check("handleStopRequested reports a write-canceled in-flight item undeliv
     hasActiveRun: () => false,
     activeRunId: () => null,
     isApprovalActive: () => false,
-    hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
     // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than
@@ -434,7 +434,6 @@ await check("handleStopRequested is honest about how far the aborted sequence go
         activeRunId: () => null,
     activeRunId: () => null,
         isApprovalActive: () => false,
-        hasPendingControlSwitch: () => false,
         isRewindPanelOpen: () => false,
         acceptsPromptInput: () => true,
         acceptsFirstPrompt: () => true,
@@ -483,7 +482,6 @@ await check("a UPS-corroborated in-flight item survives handleStopRequested inta
     hasActiveRun: () => false,
     activeRunId: () => null,
     isApprovalActive: () => false,
-    hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
     acceptsFirstPrompt: () => true,
@@ -532,7 +530,6 @@ await check("handleStopRequested without canceled writes only disarms the ladder
     hasActiveRun: () => false,
     activeRunId: () => null,
     isApprovalActive: () => false,
-    hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
     acceptsFirstPrompt: () => true,

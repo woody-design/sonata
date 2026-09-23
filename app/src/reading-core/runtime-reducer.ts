@@ -11,7 +11,6 @@
  * default param, map §2.4) so replay fixtures are deterministic.
  */
 import type { RuntimeEvent } from "../shared/types/events";
-import type { ClaudePermissionMode } from "../shared/types/domain";
 import { adoptAutomaticSessionTitle } from "../shared/session-title";
 import type { Directive } from "./directives";
 import type { RendererState, TaskViewState } from "./state";
@@ -28,22 +27,9 @@ import {
   reconcileReceiptLines,
   sessionModelSummaryLabel,
 } from "./selectors/composer";
-import { modelValueLabel } from "./config";
 
 function isActiveView(state: RendererState, view: TaskViewState): boolean {
   return Boolean(view.task && view.task.id === state.activeTaskId);
-}
-
-/** Union the session's reachable permission modes with newly-observed ones,
- *  order-stable and de-duplicated. Returns the SAME array reference when nothing
- *  is added, so a no-op reconcile doesn't churn the view (the reducer mutates in
- *  place — map R1). */
-function mergePermissionModes(
-  existing: ClaudePermissionMode[],
-  incoming: ClaudePermissionMode[],
-): ClaudePermissionMode[] {
-  const additions = incoming.filter((mode) => !existing.includes(mode));
-  return additions.length === 0 ? existing : [...existing, ...additions];
 }
 
 /** markViewChanged, reducer-side (map C2: the isActiveView branch becomes
@@ -144,9 +130,6 @@ export function reduceRuntimeEvent(
     view.optionPromptStep = 0;
     // …and so is a prior slash-attention pointer (attention moved on).
     view.slashAttention = null;
-    // A new turn moots any lingering control-switch pointer (a stuck pending or a
-    // needs-attention the user never dismissed): the CLI is doing new work.
-    view.controlSwitch = null;
     ensureRunTranscript(view, event.payload.id);
     return [viewChangedDirective(state, view, taskId)];
   }
@@ -206,78 +189,6 @@ export function reduceRuntimeEvent(
     // connect/disconnect events that flow once it goes live.
     view.remoteControl.active = event.payload.active;
     view.remoteControl.url = event.payload.url;
-    return [viewChangedDirective(state, view, taskId)];
-  }
-
-  if (event.type === "control-switch:state") {
-    // Mid-session Claude control switch (S1 model/effort, S2 permission). The
-    // chip's value follows its own SSOT — the STATUSLINE mirror (usage:updated)
-    // for model/effort, the hook payload (task:updated) for permission — never
-    // this event; so `settled` only clears the pending affordance.
-    //
-    // Permission choreography also teaches us which gated modes this session can
-    // reach: merge every mode a receipt confirmed into the reachable-modes set, on
-    // settle AND on needs-attention (a return-home run still observed real modes en
-    // route). Since the D4 field revision (2026-07-18) this set gates only
-    // `bypassPermissions` in the access menu — auto is always offered — so the
-    // pass-through observation mainly matters when a native step reaches bypass.
-    if (event.payload.observedModes && event.payload.observedModes.length > 0) {
-      view.observedPermissionModes = mergePermissionModes(
-        view.observedPermissionModes,
-        event.payload.observedModes,
-      );
-    }
-    if (event.payload.phase === "pending") {
-      view.controlSwitch = {
-        kind: event.payload.kind,
-        value: event.payload.value,
-        phase: "pending",
-      };
-    } else if (event.payload.phase === "parked") {
-      // A RECOGNIZED confirm dialog is open in the Terminal (S7 revision 3): keep
-      // send gated (the controlSwitch pointer stays set) AND surface the dialog's
-      // rows in the Action Drawer (approvals.ts reads phase === "parked" + dialog).
-      // The user's choice relays back via answerControlConfirm.
-      view.controlSwitch = {
-        kind: event.payload.kind,
-        value: event.payload.value,
-        phase: "parked",
-        ...(event.payload.dialog ? { dialog: event.payload.dialog } : {}),
-      };
-    } else if (event.payload.phase === "needs-attention") {
-      // RED LINE surface: model/effort — no receipt + an unrecognized screen;
-      // permission — stepping aborted and returned home (or landed where the hook
-      // SSOT must reconcile). A passive "check the CLI" pointer (banners.ts).
-      view.controlSwitch = {
-        kind: event.payload.kind,
-        value: event.payload.value,
-        phase: "needs-attention",
-        // A known cause (S5) sharpens the banner to the exact next action; absent ⇒
-        // the generic "check the CLI" fallback (banners.ts).
-        ...(event.payload.reason ? { reason: event.payload.reason } : {}),
-      };
-    } else if (event.payload.phase === "failed") {
-      // A clean rejection (`Model '<x>' not found`): nothing changed CLI-side, so
-      // the chip is already truthful. Report it as a one-line composer notice.
-      // (Permission never fails — a Shift+Tab step can't be rejected.)
-      view.controlSwitch = null;
-      view.status = event.payload.error ?? "Couldn't switch — Claude rejected it.";
-    } else {
-      // settled — drop the pending affordance; the axis's own SSOT drives the label.
-      view.controlSwitch = null;
-      if (event.payload.cancelled) {
-        // The user chose No / Cancel on a parked confirm (S7): nothing changed, the
-        // chip already reflects the unchanged SSOT. A one-line note reports the
-        // honest reverted state (no needs-attention banner — the user chose it).
-        const axis =
-          event.payload.kind === "model"
-            ? "model"
-            : event.payload.kind === "effort"
-              ? "effort level"
-              : "access mode";
-        view.status = `Kept the current ${axis}.`;
-      }
-    }
     return [viewChangedDirective(state, view, taskId)];
   }
 
@@ -379,32 +290,6 @@ export function reduceRuntimeEvent(
   if (event.type === "usage:updated") {
     const previousModelSummary = sessionModelSummaryLabel(view);
     view.usageSnapshot = event.payload.snapshot;
-    // (D) Auto-clear a LINGERING claude model/effort needs-attention pointer once
-    // the statusline mirror — the axis's own SSOT, an OWNED observation, not a
-    // scrape — confirms the switched value actually landed. The default S1 flow is:
-    // the injected /model earns a cache-miss interstitial → needs-attention banner →
-    // the user answers natively → the chip follows the statusline. Without this the
-    // banner keeps reading "Confirm the switch…" while the chip already shows the
-    // new value. Guard: clear ONLY when the SWITCHED value matches the live
-    // statusline value, so an unrelated tick (or a DIFFERENT pending switch) never
-    // clears the banner. Claude-only: codex has no statusline mirror, and its
-    // needs-attention is always a rollback (nothing landed) — no lingering case.
-    const pending = view.controlSwitch;
-    let controlSwitchCleared = false;
-    if (pending?.phase === "needs-attention" && (pending.kind === "model" || pending.kind === "effort")) {
-      const snapshot = event.payload.snapshot;
-      const landed =
-        pending.kind === "model"
-          ? Boolean(
-              snapshot.modelDisplayName &&
-                modelValueLabel("claude", pending.value) === snapshot.modelDisplayName,
-            )
-          : Boolean(snapshot.reasoningEffort && snapshot.reasoningEffort === pending.value);
-      if (landed) {
-        view.controlSwitch = null;
-        controlSwitchCleared = true;
-      }
-    }
     // A usage tick is not content and not unread. Update only the usage
     // indicator (and the popover, if open) in place — never a full render(),
     // which would replaceChildren the transcript and wipe any active text
@@ -419,10 +304,6 @@ export function reduceRuntimeEvent(
           taskId,
           chipChanged: sessionModelSummaryLabel(view) !== previousModelSummary,
           popoverOpen: Boolean(state.usagePopover),
-          // (D) The auto-clear dropped the needs-attention pointer — the banner row
-          // must repaint (usage-in-place otherwise never touches banners). Only set
-          // when it actually cleared, so the common tick keeps its minimal shape.
-          ...(controlSwitchCleared ? { bannersChanged: true } : {}),
         },
       ];
     }
@@ -491,18 +372,6 @@ export function reduceRuntimeEvent(
   if (event.type === "task:updated") {
     view.task = event.payload.task;
     view.status = taskStatusLabel(event.payload.task);
-    // The hook payload's `permission_mode` reconciles onto the task here (the
-    // permission SSOT). Learning a mode from a hook proves the session can reach
-    // it — record it in observedPermissionModes, which since the D4 field revision
-    // (2026-07-18) gates only `bypassPermissions` in the access menu (auto is now
-    // always offered; see sessionPermissionMenuModes). Recording every observed
-    // mode is harmless — the base modes are offered regardless — and keeps a
-    // spawned-into-bypass session's menu honest.
-    if (event.payload.task.permissionMode) {
-      view.observedPermissionModes = mergePermissionModes(view.observedPermissionModes, [
-        event.payload.task.permissionMode,
-      ]);
-    }
     return [viewChangedDirective(state, view, taskId)];
   }
 
@@ -568,14 +437,7 @@ export function reduceRuntimeEvent(
     // taskId's current runtime, so a straggler `onExit` from a pty a reopen has
     // already replaced never reaches this reducer.
     //
-    // (2) Any in-flight control switch is moot — drop its pointer so the chip
-    // doesn't stay stuck in "Switching…", the needs-attention banner doesn't
-    // linger, AND a PARKED recognized-confirm drawer (S7) tears down (it renders
-    // off `controlSwitch.phase === "parked"`) — all on a dead session (the backend
-    // timer + parked pointer are already cleared in onExit). Task status + run
-    // completion ride their own events.
-    //
-    // (3) An approval drawer is moot for the same reason, and costs more while it
+    // (2) An approval drawer is moot on a dead session, and costs more while it
     // lingers: `drawerIsBlocking` (view/approvals.ts) hands it the composer slot
     // for ANY `pendingApproval`, expired variant included, so the drawer holds
     // send hostage on a session that can no longer answer anything — and its
@@ -600,7 +462,7 @@ export function reduceRuntimeEvent(
     // So the renderer keeps its own defense, exactly as it does for the keyed
     // expiry (S6 review P2): main-process truth is the SOURCE, not the only guard.
     //
-    // (4) An open AskUserQuestion form is the SAME shape and the same fix (S5
+    // (3) An open AskUserQuestion form is the SAME shape and the same fix (S5
     // addendum). `drawerIsBlocking` gives it the slot too, and on a Sonata-
     // initiated exit main's own release — `resolveOptionPrompt(…, null)` on the
     // turn-terminal funnel (S3) — is skipped by the very `eventRuntime` guard
@@ -620,17 +482,16 @@ export function reduceRuntimeEvent(
     // keeps it for the same reason. Drafts and step stay too; a fresh prompt
     // resets them on arrival.
     //
-    // No status copy, for either of (3) and (4). `view.status` has one reader —
+    // No status copy, for either of (2) and (3). `view.status` has one reader —
     // the composer's action-feedback line via `composerNotice` — which already
     // suppresses every string these two can leave behind ("Waiting for approval",
     // "Waiting in the CLI", "<Provider> is asking") as lifecycle narration; a
     // fresh sentence here would be a red notice raised over a session that just
     // ended, which is the drawer's own voice, not the composer's.
     //
-    // The paint rule follows what each mutation is actually read by. A switch
-    // pointer is CONTENT-adjacent, so it keeps `viewChangedDirective` (and with it
-    // the background view's unread cue) exactly as before — and both retracted
-    // drawers join it there, because that is the shape their own resolution events
+    // The paint rule follows what each mutation is actually read by. Both
+    // retracted drawers keep `viewChangedDirective` (and with it the background
+    // view's unread cue), because that is the shape their own resolution events
     // ALREADY painted for every case main does cover: the two paths must not look
     // different on screen for what is the same retraction. Liveness is not: no
     // SURFACE reads a background view's `view.live` (the sidebar's own live dot comes
@@ -648,8 +509,6 @@ export function reduceRuntimeEvent(
     // `view/banners.ts` already leans on to keep the codex resumable-exit banner
     // alive across a switch-away; noted here so the next reader does not have to
     // re-derive it.
-    const hadControlSwitch = view.controlSwitch !== null;
-    view.controlSwitch = null;
     const hadApproval = view.pendingApproval !== null;
     view.pendingApproval = null;
     view.approvalExpired = false;
@@ -658,7 +517,7 @@ export function reduceRuntimeEvent(
     view.optionPromptBusy = false;
     const wasLive = view.live;
     view.live = false;
-    if (hadControlSwitch || hadApproval || hadOptionPrompt) {
+    if (hadApproval || hadOptionPrompt) {
       return [viewChangedDirective(state, view, taskId)];
     }
     if (wasLive && isActiveView(state, view)) {

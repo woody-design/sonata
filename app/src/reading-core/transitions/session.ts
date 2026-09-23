@@ -114,16 +114,16 @@ export function removeTaskView(state: RendererState, taskId: string): boolean {
  *    - an INTERACTION the user perceives as in-progress: a parked resume choice
  *      (its own contract is "switching away is the natural escape and returning
  *      shows the panel again" — eviction must not destroy it), a pending
- *      approval / option-prompt / receipt, an in-flight control switch, a slash
- *      "in the Terminal" pointer, or a queued delivery.
+ *      approval / option-prompt / receipt, a slash "in the Terminal" pointer,
+ *      or a queued delivery.
  *    - a per-dormant Remote Control desire (`armedOverride`) — a user setting
  *      `selectSession` does not rebuild.
  *
  *  Not guarded (intentionally, byte-equivalent to first-open anyway): the big
  *  `runTranscripts` blobs (releasing them is the point; dormant reading renders
- *  from report + blocks), `usageSnapshot`, `highlightedRunId`, and grown
- *  `observedPermissionModes` — a fresh `selectSession` open has none of these
- *  either, so losing them on eviction reproduces exactly first-open state.
+ *  from report + blocks), `usageSnapshot`, and `highlightedRunId` — a fresh
+ *  `selectSession` open has none of these either, so losing them on eviction
+ *  reproduces exactly first-open state.
  *
  *  Returns true when the view was evicted (the caller then clears that task's
  *  renderer-local caches). */
@@ -149,7 +149,6 @@ export function evictDormantTaskView(state: RendererState, taskId: string): bool
     view.pendingApproval !== null ||
     view.pendingOptionPrompt !== null ||
     view.optionPromptReceipt !== null ||
-    view.controlSwitch !== null ||
     view.slashAttention !== null ||
     view.deliveryState !== null
   ) {

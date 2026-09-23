@@ -1,19 +1,12 @@
 // ── Pure TUI parsing primitives shared by the claude + codex parser modules ──
 // Moved verbatim from terminal-host.ts (consolidation S4). `cleanTerminal` and
-// the input-byte constants are the shared substrate every mid-session-switch
-// parser and the ControlSwitchEngine keys on; keeping them in one leaf module
-// lets both provider parser modules and the engine import them without a cycle.
+// the input-byte constants are the shared substrate the provider parser modules
+// and TerminalHost key on; keeping them in one leaf module lets both import them
+// without a cycle.
 
 export const ARROW_UP = "\x1b[A";
 export const ARROW_DOWN = "\x1b[B";
-/** ←/→ — the claude `/effort` SLIDER moves one tick per press (D2 U4, m2 arm e1). */
-export const ARROW_LEFT = "\x1b[D";
-export const ARROW_RIGHT = "\x1b[C";
 export const ESC = "\x1b";
-/** Shift+Tab (CSI Z / back-tab) — cycles Claude's permission mode (probe:
- *  manual → accept edits → plan → auto → manual). The ONLY byte the permission
- *  stepping engine ever writes (S2 RED LINE). */
-export const SHIFT_TAB = "\x1b[Z";
 /** Ctrl+U — kill-line in both CLIs' composers. Idempotent on an empty line
  *  (probe C2/C6/X2, claude 2.1.212 + codex 0.144.5); per-LINE on Claude, so
  *  multi-line clears send a counted flood (see cliInputClearFlood). */

@@ -22,7 +22,6 @@ function makeHost() {
     hasActiveRun: () => state.activeRun,
     activeRunId: () => (state.activeRun ? "run-stub" : null),
     isApprovalActive: () => state.approval,
-    hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => state.accepts,
     // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than

@@ -19,7 +19,6 @@ function fakeHost(overrides = {}) {
   const state = {
     activeRun: false,
     approval: false,
-    pendingControlSwitch: false,
     accepts: false,
     humanTyping: false,
     submits: [],
@@ -31,7 +30,6 @@ function fakeHost(overrides = {}) {
     hasActiveRun: () => state.activeRun,
     activeRunId: () => (state.activeRun ? "run-stub" : null),
     isApprovalActive: () => state.approval,
-    hasPendingControlSwitch: () => state.pendingControlSwitch,
     isRewindPanelOpen: () => state.rewindPanelOpen ?? false,
     acceptsPromptInput: () => state.accepts,
     // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than
@@ -59,7 +57,7 @@ function fakeHost(overrides = {}) {
     },
     // Mirrors TerminalHost.nudgePromptSubmit's guard shape; records the attempt.
     nudgePromptSubmit: () => {
-      if (state.approval || state.pendingControlSwitch) {
+      if (state.approval || state.rewindPanelOpen) {
         return false;
       }
       state.nudges += 1;

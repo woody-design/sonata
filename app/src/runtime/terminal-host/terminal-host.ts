@@ -29,14 +29,11 @@ import type {
   TaskId,
 } from "../../shared/types/domain";
 import type {
-  ControlSwitchAttentionReason,
   RuntimeEvent,
   RuntimeReconcileChange,
   RunUpdatedEvent,
 } from "../../shared/types/events";
 import type {
-  ClaudeControlSwitchKind,
-  ClaudeControlSwitchResponse,
   RemoteControlInjectResponse,
   TerminalReplaySnapshot,
 } from "../../shared/types/ipc";
@@ -60,12 +57,10 @@ import {
   compactRemoteControlScan,
   findRemoteControlUrlOnScreen,
   hasRemoteControlDisconnect,
-  parseClaudePermissionModeLine,
   parseClaudeTrustDialogRows,
   REMOTE_CONTROL_SCAN_LIMIT,
 } from "./tui-parsers-claude";
 import { isCodexTrustDialog, isCodexUpdatePrompt } from "./tui-parsers-codex";
-import { ControlSwitchEngine } from "./control-switch-engine";
 import { scrubClaudeNestingEnv } from "../claude-env-scrub";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
@@ -585,17 +580,6 @@ interface ApprovalCandidate {
 
 type ActiveRun = RunUpdatedEvent["payload"];
 
-/** The one in-flight mid-session control switch. Two shapes, one pointer (the
- *  shared single-switch guard):
- *   - `value` (S1) — a `/model` / `/effort` typed command awaiting its one
- *     printed receipt line. `timer` is the one-shot receipt→needs-attention
- *     window.
- *   - `permission` (S2) — the Shift+Tab stepping engine. Each `\x1b[Z` steps one
- *     mode; the mode-line receipt says where we landed. `phase` seeks the target,
- *     then (on abort) returns to `origin`. `landed` is the last confirmed mode
- *     (needs-attention display anchor); `observed` accumulates every mode a
- *     receipt confirmed this run (fed to the menu's reachable-modes set). `timer`
- *     is the CURRENT per-step window, re-armed on each step. */
 interface TerminalProviderProfile {
   provider: RuntimeProvider;
   defaultCommand: string;
@@ -608,9 +592,9 @@ interface TerminalProviderProfile {
    *  StatusRegionTracker's own display-only glyph constants behind it. */
   activityHints: string[];
   /** The glyphs a COMPOSER PROMPT can paint with — the anchor `detectIdlePrompt`
-   *  scans for to locate the last prompt in the tail. NOT the picker/dialog
-   *  cursor vocabulary: those anchors live in the tui-parsers modules and pin
-   *  `›` + a digit + `.` + a row LABEL, so widening here can never loosen them.
+   *  scans for to locate the last prompt in the tail. NOT the dialog row
+   *  vocabulary: those anchors live in the tui-parsers modules and pin a digit +
+   *  `.` + a row LABEL, so widening here can never loosen them.
    *  A cross-provider superset by design (the ASCII `>` fallback plus both
    *  CLIs' glyphs — the ORDERING rules, not the glyph identity, are what tell a
    *  live panel from an idle composer), but per-provider so a glyph only ONE
@@ -865,10 +849,6 @@ export class TerminalHost extends EventEmitter {
   // 2.1.252's differential repaint the stream stopped carrying the link whole
   // (SL-11) — see detectRemoteControlState.
   private remoteControlScan = "";
-  // The mid-session control-switch choreography (five axis state machines + the
-  // S7 parked-confirm drawer relay). Owns the single in-flight switch and its
-  // receipt scan; TerminalHost delegates the IPC entry points + PTY-frame ingest.
-  private readonly controlSwitch: ControlSwitchEngine;
   /**
    * Single-writer arbitration between Sonata's automation and the human typing in
    * the terminal (S2 — the AtomicWriter). `sonataWriteDepth` > 0 means an
@@ -958,37 +938,6 @@ export class TerminalHost extends EventEmitter {
       options.stoplessTurnEndConfirmMs ?? CLAUDE_STOPLESS_TURN_END_CONFIRM_MS;
     this.postCompletionAttributionMs =
       options.postCompletionAttributionMs ?? DEFAULT_POST_COMPLETION_ATTRIBUTION_MS;
-    // The control-switch engine drives the session through a narrow seam: the
-    // shared PTY under the AtomicWriter, the idle guards, and the event sink.
-    // The adapter keeps those internals private to TerminalHost.
-    this.controlSwitch = new ControlSwitchEngine({
-      taskId: this.taskId,
-      provider: this.profile.provider,
-      hasPty: () => this.ptyProcess !== null,
-      writePty: (data) => {
-        this.ptyProcess?.write(data);
-      },
-      isApprovalActive: () => this.approvalActive,
-      isRewindPanelOpen: () => this.isRewindPanelOpen(),
-      screenPermissionMode: () => this.screenPermissionMode(),
-      hasActiveRun: () => this.activeRun !== null,
-      isSonataWriting: () => this.sonataWriting,
-      beginSonataWrite: () => this.beginSonataWrite(),
-      endSonataWrite: () => this.endSonataWrite(),
-      deferSonataWrite: (ms, fn, owner) => this.deferSonataWrite(ms, fn, owner),
-      clearComposerBeforeTypedCommand: () => this.clearComposerBeforeTypedCommand(),
-      // The engine's SPATIAL queries read the SAME per-task screen model the
-      // approval detector uses (D-1: one grid per task, never a third emulator).
-      // Deferred through `whenSettled` exactly like `scheduleApprovalScan`, so the
-      // read sees a COMPLETE grid rather than a mid-parse prefix — synchronous in
-      // the quiescent case, which is every parked dialog. No screen model means no
-      // pty: skip the callback rather than hand the engine an empty screen it
-      // could misread as "the dialog closed".
-      readScreen: (fn) => {
-        this.screenModel?.whenSettled(() => fn(this.approvalScanGrid()));
-      },
-      emitControlSwitchEvent: (payload) => this.emitEvent("control-switch:state", payload),
-    });
   }
 
   get workspace(): string | null {
@@ -1007,16 +956,6 @@ export class TerminalHost extends EventEmitter {
 
   isApprovalActive(): boolean {
     return this.approvalActive;
-  }
-
-  /** True whenever a mid-session control switch is in flight, in ANY phase —
-   *  including a PARKED consent dialog (`waiting-user`, which has no timeout by
-   *  design). The delivery pump gates on this: a queued item that pasted text +
-   *  Enter while a codex Full Access consent is parked would land on the dialog,
-   *  whose default row is "Yes, continue anyway" — a silent full-access grant.
-   *  Never auto-answer a consent is the program's hard red line. */
-  hasPendingControlSwitch(): boolean {
-    return this.controlSwitch.hasPending();
   }
 
   /**
@@ -1209,11 +1148,11 @@ export class TerminalHost extends EventEmitter {
    * an idle composer opens it — see STOP_ESC_RETRY_MIN_MS for Sonata's own
    * exposure, and `claudeRewindPanelOpen` for the measured frames).
    *
-   * A SCREEN OWNER, joining `approvalActive` and `controlSwitch.hasPending()` at
-   * the same four gates: readiness (above), `canDeliver`, `submitPrompt` and the
-   * Enter-retry ladder. It has to be its own gate rather than ride the
-   * idle-prompt ordering, because after the boot latch opens nothing re-reads
-   * that scrape — delivery is send-is-send from then on (S6).
+   * A SCREEN OWNER, joining `approvalActive` at the same four gates: readiness
+   * (above), `canDeliver`, `submitPrompt` and the Enter-retry ladder. It has to
+   * be its own gate rather than ride the idle-prompt ordering, because after the
+   * boot latch opens nothing re-reads that scrape — delivery is send-is-send
+   * from then on (S6).
    *
    * This is a deliberate, narrow exception to S3 decision A ("a slash-opened
    * panel does not hold delivery — a paste into a panel the user opened is
@@ -1230,9 +1169,9 @@ export class TerminalHost extends EventEmitter {
    * measured per-line-diff failure that forced the migration.
    *
    * SYNCHRONOUS `viewportText()`, not the `whenSettled` deferral the approval
-   * scan and the switch engine use, because every caller here is a synchronous
-   * predicate (`acceptsPromptInput`, `canDeliver`, `submitPrompt`,
-   * `nudgePromptSubmit`, the switch guards) and a callback cannot answer them.
+   * scan uses, because every caller here is a synchronous predicate
+   * (`acceptsPromptInput`, `canDeliver`, `submitPrompt`, `nudgePromptSubmit`)
+   * and a callback cannot answer them.
    * That is sound: per `TaskScreenModel`'s contract a naked read is
    * stale-but-consistent — a complete byte-stream PREFIX, never torn. The two
    * staleness edges are NOT symmetric, and the honest reading is:
@@ -1241,7 +1180,7 @@ export class TerminalHost extends EventEmitter {
    *   - OPENING (grid has not yet parsed the panel's write): reads closed. This
    *     is the unsafe edge, bounded by one write-drain: `@xterm` parses at least
    *     by the next microtask, so every timer- and event-driven caller is past
-   *     it (the approval/switch events that re-pump are themselves emitted from
+   *     it (the approval events that re-pump are themselves emitted from
    *     inside `whenSettled`, i.e. after the drain). It survives only for a
    *     caller firing in the same turn as the panel's own pty batch — and the
    *     one Esc pair Sonata itself could emit is now impossible by
@@ -1262,41 +1201,6 @@ export class TerminalHost extends EventEmitter {
       return false;
     }
     return claudeRewindPanelOpen(this.screenModel.viewportText());
-  }
-
-  /**
-   * The permission mode claude's composer footer is currently showing, or null
-   * if the screen cannot answer (codex; no screen model; the mode-line row not
-   * legible right now).
-   *
-   * The stepping engine's ORIGIN read (SL-5). The engine's per-step receipts
-   * already come off the mode line; this asks the same parser the same question
-   * one beat earlier — "which mode am I in BEFORE the first press" — so the
-   * landing validator is anchored on the session rather than on
-   * `task.permissionMode`, whose hook-fed reconcile was MEASURED to lag an
-   * undriven flip indefinitely (q18 arm G: no hook fires for a native
-   * Shift+Tab; the next turn corrects it). See `startPermissionSwitch` for the
-   * seven-press failure that lag caused.
-   *
-   * Reads the SCREEN GRID, per D-1's standing rule that a state query belongs
-   * on the grid — and here the grid is not merely preferred but required: the
-   * pty tail is CUMULATIVE, so it still holds every mode line the session ever
-   * printed, and "most recent match wins" on a tail that survived a repaint
-   * cannot distinguish the current footer from a scrolled-past one. The grid
-   * converges to what is displayed.
-   *
-   * SYNCHRONOUS `viewportText()` for the same reason `isRewindPanelOpen` is —
-   * the caller is a synchronous predicate and a naked read is
-   * stale-but-consistent. Both staleness edges are benign here: the value it
-   * answers with is one the user set seconds ago at the earliest, and a read
-   * that lands mid-repaint returns null (no legible row) rather than a wrong
-   * mode, because the parser is glyph-anchored.
-   */
-  screenPermissionMode(): ClaudePermissionMode | null {
-    if (this.profile.provider !== "claude" || !this.screenModel) {
-      return null;
-    }
-    return parseClaudePermissionModeLine(this.screenModel.viewportText());
   }
 
   /**
@@ -1399,7 +1303,6 @@ export class TerminalHost extends EventEmitter {
       clearTimeout(this.humanSettleTimer);
       this.humanSettleTimer = null;
     }
-    this.controlSwitch.clear();
     this.startFileWatcher(cwd);
 
     const command = options.command ?? this.profile.defaultCommand;
@@ -1449,12 +1352,6 @@ export class TerminalHost extends EventEmitter {
       if (this.remoteControlActive) {
         this.setRemoteControlActive(false, null);
       }
-      // A switch still awaiting its receipt when the PTY dies never gets one —
-      // drop the watch + timeout so it can't fire needs-attention on a dead
-      // session. onExit is the crash path (it does NOT route through
-      // disposeProcess), so this clear is its own. The renderer clears
-      // `view.controlSwitch` off the pty:exit event below.
-      this.controlSwitch.clear();
       this.emitEvent("pty:exit", {
         taskId: this.taskId,
         generation: this.generation,
@@ -1881,7 +1778,7 @@ export class TerminalHost extends EventEmitter {
    *         measured bytes: findRemoteControlUrlOnScreen. Read under
    *         `whenSettled`, NOT synchronously (see below).
    *
-   * WHY THE URL READ IS DEFERRED, when `screenPermissionMode` reads the same grid
+   * WHY THE URL READ IS DEFERRED, when `isRewindPanelOpen` reads the same grid
    * synchronously: that one is a PULL — a caller asks at an arbitrary moment, and
    * a stale-but-consistent answer is corrected by simply asking again. This is a
    * PUSH, and one-shot: the only batch that paints the link is the one that
@@ -1919,61 +1816,6 @@ export class TerminalHost extends EventEmitter {
         }
       });
     }
-  }
-
-  /**
-   * Kick off a mid-session Claude control switch (mid-session switch program).
-   * The idle-only / single-switch guards are shared across every axis; the drive
-   * itself forks by kind:
-   *   - `model` / `effort` (S1) — inject `/model <id>` / `/effort <level>` as
-   *     typed text + Enter and watch for the printed receipt line.
-   *   - `permission` (S2) — drive the Shift+Tab (`\x1b[Z`) stepping engine toward
-   *     the target mode, reading the TUI mode line as the per-step receipt.
-   * `from` is the permission origin (the session's current mode; the return-home
-   * anchor); ignored for model/effort.
-   *
-   * Idle-only, one at a time: an active run, an in-flight Sonata write, an open
-   * approval panel, or a prior pending switch all refuse (the renderer also gates
-   * on turnActivity — this is the backend guard). RED LINE inheritance: we drive
-   * and OBSERVE; a stuck/opaque screen surfaces needs-attention, and we NEVER
-   * write anything but the axis's own bytes (no blind-Enter, no non-`\x1b[Z` key).
-   */
-  injectClaudeControlSwitch(
-    kind: ClaudeControlSwitchKind,
-    value: string,
-    from?: string,
-  ): ClaudeControlSwitchResponse {
-    return this.controlSwitch.injectClaudeControlSwitch(kind, value, from);
-  }
-
-  /** Begin a STAGED claude model+effort Save (S7 Part 1) — see ControlSwitchEngine. */
-  startClaudeStagedSwitch(
-    model: string | null,
-    effort: string | null,
-  ): ClaudeControlSwitchResponse {
-    return this.controlSwitch.startClaudeStagedSwitch(model, effort);
-  }
-
-  /** The user chose a drawer row for a PARKED recognized-confirm dialog (S7 Part 2). */
-  answerParkedControlConfirm(rowNumber: number): void {
-    this.controlSwitch.answerParkedControlConfirm(rowNumber);
-  }
-
-  /**
-   * A `PostModelSwitch` hook arrived for this task (claude, D2 U3): the CLI has
-   * declared a model switch complete, naming the alias it was asked for. The
-   * controller routes it here from `applyHookToTask`, the same shape as the
-   * `PreToolUse` → `noteToolActivityAfterStop` nudge — a hook fact reaching the
-   * terminal host's choreography through one named method rather than the host
-   * subscribing to hooks itself.
-   *
-   * This is the model axis's SETTLE, not a corroboration: see
-   * `ControlSwitchEngine.noteModelSwitchConfirmed`. `toModel` (the payload's
-   * canonical `to_model`) rides along since D2 U4: the picker's Fable row reports
-   * `requested_model` as `claude-fable-5-1[1m]`, so the alias match needs the id.
-   */
-  noteModelSwitchConfirmed(requestedModel: string, toModel: string | null = null): void {
-    this.controlSwitch.noteModelSwitchConfirmed(requestedModel, toModel);
   }
 
   /**
@@ -2378,18 +2220,7 @@ export class TerminalHost extends EventEmitter {
     if (this.approvalActive) {
       throw new Error("Cannot submit a prompt while a native approval screen is active.");
     }
-    // RED LINE: a mid-session control switch may have a consent/interstitial
-    // dialog open (a PARKED codex Full Access confirm has no timeout — it waits
-    // for the user). Pasted prompt text + Enter would land on that dialog and
-    // auto-answer its default row ("Yes, continue anyway" → silent full-access
-    // grant). Delivery already gates on hasPendingControlSwitch upstream; this is
-    // the backstop that keeps EVERY submit path honest. Classified as a delivery
-    // guard error (re-queue + re-pump), not a hard failure — see
-    // isDeliveryGuardError in delivery-controller.
-    if (this.controlSwitch.hasPending()) {
-      throw new Error("Cannot submit a prompt while a control switch is pending.");
-    }
-    // Same red line, claude's own interstitial: the Rewind panel's Enter is a
+    // RED LINE, claude's own interstitial: the Rewind panel's Enter is a
     // RESTORE of the conversation (and possibly the code) to the highlighted
     // row. Delivery gates on isRewindPanelOpen upstream; this is the backstop.
     if (this.isRewindPanelOpen()) {
@@ -2548,18 +2379,14 @@ export class TerminalHost extends EventEmitter {
    * mid-paste. Returns whether it wrote.
    */
   nudgePromptSubmit(): boolean {
-    // A pending control switch may own a parked consent/interstitial dialog; an
-    // Enter re-send would auto-answer its default row (RED LINE — see
-    // hasPendingControlSwitch). The Enter-retry ladder refuses while any switch
-    // is in flight, mirroring the submitPrompt and canDeliver gates. The same
-    // holds for a claude Rewind panel, where the bare Enter this writes IS the
-    // restore action — the sharpest form of the exposure, since there is not
-    // even pasted text to make it visible.
+    // The Enter-retry ladder refuses while a claude Rewind panel is open,
+    // mirroring the submitPrompt and canDeliver gates: the bare Enter this writes
+    // IS the restore action — the sharpest form of the exposure, since there is
+    // not even pasted text to make it visible.
     if (
       !this.ptyProcess ||
       this.approvalActive ||
       this.sonataWriting ||
-      this.controlSwitch.hasPending() ||
       this.isRewindPanelOpen()
     ) {
       return false;
@@ -2848,8 +2675,8 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * The settled grid as a promise (the callback `readScreen` seam the
-   * ControlSwitchEngine gets, awaited). Resolves null when the screen cannot be
+   * The settled grid as a promise (`whenSettled` → `approvalScanGrid`,
+   * awaited). Resolves null when the screen cannot be
    * read — no model, or `whenSettled` never calls back because the model was
    * disposed mid-await (teardown drops queued waiters, by design). The timeout
    * is what keeps that case from hanging the IPC call that is awaiting the walk,
@@ -3297,34 +3124,6 @@ export class TerminalHost extends EventEmitter {
    * activity window (their in-terminal edit of the restored text must not be
    * wiped — review F7).
    */
-  /**
-   * Unconditionally kill the composer line before typing a raw slash COMMAND
-   * (`/model`, `/effort`, `/permissions`). This does NOT gate on
-   * `cliInputMaybeDirty` — unlike an Esc-restored prompt, a co-present human can
-   * type unsubmitted text straight into the idle Terminal composer (typeable per
-   * the Two-Window Contract), which sets NO dirty flag. If that text is still on
-   * the line, our command concatenates onto it — and a slash line with a text
-   * prefix SUBMITS as a chat prompt: on codex that burns a real turn (RED LINE 1,
-   * and the `run:started` then silently cancels the switch), and a claude
-   * `<prefix>/model x` misfires the same way. So the clear must be
-   * SCREEN-BLIND-safe rather than flag-conditional. KILL_LINE (`\x15`) on an
-   * already-empty composer is the designed harmless no-op (probe C2/C6/X2). The
-   * caller already holds the write-lock, so the kills land ahead of the typed
-   * command in order.
-   */
-  private clearComposerBeforeTypedCommand(): void {
-    if (!this.ptyProcess) {
-      return;
-    }
-    const kills = Math.min(
-      Math.max(this.cliDirtyLineHighWater * 2 + 2, CLI_INPUT_CLEAR_MIN_KILLS),
-      CLI_INPUT_CLEAR_MAX_KILLS,
-    );
-    this.ptyProcess.write(KILL_LINE.repeat(kills));
-    // Whatever was on the line is gone; a later Esc-restore flag would be stale.
-    this.cliInputMaybeDirty = false;
-  }
-
   private writeCliInputClearFlood(reason: "pre-submit" | "post-stop settle"): boolean {
     if (!this.cliInputMaybeDirty || !this.ptyProcess) {
       return false;
@@ -3484,9 +3283,6 @@ export class TerminalHost extends EventEmitter {
     // Outside the ptyProcess guard: after a crash-exit already nulled the
     // process, a following dispose/startTask must still not leak timers.
     this.clearStopHygieneState();
-    // A switch waiting on its receipt when the PTY dies never gets one — drop it
-    // (no needs-attention: the session is gone, there is nothing to point at).
-    this.controlSwitch.clear();
     // The boot watchdogs must never fire on a dead/replaced session.
     if (this.codexBootUpdateTimer) {
       clearTimeout(this.codexBootUpdateTimer);
@@ -3618,7 +3414,6 @@ export class TerminalHost extends EventEmitter {
     // (see scheduleApprovalScan → screenModel.whenSettled).
     this.screenModel?.write(data);
     this.detectRemoteControlState(data);
-    this.controlSwitch.ingest(data);
     // Approval scanning is coalesced onto a trailing-edge throttle instead of
     // running the grid extract+parse on every chunk: under a
     // CLI firehose that was hundreds of O(buffer) parses/sec. PRINTABLE-gated
@@ -3988,16 +3783,13 @@ export class TerminalHost extends EventEmitter {
         Boolean(options.stoppedCommandApprovalRun) ||
         this.hasBackgroundTerminalHint());
     const approvalGuardBlockedSlashStop = shouldSubmitSlashStop && this.approvalActive;
-    // Report what HAPPENED, not what was intended. `submitPrompt` has three
-    // screen-owner throws — approval (pre-empted by the guard above), a pending
-    // control switch, and the Rewind panel — and the catch swallows all of them,
-    // so a predicted flag made `run:stopped` claim a `/stop` that was never
-    // written. The control-switch case is reachable today (codex is the only
-    // provider with `supportsSlashStop`, and a codex switch can be pending here)
-    // and was already wrong before this slice; deriving the flag from the actual
-    // outcome fixes it and covers the rewind throw for free — that one cannot
-    // fire today, since the panel is claude's and claude has supportsSlashStop
-    // false, but the flag no longer depends on that staying true.
+    // Report what HAPPENED, not what was intended. `submitPrompt` has two
+    // screen-owner throws — approval (pre-empted by the guard above) and the
+    // Rewind panel — and the catch swallows both, so a predicted flag would make
+    // `run:stopped` claim a `/stop` that was never written. Deriving the flag
+    // from the actual outcome covers the rewind throw — that one cannot fire
+    // today, since the panel is claude's and claude has supportsSlashStop false,
+    // but the flag no longer depends on that staying true.
     let slashStopSent = false;
     let slashStopThrew = false;
     if (shouldSubmitSlashStop && !approvalGuardBlockedSlashStop && this.ptyProcess) {
@@ -4021,7 +3813,7 @@ export class TerminalHost extends EventEmitter {
       slashStopReason: approvalGuardBlockedSlashStop
         ? "slash stop was not sent because a native approval screen was still active"
         : slashStopThrew
-          ? "slash stop was refused by a screen-owner guard (pending control switch or rewind panel)"
+          ? "slash stop was refused by a screen-owner guard (rewind panel)"
           : options.stoppedCommandApprovalRun
             ? "stopped run had an active command approval"
             : "background terminal hint detected or forceSlashStop requested",
@@ -4194,15 +3986,6 @@ export class TerminalHost extends EventEmitter {
     kind: RunKind,
     options: { title?: string; promptId?: string | null; revivalOf?: RunId } = {},
   ): ActiveRun {
-    // A run beginning supersedes any in-flight control switch (model/effort OR a
-    // permission stepping run): the receipt window is over (a new turn is
-    // starting), so drop the pending watch and its timer(s) — otherwise a stale
-    // per-step timeout could later fire a spurious needs-attention mid-run. Covers
-    // a Sonata send AND a submit typed natively in the terminal (the renderer
-    // send-gate can't see the latter). The matching `run:started` emitted below is
-    // what clears the renderer's `view.controlSwitch`, so the two sides can't
-    // disagree.
-    this.controlSwitch.clear();
     if (this.activeRun) {
       this.finishActiveRun("completed", "closed by next input");
     }
@@ -5208,14 +4991,12 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
     // from the scrollback, which sits BEFORE the run's activity text — so
     // `detectIdlePrompt.ready` goes permanently false and, hook-first path aside,
     // the boot latch never opens (delivery) and the quiescence net never closes a
-    // no-Stop codex turn. Codex's PICKER cursor is unaffected — it stays `›` in
-    // the same capture — and the picker/consent anchors are not touched.
+    // no-Stop codex turn.
     composerPromptGlyphs: [">", "›", "❯", "»"],
     // The effort tokens are independent redundancy behind `gpt[-\w.]*` (an Ultra
     // footer still carries the model slug), so they must span all SIX tiers codex
-    // can display, not the four v1 targets — same channel distinction the receipt
-    // parser records: this reads what codex IS, `asCodexReasoningTarget` fences
-    // what Sonata may ASK for. Measured idle footer at Ultra:
+    // can display — this reads what codex IS, not what Sonata may ASK for.
+    // Measured idle footer at Ultra:
     // `gpt-5.6-sol ultra · <cwd>` (same capture).
     //
     // `default` joins them at 0.152.1 (SL-7, q29 arm B, MEASURED): a session with

@@ -44,7 +44,6 @@ function queryElements() {
     approveSessionApproval: getElement<HTMLButtonElement>("approve-session-approval"),
     approveApproval: getElement<HTMLButtonElement>("approve-approval"),
     optionPromptCard: getElement<HTMLDivElement>("option-prompt-card"),
-    controlConfirmCard: getElement<HTMLDivElement>("control-confirm-card"),
     attentionBannerRoot: getElement<HTMLDivElement>("attention-banner-root"),
     cliReadinessCardRoot: getElement<HTMLDivElement>("cli-readiness-card-root"),
     statusStrip: getElement<HTMLElement>("status-strip"),
@@ -235,13 +234,6 @@ export function initDom(): void {
           <!-- Native option prompt (AskUserQuestion) — the question drawer.
                Built dynamically by renderOptionPrompt(): stepped 1/N + Review. -->
           <div id="option-prompt-card" class="action-drawer question-drawer hidden"></div>
-
-          <!-- Recognized-confirm relay (S7 revision 3) — the CLI raised a whitelisted
-               confirm dialog (claude cache-miss / codex Full Access consent) and
-               Sonata PARKED on it. Built dynamically by renderControlConfirm(): the
-               dialog's verbatim rows as answer buttons. Its home turf: the CLI asks,
-               the user answers here, the choice is relayed into the parked dialog. -->
-          <div id="control-confirm-card" class="action-drawer question-drawer hidden"></div>
 
           <!-- New Chat readiness card (CLI readiness S2, D9): the preselected
                provider's CLI is missing or not signed in, so the composer cannot

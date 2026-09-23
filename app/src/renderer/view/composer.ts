@@ -9,24 +9,8 @@
 // slash-picker into this popover root (the renderTaskEntryPanel precedent).
 
 import { ChevronDown, File as FileIcon, Folder, Image as ImageIcon, X } from "lucide";
-import type {
-  AttachmentKind,
-  ClaudePermissionMode,
-  CodexOfferedPermissionMode,
-  RuntimeProvider,
-  Task,
-  UsageSnapshot,
-} from "../../shared/types";
-import { CODEX_PERMISSION_MODE_OPTIONS } from "../../shared/types";
-import {
-  MODEL_OPTIONS,
-  REASONING_OPTIONS,
-  USAGE_CONTEXT_HIGH_USED_PERCENT,
-  modelValueLabel,
-  reasoningValueLabel,
-} from "../../reading-core/config";
-import { turnActivity } from "../../reading-core/selectors/runs";
-import { renderSettingSection } from "./settings-section";
+import type { AttachmentKind, Task, UsageSnapshot } from "../../shared/types";
+import { USAGE_CONTEXT_HIGH_USED_PERCENT } from "../../reading-core/config";
 import {
   compactTokenCount,
   fileExtension,
@@ -47,7 +31,8 @@ import {
   lifecycleFreezesComposerText,
   sendPromptTitle,
   sessionModelSummaryLabel,
-  sessionPermissionMenuModes,
+  sessionModelSwitchHint,
+  sessionPermissionSwitchHint,
 } from "../../reading-core/selectors/composer";
 import { cliReadinessBlocksSend } from "../../reading-core/selectors/cli-readiness-card";
 import { cliSessionStartStalled } from "../../reading-core/selectors/cli-readiness-banner";
@@ -220,13 +205,21 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   } else {
     elements.providerChip.classList.add("hidden");
     elements.composerContextRow.classList.add("hidden");
-    // The live chip is display-only for both CLIs; only the native switch it
-    // names differs (Codex has no Shift+Tab permission cycle, and its /model
-    // covers effort too). Provider is read off the task; when there is no task
-    // the chip is hidden anyway, so the fallback never surfaces.
+    // The live chips are display-only for both CLIs (contract §2 — switching
+    // lives in the Terminal); only the native switch the tooltip names differs.
+    // Provider is read off the task; when there is no task the chip is hidden
+    // anyway, so the fallback never surfaces.
     const provider = view.task?.provider ?? "claude";
-    renderSessionAccessChip(view, provider);
-    renderSessionModelChip(view, provider);
+    renderSessionChip(
+      elements.permissionChip,
+      composerChipLabel(view, "permission"),
+      sessionPermissionSwitchHint(provider),
+    );
+    renderSessionChip(
+      elements.modelChip,
+      composerChipLabel(view, "model"),
+      sessionModelSwitchHint(provider),
+    );
   }
   renderUsageIndicator(view);
   // New-chat state (no view): the composer IS the create action — the
@@ -238,14 +231,6 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   // (paste/drop already add there; resume-send materializes them).
   elements.addAttachment.disabled = lifecycleBusy || (newChat ? false : !view.task);
   elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
-  // A mid-session switch that hasn't resolved may leave the CLI mid-choreography
-  // — a model/effort cache-miss confirm (Yes/No) that is NOT a Sonata approval,
-  // or a permission stepping run still pressing Shift+Tab — so submitPrompt could
-  // bracket-paste a prompt into an unexpected state. Gate send while the switch
-  // pointer is set (pending AND needs-attention), consistent with the busy-disable
-  // treatments. Cleared by the switch settling, a new run, or the user dismissing
-  // the banner.
-  const switchUnresolved = Boolean(view?.controlSwitch);
   // The New Chat readiness card is showing (S2): the draft's provider cannot serve
   // a session, so the send affordance must not look armed. The textarea stays
   // ENABLED on purpose — writing the prompt you are about to send while an
@@ -273,7 +258,6 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   elements.sendPrompt.disabled =
     state.busy ||
     lifecycleBusy ||
-    switchUnresolved ||
     readinessBlocked ||
     (!stopMode && !hasContent);
   elements.sendPrompt.title = sendPromptTitle(
@@ -330,408 +314,30 @@ export function renderUsageIndicator(view: TaskViewState | null): void {
 }
 
 /**
- * The live session's model chip. Interactive on BOTH providers now: at idle it
- * opens the model+effort switch menu; while a turn runs it renders a designed
- * disabled state; while a switch is in flight it dims to a pending look. Claude's
- * label follows the statusline mirror (S1); Codex has no statusline, so its label
- * follows task.model + task.reasoningEffort, which the controller writes off the
- * `/model` picker receipt (S4 — the same receipt-as-SSOT asymmetry as the codex
- * access chip). The only per-provider differences are the switch axes
- * (`model`/`effort` vs `codex-model`/`codex-effort`), the menu it opens, and the
- * vocabulary the "Switching to …" title reads.
+ * A live session chip (model·effort / permission mode): DISPLAY-ONLY. It names
+ * the session's current value from its file/hook SSOT — the statusline payload
+ * (claude model + effort), the hook payload's `permission_mode` (claude access),
+ * the rollout's `turn_context` (codex model, effort, access) — and its tooltip
+ * points at the CLI's own switch. Disabled with the normal ink (see the
+ * `.composer-chip:disabled` rule): informative, not grayed out. No caret, no
+ * menu. The element is shared with New Chat's launch chip, so a label+caret
+ * left behind by it is replaced by the plain text label here.
  */
-function renderSessionModelChip(view: TaskViewState, provider: RuntimeProvider): void {
-  const label = composerChipLabel(view, "model");
-  const codex = provider === "codex";
-  const element = elements.modelChip;
+function renderSessionChip(element: HTMLButtonElement, label: string | null, hint: string): void {
   element.classList.toggle("hidden", !label);
+  element.classList.remove("interactive", "active");
+  element.disabled = true;
+  element.removeAttribute("aria-haspopup");
   element.removeAttribute("aria-expanded");
   if (!label) {
-    element.classList.remove("interactive", "active", "switching");
-    element.disabled = true;
+    element.replaceChildren();
     element.removeAttribute("title");
-    element.removeAttribute("aria-haspopup");
     return;
   }
-  // `pending` = a model/effort switch of THIS chip is in flight (the switching
-  // shimmer + "Switching to …" title). A permission switch in flight is not this
-  // chip's — it shows no shimmer, but still disables the chip (single-switch
-  // guard). Idle-only (turnActivity SSOT — turn-signal program): no switching
-  // while a turn is live or background work runs, or any switch is in flight.
-  const kind = view.controlSwitch?.kind;
-  const pending = codex
-    ? kind === "codex-model" || kind === "codex-effort"
-    : kind === "model" || kind === "effort";
-  const switchable = turnActivity(view) === "idle" && !view.controlSwitch;
-  const open = state.composerMenu?.type === (codex ? "session-codex-model" : "session-model");
-
-  // Reuse the launch-chip DOM (label span + caret) so the live chip reads as the
-  // same control as New Chat's model chip. Children update in place — the
-  // persistent-control render rule (a blur-driven re-render must not detach the
-  // mousedown target mid-click).
-  let labelEl = element.querySelector<HTMLSpanElement>(".composer-chip-label");
-  if (!labelEl) {
-    element.replaceChildren();
-    labelEl = document.createElement("span");
-    labelEl.className = "composer-chip-label";
-    element.append(labelEl, lucideIcon(ChevronDown, 12));
+  if (element.textContent !== label || element.childElementCount > 0) {
+    element.textContent = label;
   }
-  if (labelEl.textContent !== label) {
-    labelEl.textContent = label;
-  }
-  const providerName = codex ? "Codex" : "Claude";
-  element.classList.add("interactive");
-  element.classList.toggle("active", open);
-  element.classList.toggle("switching", pending);
-  element.disabled = !switchable;
-  element.title = pending
-    ? `Switching to ${sessionModelSwitchingLabel(provider, kind, view.controlSwitch?.value ?? "")}…`
-    : switchable
-      ? "Switch model and reasoning for this session"
-      : `Available when ${providerName} is idle`;
-  element.setAttribute("aria-haspopup", "menu");
-  element.ariaExpanded = String(open);
-}
-
-/** The "Switching to …" title's human label for the in-flight model/effort
- *  switch. Codex-model / codex-effort carry a slug / reasoning id in `value`;
- *  claude carries an alias / effort id — map each to its menu label. */
-function sessionModelSwitchingLabel(
-  provider: RuntimeProvider,
-  kind: string | undefined,
-  value: string,
-): string {
-  if (kind === "codex-model" || kind === "model") {
-    return modelValueLabel(provider, value) ?? value;
-  }
-  if (kind === "codex-effort" || kind === "effort") {
-    return reasoningValueLabel(provider, value as never) ?? value;
-  }
-  return value;
-}
-
-/**
- * The live session's access (permission-mode) chip. Interactive on BOTH providers
- * now: at idle it opens the permission switch menu; while a turn runs it renders a
- * designed disabled state; while a switch is in flight it dims to a pending look.
- * The label always follows the session's mode SSOT — task.permissionMode
- * (hook-reconciled) for claude, task.codexPermissionMode (picker-receipt-written)
- * for codex. The only per-provider differences are the switch axis
- * (`permission` vs `codex-permission`), the menu it opens, and its vocabulary.
- */
-function renderSessionAccessChip(view: TaskViewState, provider: RuntimeProvider): void {
-  const label = composerChipLabel(view, "permission");
-  const codex = provider === "codex";
-  const element = elements.permissionChip;
-  element.classList.toggle("hidden", !label);
-  element.removeAttribute("aria-expanded");
-  if (!label) {
-    element.classList.remove("interactive", "active", "switching");
-    element.disabled = true;
-    element.removeAttribute("title");
-    element.removeAttribute("aria-haspopup");
-    return;
-  }
-  const switchKind = codex ? "codex-permission" : "permission";
-  const pending = view.controlSwitch?.kind === switchKind;
-  const switchable = turnActivity(view) === "idle" && !view.controlSwitch;
-  const open = state.composerMenu?.type === (codex ? "session-codex-access" : "session-access");
-
-  let labelEl = element.querySelector<HTMLSpanElement>(".composer-chip-label");
-  if (!labelEl) {
-    element.replaceChildren();
-    labelEl = document.createElement("span");
-    labelEl.className = "composer-chip-label";
-    element.append(labelEl, lucideIcon(ChevronDown, 12));
-  }
-  if (labelEl.textContent !== label) {
-    labelEl.textContent = label;
-  }
-  const providerName = codex ? "Codex" : "Claude";
-  const switchingLabel = codex
-    ? codexPermissionModeLabel(view.controlSwitch?.value as CodexOfferedPermissionMode)
-    : permissionModeLabel(view.controlSwitch?.value as ClaudePermissionMode);
-  element.classList.add("interactive");
-  element.classList.toggle("active", open);
-  element.classList.toggle("switching", pending);
-  element.disabled = !switchable;
-  element.title = pending
-    ? `Switching to ${switchingLabel}…`
-    : switchable
-      ? `Switch how ${providerName} actions are approved for this session`
-      : `Available when ${providerName} is idle`;
-  element.setAttribute("aria-haspopup", "menu");
-  element.ariaExpanded = String(open);
-}
-
-/** The live session's permission-mode switch menu (S2) — same visual family as
- *  the model menu (renderSettingSection), current mode marked. No CLI-default
- *  caption: a Shift+Tab switch is session-scoped and does NOT persist to
- *  settings.json (unlike `/model` / `/effort`), so there is no side effect to
- *  note. Offered modes = default / acceptEdits / plan / auto always, plus
- *  bypassPermissions only when the session was spawned into it (D4, as revised by
- *  the 2026-07-18 field test — see sessionPermissionMenuModes; an account whose
- *  cycle lacks auto fails gracefully rather than hiding Auto forever). */
-function renderSessionAccessMenu(view: TaskViewState): HTMLElement {
-  const menu = document.createElement("div");
-  menu.className = "task-settings-popover composer-session-menu";
-  menu.setAttribute("role", "menu");
-  menu.ariaLabel = "Approvals";
-  menu.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-
-  const current = view.task?.permissionMode ?? null;
-  const options = sessionPermissionMenuModes(view).map((mode) => ({
-    label: permissionModeLabel(mode),
-    value: mode as string,
-  }));
-  menu.append(
-    renderSettingSection("Approvals", options, (current ?? "") as string, (value) => {
-      actions.switchSessionPermission(view, value);
-    }),
-  );
-  return menu;
-}
-
-/** The live CODEX session's permission-preset switch menu (S3) — same visual
- *  family as the Claude access menu (renderSettingSection), current preset marked,
- *  the three fixed presets always offered (codex's `/permissions` picker has
- *  exactly these rows). The CLI-default caption was REMOVED (S6, field revision 5,
- *  2026-07-18): the `/permissions` switch does persist globally into
- *  ~/.codex/config.toml, but that disclosure now lives in docs, not menu chrome
- *  (Sonata sessions are immune anyway — spawn flags override).
- *
- *  A session sitting in codex's cycle-only `read-only` mode (SL-17) marks NO row
- *  here, and that is the honest reading rather than a gap: the mode is real, the
- *  chip above names it ("Read Only"), and none of the three rows is what the
- *  session is currently in. It is also exactly what the CLI's own picker paints in
- *  that state — three rows, no `(current)` marker (MEASURED 0.152.1, SL-7 q29 arm
- *  B / SL-17 q35). Every row stays LIVE: a switch driven out of Read Only walks
- *  and settles normally, because navigation reads the cursor by TEXT and never
- *  needs a current-mode anchor (MEASURED end-to-end through this very entry point,
- *  SL-17 q35 — `settled` off the target's own receipt). */
-function renderSessionCodexAccessMenu(view: TaskViewState): HTMLElement {
-  const menu = document.createElement("div");
-  menu.className = "task-settings-popover composer-session-menu";
-  menu.setAttribute("role", "menu");
-  menu.ariaLabel = "Approvals";
-  menu.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-
-  const current = view.task?.codexPermissionMode ?? null;
-  const options = CODEX_PERMISSION_MODE_OPTIONS.map((mode) => ({
-    label: codexPermissionModeLabel(mode),
-    value: mode as string,
-  }));
-  menu.append(
-    renderSettingSection("Approvals", options, (current ?? "") as string, (value) => {
-      actions.switchSessionCodexPermission(view, value);
-    }),
-  );
-  return menu;
-}
-
-/** The live session's model + effort switch menu — a STAGED selector (S7 Part 1).
- *  Row clicks STAGE a (model, effort) pair (no CLI); Save applies the changed axes
- *  as ONE logical switch (claude: the session-scoped PICKER drive — bare `/model`
- *  then `/effort`, each applied with the CLI's `s` key so the user's durable
- *  default is never written (D2 U4, F68/F89); the cache-miss
- *  confirm relayed via the drawer). Same visual family as the New Chat launch menu
- *  (renderSettingSection), with the staged pick accent-marked and the session's
- *  live value a muted "Current". No CLI-default caption (removed S6). */
-function renderSessionModelMenu(view: TaskViewState): HTMLElement {
-  const menu = stagedMenuRoot();
-  const staged = stagedPair(view, "claude");
-  const current = currentSessionModelPair(view, "claude");
-  menu.append(
-    renderSettingSection(
-      "Model",
-      sessionModelOptions(),
-      staged.model ?? "",
-      (value) => actions.stageSessionModel(value),
-      { current: current.model ?? "" },
-    ),
-    renderSettingSection(
-      "Reasoning",
-      sessionEffortOptions(),
-      staged.effort ?? "",
-      (value) => actions.stageSessionEffort(value),
-      { current: current.effort ?? "" },
-    ),
-    renderStagedFooter(view, staged, current),
-  );
-  return menu;
-}
-
-/** The staged-menu container (shared by both providers' model menus). */
-function stagedMenuRoot(): HTMLElement {
-  const menu = document.createElement("div");
-  menu.className = "task-settings-popover composer-session-menu composer-staged-menu";
-  menu.setAttribute("role", "menu");
-  menu.ariaLabel = "Model and reasoning";
-  // stopPropagation: render() rebuilds the chip mid-click; without this the
-  // document click-away would close the menu in the same click that opened it.
-  menu.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-  return menu;
-}
-
-/** The open menu's staged pair, seeded to the current pair at open time; falls back
- *  to current if (defensively) absent. */
-function stagedPair(
-  view: TaskViewState,
-  provider: RuntimeProvider,
-): { model: string | null; effort: string | null } {
-  return state.composerMenu?.staged ?? currentSessionModelPair(view, provider);
-}
-
-/** The session's live (model, effort) pair — the seed for staging and the
- *  Save-disabled-when-clean comparison. */
-export function currentSessionModelPair(
-  view: TaskViewState,
-  provider: RuntimeProvider,
-): { model: string | null; effort: string | null } {
-  return provider === "codex"
-    ? { model: sessionCodexModelValue(view), effort: sessionCodexEffortValue(view) }
-    : { model: sessionModelValue(view), effort: sessionEffortValue(view) };
-}
-
-/** The Save / Cancel footer: the staged menu touches the CLI only on Save; Save is
- *  disabled while the staged pair equals current. Cancel discards (closes the menu);
- *  Esc / outside-click discard the same way (the composer's document handlers). */
-function renderStagedFooter(
-  view: TaskViewState,
-  staged: { model: string | null; effort: string | null },
-  current: { model: string | null; effort: string | null },
-): HTMLElement {
-  const footer = document.createElement("div");
-  footer.className = "composer-staged-footer";
-  const dirty = staged.model !== current.model || staged.effort !== current.effort;
-
-  const cancel = document.createElement("button");
-  cancel.className = "composer-staged-action";
-  cancel.type = "button";
-  cancel.textContent = "Cancel";
-  cancel.addEventListener("click", () => actions.closeSessionMenu());
-
-  const save = document.createElement("button");
-  save.className = "composer-staged-action primary";
-  save.type = "button";
-  save.textContent = "Save";
-  save.disabled = !dirty;
-  save.addEventListener("click", () => actions.saveStagedModelSwitch(view));
-
-  footer.append(cancel, save);
-  return footer;
-}
-
-/** Concrete Claude models only — "Native Default" (null) has no mid-session
- *  meaning (there is no re-spawn to defer to). */
-function sessionModelOptions(): Array<{ label: string; value: string }> {
-  return MODEL_OPTIONS.claude.flatMap((option) =>
-    option.value ? [{ label: option.label, value: option.value }] : [],
-  );
-}
-
-/** The v1 effort set (low → max); "Native Default" (null) is dropped for the
- *  same reason as the model list. */
-function sessionEffortOptions(): Array<{ label: string; value: string }> {
-  return REASONING_OPTIONS.claude.flatMap((option) =>
-    option.value ? [{ label: option.label, value: option.value }] : [],
-  );
-}
-
-/** The current model as a `/model` alias, so the menu can mark it. The live
- *  statusline display name wins (it follows a switch); map it back to an alias
- *  by label, falling back to the spawn model. */
-function sessionModelValue(view: TaskViewState): string | null {
-  const task = view.task;
-  if (!task) {
-    return null;
-  }
-  const displayName = view.usageSnapshot?.modelDisplayName ?? null;
-  if (displayName) {
-    const match = MODEL_OPTIONS.claude.find((option) => option.label === displayName);
-    if (match?.value) {
-      return match.value;
-    }
-  }
-  return task.model;
-}
-
-/** The current effort level — the live statusline value wins (a model switch may
- *  reset effort, and the statusline carries the live level), spawn value falls
- *  back. */
-function sessionEffortValue(view: TaskViewState): string | null {
-  return view.usageSnapshot?.reasoningEffort ?? view.task?.reasoningEffort ?? null;
-}
-
-/** The live CODEX session's model + effort switch menu (S4) — same visual family
- *  as the New Chat launch menu (renderSettingSection). Data source is Sonata's
- *  curated codex list (D5), current marked from the task record (codex has no
- *  statusline mirror). Selecting a model switches only the model (effort preserved
- *  via the picker's level-2 `(current)` row); selecting a reasoning switches only
- *  the reasoning (model preserved via level-1 `(current)`). The CLI-default caption
- *  was REMOVED (S6, field revision 5, 2026-07-18): codex does persist a `/model`
- *  switch globally into ~/.codex/config.toml, but that disclosure now lives in
- *  docs, not menu chrome (Sonata sessions are immune — spawn flags override). */
-function renderSessionCodexModelMenu(view: TaskViewState): HTMLElement {
-  const menu = stagedMenuRoot();
-  const staged = stagedPair(view, "codex");
-  const current = currentSessionModelPair(view, "codex");
-  menu.append(
-    renderSettingSection(
-      "Model",
-      sessionCodexModelOptions(),
-      staged.model ?? "",
-      (value) => actions.stageSessionModel(value),
-      { current: current.model ?? "" },
-    ),
-    renderSettingSection(
-      "Reasoning",
-      sessionCodexEffortOptions(),
-      staged.effort ?? "",
-      (value) => actions.stageSessionEffort(value),
-      { current: current.effort ?? "" },
-    ),
-    renderStagedFooter(view, staged, current),
-  );
-  return menu;
-}
-
-/** Concrete curated Codex models only — "Native Default" (null) has no
- *  mid-session meaning (the picker offers no "reset to default" row). A model the
- *  running picker doesn't list (a legacy model, or upstream drift) rolls the
- *  switch back to needs-attention (D5), so the menu offers the full curated list
- *  and lets the choreography surface any mismatch. */
-function sessionCodexModelOptions(): Array<{ label: string; value: string }> {
-  return MODEL_OPTIONS.codex.flatMap((option) =>
-    option.value ? [{ label: option.label, value: option.value }] : [],
-  );
-}
-
-/** The v1 reasoning set (low → xhigh, D6): "Native Default" (null), Max, and
- *  Ultra are dropped — Max/Ultra live in the picker's "More reasoning…" submenu,
- *  which the choreography never enters. */
-function sessionCodexEffortOptions(): Array<{ label: string; value: string }> {
-  const v1 = new Set(["low", "medium", "high", "xhigh"]);
-  return REASONING_OPTIONS.codex.flatMap((option) =>
-    option.value && v1.has(option.value) ? [{ label: option.label, value: option.value }] : [],
-  );
-}
-
-/** The current codex model (the spawn/last-switch value — codex has no statusline
- *  mirror, so task.model is the SSOT the picker receipt updates). */
-function sessionCodexModelValue(view: TaskViewState): string | null {
-  return view.task?.model ?? null;
-}
-
-/** The current codex reasoning (task.reasoningEffort — same SSOT rationale). */
-function sessionCodexEffortValue(view: TaskViewState): string | null {
-  return view.task?.reasoningEffort ?? null;
+  element.title = `${label} — ${hint}`;
 }
 
 /** A New Chat launch chip: interactive, carets down, toggles its draft menu
@@ -813,30 +419,6 @@ export function renderComposerPopover(view = activeTaskView(state)): void {
   // task guard. The usage popover reads a live session.
   if (state.composerMenu?.type === "add") {
     const menu = renderAddMenu();
-    positionComposerMenu(menu);
-    elements.composerPopoverRoot.append(menu);
-    return;
-  }
-  if (state.composerMenu?.type === "session-model" && view?.task) {
-    const menu = renderSessionModelMenu(view);
-    positionComposerMenu(menu);
-    elements.composerPopoverRoot.append(menu);
-    return;
-  }
-  if (state.composerMenu?.type === "session-codex-model" && view?.task) {
-    const menu = renderSessionCodexModelMenu(view);
-    positionComposerMenu(menu);
-    elements.composerPopoverRoot.append(menu);
-    return;
-  }
-  if (state.composerMenu?.type === "session-access" && view?.task) {
-    const menu = renderSessionAccessMenu(view);
-    positionComposerMenu(menu);
-    elements.composerPopoverRoot.append(menu);
-    return;
-  }
-  if (state.composerMenu?.type === "session-codex-access" && view?.task) {
-    const menu = renderSessionCodexAccessMenu(view);
     positionComposerMenu(menu);
     elements.composerPopoverRoot.append(menu);
     return;

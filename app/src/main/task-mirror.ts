@@ -9,9 +9,8 @@ export interface TaskMirrorTarget {
 
 /**
  * The single home of the "mirror a settled runtime-status change onto the task
- * record" discipline. A runtime-status refresh — claude permission mode, a codex
- * `/model` or `/permissions` receipt, the codex turn_context reconcile — is
- * METADATA, not activity:
+ * record" discipline. A runtime-status refresh — the claude hook-fed permission
+ * mode, the codex turn_context reconcile — is METADATA, not activity:
  *
  *  - `updatedAt` stays put, so the sidebar's activity ordering never jumps on a
  *    mode/model chip repaint;
@@ -22,9 +21,9 @@ export interface TaskMirrorTarget {
  *
  * Callers own the provider-specific validation and derivation that turns a raw
  * payload into a `Partial<Task>` patch; TaskMirror owns the write. Before this
- * module the tail was copied at four sites (applyHookPermissionMode,
- * applyCodexPermissionSwitchReceipt, applyCodexModelSwitchReceipt,
- * reconcileCodexTurnContext), each re-deriving the change check and the emit.
+ * module the tail was copied at every site (applyHookPermissionMode,
+ * reconcileCodexTurnContext, and the codex picker-receipt writers retired with
+ * the mid-session drives), each re-deriving the change check and the emit.
  */
 export class TaskMirror {
   constructor(

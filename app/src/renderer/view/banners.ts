@@ -222,42 +222,6 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
         }),
       );
     }
-    // Mid-session control-switch needs-attention (RED LINE): the drive couldn't
-    // confirm the target and the screen is in an unrecognized state — model/effort
-    // (S1): the injected command earned no receipt (a possible cache-miss confirm
-    // / consent interstitial); permission (S2): the Shift+Tab stepping aborted and
-    // returned home, or landed where the hook SSOT must reconcile;
-    // codex-permission (S3): the `/permissions` picker choreography rolled back
-    // with an Esc (an unexpected screen / timeout). Sonata does nothing further —
-    // a passive pointer to the CLI, where the user resolves it.
-    if (view.controlSwitch?.phase === "needs-attention") {
-      const kind = view.controlSwitch.kind;
-      const axis =
-        kind === "model" || kind === "codex-model"
-          ? "model"
-          : kind === "effort" || kind === "codex-effort"
-            ? "reasoning"
-            : "access";
-      // A known cause (S5) names the exact next action; otherwise the generic
-      // fallback. `interstitial` — the CLI is showing the cache-miss/consent
-      // handoff the user answers natively (the DEFAULT claude flow on a session
-      // with history). `consent` — codex's Full Access grant is the human's to give
-      // (RED LINE 2). `drift` — the codex model list moved upstream, so the switch
-      // has to be made natively.
-      const message =
-        view.controlSwitch.reason === "interstitial"
-          ? "Confirm the switch in the CLI"
-          : view.controlSwitch.reason === "consent"
-            ? "Confirm Full Access in the CLI"
-            : view.controlSwitch.reason === "drift"
-              ? "Model list changed upstream — switch in the CLI"
-              : `Couldn't confirm the ${axis} switch — check the CLI`;
-      banners.push(
-        attentionBanner("control-switch", message, () => {
-          actions.dismissControlSwitch(view);
-        }),
-      );
-    }
     // Codex's injected hooks never handshook within the spawn window — they are
     // not running. Since Sonata passes `--dangerously-bypass-hook-trust` on every
     // codex spawn (D4 overturn: trust can't persist through a profile layer),

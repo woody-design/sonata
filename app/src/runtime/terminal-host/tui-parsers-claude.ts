@@ -1,13 +1,13 @@
-import type { ClaudePermissionMode } from "../../shared/types/domain";
 import { cleanTerminal } from "./tui-parsers-common";
 
-// ── Pure Claude TUI-stream parsers (consolidation S4) ────────────────────────
-// Moved verbatim from terminal-host.ts: Remote Control stream detection, the
-// mid-session model/effort receipt + cache-miss confirm dialog, and the
-// Shift+Tab permission mode-line reader. All pure (take an accumulated RAW tail,
-// return a verdict); unit-pinned by tests/smoke/remote-control-detect-units.mjs
-// and tests/smoke/midsession-receipt.mjs. Provenance comments are preserved
-// intact — every anchor here is probe-measured, not assumed.
+// ── Pure Claude TUI parsers (consolidation S4) ───────────────────────────────
+// Moved verbatim from terminal-host.ts: Remote Control detection, the screen
+// owners that gate readiness/delivery (Rewind panel, fullscreen boot offer,
+// workspace-trust rows), and the permission mode-line footer needle. All pure
+// (take a RAW tail or a rendered viewport, return a verdict); unit-pinned by
+// tests/smoke/remote-control-detect-units.mjs and the readiness smokes.
+// Provenance comments are preserved intact — every anchor here is
+// probe-measured, not assumed.
 
 // ── Remote Control detection — TWO channels, one per SIGNAL KIND (D-1) ───────
 // Unit-pinned in tests/smoke/remote-control-detect-units.mjs; consumed by
@@ -116,271 +116,6 @@ export function hasRemoteControlDisconnect(compact: string): boolean {
 export function findRemoteControlUrlOnScreen(screenText: string): string | null {
   return cleanTerminal(screenText).match(REMOTE_CONTROL_LINK_RE)?.[1] ?? null;
 }
-// Mid-session Claude model/effort switch receipt detection (pure; unit-tested
-// in tests/smoke/midsession-receipt.mjs). Sonata injects `/model <id>` /
-// `/effort <level>` as typed text and watches the pty stream for the CLI's own
-// receipt line. RE-MEASURED VERBATIM at claude 2.1.258 (upstream sync
-// 2026-09-01, SL-4 — probes q13/q14/q16, findings F16/F17/F19); the 2.1.214
-// forms this parser was written against are noted where they moved:
-//
-//   model  success → `⎿ Set model to Sonnet 5 and saved as your default for new
-//                       sessions`                        (tail gained "for new sessions")
-//   model  success → `⎿ Set model to Opus 5 (1M context) (default) and saved as
-//                       your default for new sessions`   (the picker's Default row)
-//   model  success → `⎿ Set model to Opus 5 (1M context) for this session only`
-//                                                        (the picker's `s` key — NEW shape)
-//   model  failure → `⎿ Model 'bogus-model-xyz' not found`            (unchanged)
-//   effort success → `⎿ Set effort level to low (saved as your default for new
-//                       sessions): Quick, straightforward implementation with…`
-//                                                        (gained a description tail)
-//   effort success → `⎿ Set effort level to max (this session only): …`
-//                                                        (max does not persist)
-//   effort failure → `⎿ Invalid argument: bogus-tier. Valid options are: low,
-//                       medium, high, xhigh, max, ultracode, auto`     (NEW — see below)
-//
-// The receipt is WORD-POSITIONED — claude lays it out with cursor moves
-// (`\x1b[NG`), not spaces — so stripping ANSI glues the words
-// ("Set model to" → "Setmodelto"). We therefore match the COMPACTED form
-// (escapes + ALL whitespace removed) on the accumulated RAW tail, exactly like
-// the Remote Control detector, so a split landing inside an escape reassembles
-// first. (2.1.248 started rendering model NAMES as code; re-verified — the SGR
-// around the name lands between the anchor words and the compaction removes it,
-// so the needles are unaffected.) Screen text is a choreography RECEIPT only —
-// the statusline mirror stays the model SSOT.
-//
-// ── WHY THE FAILURE NEEDLES ARE ANCHORED ON THE VALUE WE ASKED FOR ──────────
-//
-// Because the scan window is a byte window over a stream that REPAINTS HISTORY.
-// Since 2.1.252 claude renders in the alternate screen, and a switch that
-// changes the banner's shape forces a FULL TRANSCRIPT REDRAW — so every receipt
-// the session ever printed re-enters the pty stream, inside the window
-// `detectControlSwitchReceipt` opened for the CURRENT switch.
-//
-// MEASURED (q13 arm B4, at production's exact arming point — one pty write for
-// the command, arm, `\r` 120ms later, rolling 4096-char window, first verdict
-// wins): `/model haiku` SUCCEEDED — the receipt said so and the statusline
-// mirror moved to Haiku 4.5 — and the parser returned `failed`, because the
-// redraw the switch itself provoked carried this session's earlier
-// `Model'bogus-model-xyz'notfound` line into the window. Sonata would have told
-// the user Claude rejected a model it had just accepted.
-//
-// An un-anchored needle cannot tell a receipt for THIS switch from a repaint of
-// an old one. The pending VALUE can: the failure line echoes the exact string we
-// asked for (measured — `/model bogus-model-xyz` → `Model 'bogus-model-xyz' not
-// found`; `/effort bogus-tier` → `Invalid argument: bogus-tier.`). So the caller
-// passes it and the needle is built around it. If a future release ever
-// normalises the name in the failure line, this needle misses and the switch
-// falls to its existing timeout → needs-attention: an honest "I could not tell",
-// which is the correct direction to fail in. Claiming a rejection that did not
-// happen is not.
-//
-// ── THE MODEL-AXIS SUCCESS NEEDLE IS RETIRED (D2 U3, 2026-09-02) ────────────
-//
-// It used to be `/Setmodelto/`, and it was the KNOWN RESIDUAL this comment block
-// spent four paragraphs apologising for: the success receipt names the model's
-// DISPLAY name ("Sonnet 5"), not the alias we sent ("sonnet"), so it could not be
-// anchored on the pending value the way the failure needles are. A replayed
-// `Set model to …` therefore settled switches it did not belong to.
-//
-// That residual is not an argument about a regex; it is reproducible, and h4
-// reproduced it on this binary rather than inheriting the claim: each leg's own
-// settle window, replayed through this parser with a pending value the session
-// NEVER asked for (`a-value-never-asked-for`), still returned `settled` — 9 of 12
-// legs, which is every leg that had a success receipt at all; the other three are
-// the two cancels and the rejection, whose windows carry no success line to be
-// fooled by (`h4-model-switch-hooks.capture.txt`, §"THE UNANCHORED SUCCESS
-// NEEDLE").
-//
-// WHAT REPLACED IT: the `PostModelSwitch` hook, whose `requested_model` is the
-// ALIAS Sonata typed — measured byte-for-byte equal to `pending.value` across the
-// whole alias set including the bracketed `opus[1m]`, and identical whether the
-// switch came from the slash command (`source: "command"`) or the picker
-// (`source: "picker"`). That is the anchor the stream could never provide, so the
-// registered structural fix ("confirm against the MIRROR, not the stream") is
-// TAKEN: `ControlSwitchEngine.noteModelSwitchConfirmed` settles the model axis,
-// and this parser is left with the two verdicts the stream can still state
-// honestly.
-//
-// SO, DELIBERATELY, `parseClaudeControlReceipt(scan, "model", …)` NEVER RETURNS
-// "settled". Not "the caller stopped reading it" — the needle is gone, because a
-// needle that exists is a needle a future caller re-reads. What stays on the model
-// axis is the anchored FAILURE needle, and it stays because it has to: a rejected
-// alias fires NO hook at all (h4 arm c — `/model bogus-model-name` produced the
-// `Model '…' not found` receipt and zero ModelSwitch events), so the stream is the
-// only witness a rejection has.
-//
-// The EFFORT axis keeps BOTH needles, and that is measurement rather than
-// symmetry: `/effort low` fires no hook of any kind (h4 arm d — zero hook payloads
-// of any event between the command and its receipt), so there is nothing to move
-// it to. Effort is now the last stream-confirmed switch axis on the claude side.
-export const CONTROL_SWITCH_SCAN_LIMIT = 4096;
-const CONTROL_SWITCH_EFFORT_OK_RE = /Seteffortlevelto/;
-
-/** Prepare a pending value for embedding in a needle.
- *
- *  Whitespace is stripped FIRST so both sides of the comparison live in the same
- *  space: the haystack is fully compacted, so a value carrying a space would be
- *  spaceless in the receipt and spaced in the needle, and could never match its
- *  own rejection. Sonata's own aliases have no spaces, but the asymmetry would be
- *  a trap for the next value someone adds.
- *
- *  Then the regex metacharacters are escaped. This is not hypothetical: `opus[1m]`
- *  is a real alias (`MODEL_OPTIONS.claude`), and unescaped its brackets become a
- *  character class, so the needle would match `Model 'opus1' not found` and miss
- *  the rejection it was built for. This parser is also the seam an IPC-supplied
- *  string reaches, which is the second reason it is escaped rather than trusted. */
-function valueNeedle(value: string): string {
-  return value.replace(/\s+/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * The verdict on a pending mid-session model/effort switch, read off the
- * accumulated RAW tail. `value` is the value the pending switch ASKED FOR — it
- * is what makes a failure receipt attributable to this switch rather than to a
- * repaint of an older one (see the block comment above).
- *
- * ASYMMETRIC BY MEASUREMENT since D2 U3: the MODEL axis can only ever answer
- * `"failed"` or `null` here — its success is confirmed by the `PostModelSwitch`
- * hook, not by this stream. The EFFORT axis answers all three, because no hook
- * exists for it. See the block comment above for the evidence on both halves.
- */
-export function parseClaudeControlReceipt(
-  rawScan: string,
-  kind: "model" | "effort",
-  value: string,
-): "settled" | "failed" | null {
-  const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
-  // Both axes check failure FIRST: neither failure line can contain its axis's
-  // success anchor, so the ordering is safe, and reading a rejection as a
-  // success would be the worse mistake.
-  if (kind === "effort") {
-    // `Invalid argument: <tier>. Valid options are: …` — MEASURED at 2.1.258
-    // (q16). The old comment here asserted a `/effort` failure was unreachable
-    // "because its levels come from a curated list"; that reasoning covered only
-    // the values SONATA sends, and the receipt exists, so the switch used to sit
-    // pending for the full timeout instead of failing honestly.
-    if (new RegExp(`Invalidargument:${valueNeedle(value)}\\.`).test(compact)) {
-      return "failed";
-    }
-    return CONTROL_SWITCH_EFFORT_OK_RE.test(compact) ? "settled" : null;
-  }
-  if (new RegExp(`Model'${valueNeedle(value)}'notfound`).test(compact)) {
-    return "failed";
-  }
-  // No success needle on this axis — the retirement, not an omission. The hook
-  // settles a model switch; the stream can only reject one.
-  return null;
-}
-
-// Mid-session Claude cache-miss confirm dialog (S7). On a session WITH history —
-// the normal Sonata case — a `/model <id>` / `/effort <level>` inject does NOT
-// apply immediately: claude raises a modal confirm (measured, claude 2.1.214 —
-// spikes/midsession-switch-probe/findings.md §"S7 cache-miss probe"):
-//   Switch model?  /  Change effort level?
-//   Your next response will be slower and use more tokens
-//   This conversation is cached for the current <axis>. Switching to <target>
-//   means the full history gets re-read on your next message.
-//   ❯ 1. Yes, switch to <target>
-//     2. No, go back
-// This is NOT a hook option-prompt (parseClaudeApprovalPanel returns null on it —
-// S5-F) — it is a TUI dialog Sonata must scrape-recognize to PARK on and relay
-// through the Action Drawer (S7 revision 3). RED LINE (codex trust-dialog silent-
-// Yes lineage): recognition must be forge-resistant, so it anchors on the
-// CO-OCCURRENCE of the distinctive body phrase AND the numbered-row grammar —
-// neither the title (`Switch model?` vs `Change effort level?`) nor the Yes-row
-// label (it embeds the target name) is axis-stable, but a boundary of assistant
-// prose can't forge BOTH `…re-read on your next message` and `2. No, go back`
-// together (stronger than S2's single-substring lesson). Same compacted form
-// (escapes + ALL whitespace removed) the other claude parsers key on.
-const CLAUDE_CACHE_MISS_BODY_RE = /thefullhistorygetsre-readonyournextmessage/;
-const CLAUDE_CACHE_MISS_NO_ROW_RE = /2\.No,goback/;
-// Cursor rows: `❯` (U+276F) + the row LABEL. The digit+dot (`1.`/`2.`) appear in
-// the INITIAL full render but claude DROPS them in the partial arrow-move repaint
-// (measured: after ↓ the row renders `❯No, go back`, no digit) — so the digit is
-// OPTIONAL and the LABEL is the anchor (it also rejects the composer `❯ ` prompt,
-// which is never followed by a row label). "Most recent wins" (greatest match
-// index) so a stale pre-move cursor repaint can't outvote the latest frame.
-const CLAUDE_CACHE_MISS_CURSOR_RES: ReadonlyArray<readonly [RegExp, 1 | 2]> = [
-  [/❯\d?\.?Yes,switchto/, 1],
-  [/❯\d?\.?No,goback/, 2],
-];
-// Cancel receipt: choosing No (or Esc) closes the dialog with a `Kept …` line —
-// the switch did NOT apply (measured; settings.json byte-unchanged). Axis-scoped
-// so a model cancel can't read an effort receipt and vice versa.
-const CLAUDE_CACHE_MISS_CANCEL_MODEL_RE = /Keptmodelas/;
-const CLAUDE_CACHE_MISS_CANCEL_EFFORT_RE = /Kepteffortlevelas/;
-
-/**
- * The claude cache-miss confirm dialog is on screen (a recognized RED-LINE
- * interstitial S7 PARKS on and relays through the drawer). Requires BOTH the
- * distinctive body phrase and the `2. No, go back` row so prose can't forge it.
- *
- * TWO SUBSTRATES, deliberately, and the same compaction serves both. Over the pty
- * SCAN it is the PARK trigger — "a dialog appeared" is an event, and the stream is
- * where events live. Over the rendered GRID it is the cancel gate's absence test
- * (see `claudeCacheMissCancelled`) — "is the dialog still up" is a state, and only
- * the grid can answer a state truthfully, because the stream keeps the dialog's
- * bytes long after the screen has moved on. h4 measured the grid direction live:
- * true while parked, false the instant it closed, on every arm that raised one.
- */
-export function claudeCacheMissDialogOpen(rawScan: string): boolean {
-  const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
-  return CLAUDE_CACHE_MISS_BODY_RE.test(compact) && CLAUDE_CACHE_MISS_NO_ROW_RE.test(compact);
-}
-
-/** Which row the `❯` cursor currently highlights (1 = Yes, 2 = No), or null if no
- *  cursor row is recognized yet (keep waiting). Most-recent-wins. */
-export function parseClaudeCacheMissCursor(rawScan: string): 1 | 2 | null {
-  const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
-  let best: 1 | 2 | null = null;
-  let bestIndex = -1;
-  for (const [re, row] of CLAUDE_CACHE_MISS_CURSOR_RES) {
-    const globalRe = new RegExp(re.source, "g");
-    let match: RegExpExecArray | null;
-    let lastIndex = -1;
-    while ((match = globalRe.exec(compact)) !== null) {
-      lastIndex = match.index;
-      globalRe.lastIndex = match.index + 1;
-    }
-    if (lastIndex > bestIndex) {
-      bestIndex = lastIndex;
-      best = row;
-    }
-  }
-  return best;
-}
-
-/**
- * The cache-miss dialog closed with a `Kept <model|effort> as …` line — a clean
- * cancel (No/Esc), nothing changed CLI-side. Axis-scoped.
- *
- * STILL UNANCHORED, and now GATED at the one call site rather than fixed here
- * (F22, narrowed by D2 U3). It cannot be anchored: the line names the model that
- * was KEPT — the one being switched AWAY from — not the pending target, so the
- * only value the engine holds is the wrong one to match on. What made that
- * dangerous was that a REPLAYED `Kept …` could fire it while the dialog was still
- * open and unanswered, reporting a cancel the user never chose (and dropping a
- * staged Save's queued effort leg with it).
- *
- * So the MODEL axis now requires a second, structural term before believing this
- * line: the dialog must be GONE FROM THE GRID (`claudeCacheMissDialogOpen` over
- * the viewport). That is a state query answered on the substrate D-1 reserves for
- * state, and h4 measured both directions of it live — the predicate reads TRUE off
- * the grid while the dialog is parked, and FALSE the moment it closes, on every
- * arm that raised one. A replay can put the phrase back in the stream; it cannot
- * put the dialog back on the screen.
- *
- * The EFFORT axis keeps the bare needle, because it has no second witness of any
- * kind (no hook — h4 arm d) and adding a grid term there without the hook to
- * settle the Yes side would only make an effort cancel harder to see, not safer.
- */
-export function claudeCacheMissCancelled(rawScan: string, kind: "model" | "effort"): boolean {
-  const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
-  return (
-    kind === "model" ? CLAUDE_CACHE_MISS_CANCEL_MODEL_RE : CLAUDE_CACHE_MISS_CANCEL_EFFORT_RE
-  ).test(compact);
-}
-
 // Claude REWIND panel (upstream sync 2026-08-03, claude 2.1.216+). An Esc PAIR
 // at an idle composer opens a restore picker over the composer — measured live
 // at 2.1.220 (spikes/upstream-sync-2026-08/claude/, probes q3a/q3b/q3c): the
@@ -423,9 +158,8 @@ export function claudeCacheMissCancelled(rawScan: string, kind: "model" | "effor
 // dismissed panel simply leaves the viewport, and cursor position is irrelevant
 // because the panel is either displayed or it is not.
 //
-// Recognition is CO-OCCURRENCE, like the cache-miss dialog above and for the
-// same reason — a single substring is forgeable by assistant prose (S2's
-// lesson), and this panel's own body text is exactly the kind of sentence a
+// Recognition is CO-OCCURRENCE — a single substring is forgeable by assistant
+// prose (S2's lesson), and this panel's own body text is exactly the kind of sentence a
 // session discussing Sonata would print. Each variant needs its distinctive
 // BODY *and* its FOOTER. The title `Rewind` carries no independent weight (it
 // is a substring of "Nothing to rewind…"), so it is not required separately.
@@ -441,8 +175,8 @@ const CLAUDE_REWIND_EMPTY_FOOTER_RE = /Esctocancel/;
  *  (`TaskScreenModel.viewportText()`), never a pty tail. Requires a variant's
  *  body AND its footer, both visible in the same frame.
  *
- *  Callers treat this as a screen owner: readiness, delivery, the mid-session
- *  control switches and the Enter-retry ladder all hold while it is true.
+ *  Callers treat this as a screen owner: readiness, delivery and the
+ *  Enter-retry ladder all hold while it is true.
  *  Sonata NEVER dismisses it — one Esc would close it, but the user may have
  *  opened it deliberately in the co-visible CLI, and answering a screen the user
  *  may be using is the standing red line. Recognition + hold + surface only.
@@ -669,7 +403,7 @@ export function claudeFullscreenOfferOpen(screenText: string): boolean {
 // Row identity is the row LABEL, matched per line in compacted space (escapes +
 // all whitespace removed) so word-position painting and column wrapping cannot
 // break it, and so an optional leading `1.`/`2.` is absorbed. BOTH rows are
-// required (co-occurrence, as with the cache-miss and Rewind predicates): a
+// required (co-occurrence, as with the Rewind predicate): a
 // single label is forgeable by assistant prose, and a half-read dialog is
 // exactly the state in which a guessed keypress is destructive.
 const CLAUDE_TRUST_AFFIRM_ROW_RE = /yes,itrustthisfolder/i;
@@ -726,54 +460,26 @@ export function parseClaudeTrustDialogRows(screenText: string): ClaudeTrustDialo
   return { affirmIndex, declineIndex, focused };
 }
 
-// Mid-session Claude PERMISSION switch (S2). Unlike model/effort (a typed
-// command with one printed receipt), permission has no arg form: Sonata drives
-// the native Shift+Tab (`\x1b[Z`) cycle one step at a time and reads the TUI's
-// mode line as the per-step *choreography receipt* to learn which mode it just
-// landed in. RE-MEASURED at claude 2.1.258 (upstream sync 2026-09-01, SL-5 —
-// spikes/upstream-sync-2026-09/claude/q17, 12 presses = 3 full cycles, plus q18
-// arm E for the off-cycle origins). The cycle and all four phrases are
-// UNCHANGED from the 2.1.214 stamp this block used to carry:
+// Claude's permission MODE LINE — the composer footer that names the session's
+// mode. Sonata reads it only as a SCREEN-SHAPE fact ("a composer footer is
+// painted"), never as the mode: the hook payload's `permission_mode` is the mode
+// SSOT. RE-MEASURED at claude 2.1.258 (upstream sync 2026-09-01, SL-5 —
+// spikes/upstream-sync-2026-09/claude/q17/q18); the phrases:
 //   default (Manual) ↔ `⏸ manual mode on`    acceptEdits ↔ `⏵⏵ accept edits on`
 //   plan             ↔ `⏸ plan mode on`      auto        ↔ `⏵⏵ auto mode on`
-//   cycle: manual → accept edits → plan → auto → manual — 4 members, no more.
-// `auto` was measured PRESENT on this account (and is now this account's own
-// startup default: an unflagged spawn boots into it — q17 arm C, the 8/14
-// server-side rollout landing here). `bypassPermissions` is NOT in the cycle
-// (12 presses never reached it), so Sonata cannot step into it unattended.
-// Step latency is ~27ms and one press advances exactly one mode at any spacing
-// down to 40ms; only three presses written in the SAME tick coalesce into one
-// advance (q17 arm B). The engine's one-press-per-receipt shape never bursts,
-// so that coalescing is unreachable from here.
-// The line is receipt-only — the hook payload's `permission_mode` stays the
-// state SSOT (lazy reconcile). Compacted match (escapes + ALL whitespace
-// removed) on the RAW tail, like the model/effort receipt and the Remote Control
-// detector, so a split landing inside an escape reassembles first; LAST match
-// wins so a repaint of a prior mode line can't outvote the current one.
+//   dontAsk          ↔ `⏵⏵ don't ask on`
 //
 // ANCHORED on the leading status glyph (measured — spikes/glyph-capture.mjs):
-// every mode line's phrase is immediately preceded, AFTER compaction, by one of
-// exactly two glyphs — `⏸` U+23F8 (manual/plan) or `⏵⏵` U+23F5 U+23F5
-// (accept edits/auto). The glyph is NOT unique per mode (so it can't identify
-// one — the phrase does that), but it is a boundary prose can't forge. This is
-// the S2-specific hardening the review demanded: without the anchor a repaint
-// of assistant prose containing the target phrase (e.g. "…I'll turn plan mode
-// on…" → compacts to `…planmodeon…`) would read as a receipt and settle the
-// choreography ONE MODE SHORT while signalling success — a silent
-// under-delivery (S1's un-anchored false-match is harmless by contrast: it only
-// drops a pending affordance). The glyph never appears in prose immediately
-// before the exact phrase, so anchoring on it rejects the prose without
-// weakening the true positives (re-verified against a real stepping e2e).
+// every mode line's phrase is immediately preceded by one of exactly two glyphs —
+// `⏸` U+23F8 (manual/plan) or `⏵⏵` U+23F5 U+23F5 (accept edits/auto/don't ask).
+// The glyph is a boundary prose can't forge: without it, assistant prose
+// containing the phrase ("…I'll turn plan mode on…") would read as a footer.
 const MODE_LINE_GLYPH = "[\\u23f8\\u23f5]";
-/** The mode-line phrases and the mode each names — the ONE source the S2 receipt
- *  parser below, the readiness footer needle (`terminal-host.ts`,
- *  `idlePromptModelHints`) and the fullscreen-offer discriminator
- *  (`claudeFullscreenOfferOpen` condition 3) are all built from. Readiness and
- *  the offer guard only ask "is a mode line on screen", which is a strictly
- *  weaker question than "which mode did we land in", so they reuse these
- *  phrases rather than restating them; the parser keeps sole ownership of the
- *  mode SEMANTICS. Order is load-bearing here only as a tie-break (first wins at
- *  an equal match index) and is unchanged.
+/** The mode-line phrases — the ONE source the readiness footer needle
+ *  (`terminal-host.ts`, `idlePromptModelHints`) and the fullscreen-offer
+ *  discriminator (`claudeFullscreenOfferOpen` condition 3) are built from. Both
+ *  only ask "is a mode line on screen", so the phrases live here once rather
+ *  than being restated at each consumer.
  *
  *  `dontAsk` ADDED 2026-09-01 (SL-5, MEASURED at 2.1.258 — q17 arm C spawns
  *  `--permission-mode dontAsk` and the footer paints `⏵⏵ don't ask on
@@ -782,387 +488,62 @@ const MODE_LINE_GLYPH = "[\\u23f8\\u23f5]";
  *  reachable session state: `ClaudePermissionMode` includes it, `claudeArgs`
  *  maps it to `--permission-mode dontAsk`, and `parseCreateTaskRequest` accepts
  *  it, so a task created through the local API can spawn straight into it. Until
- *  this entry existed all three consumers went BLIND on such a session: the S2
- *  parser could not read its origin, readiness lost its mode-line redundancy
- *  leg, and `claudeFullscreenOfferOpen`'s "a composer is on screen" negative —
- *  the structural discriminator that keeps a repaint from being read as the boot
- *  offer — failed OPEN. Adding the phrase closes all three at once, which is
- *  exactly why the table is shared. */
-const CLAUDE_MODE_LINE_PHRASES: ReadonlyArray<readonly [phrase: string, mode: ClaudePermissionMode]> = [
-  ["accept edits on", "acceptEdits"],
-  ["manual mode on", "default"],
-  ["plan mode on", "plan"],
-  ["auto mode on", "auto"],
-  ["don't ask on", "dontAsk"],
+ *  this entry existed both consumers went BLIND on such a session: readiness
+ *  lost its mode-line redundancy leg, and `claudeFullscreenOfferOpen`'s "a
+ *  composer is on screen" negative — the structural discriminator that keeps a
+ *  repaint from being read as the boot offer — failed OPEN. Adding the phrase
+ *  closed both at once, which is exactly why the table is shared. */
+const CLAUDE_MODE_LINE_PHRASES: readonly string[] = [
+  "accept edits on",
+  "manual mode on",
+  "plan mode on",
+  "auto mode on",
+  "don't ask on",
 ];
-const PERMISSION_MODE_LINE_RES: ReadonlyArray<readonly [RegExp, ClaudePermissionMode]> =
-  CLAUDE_MODE_LINE_PHRASES.map(
-    ([phrase, mode]) => [new RegExp(`${MODE_LINE_GLYPH}${phrase.replace(/\s+/g, "")}`), mode] as const,
-  );
 
 /**
  * "A permission mode line is on screen" — the readiness detector's footer
  * needle, NOT a mode reader. `detectIdlePrompt` asks only whether the idle
  * footer is present near the composer; which mode it names is none of its
- * business, so this collapses all four phrases into one predicate and returns a
- * boolean's worth of information. The mode SSOT stays the hook payload, with
- * `parseClaudePermissionModeLine` as S2's choreography receipt.
+ * business, so this collapses every phrase into one predicate and returns a
+ * boolean's worth of information. The mode SSOT is the hook payload.
  *
- * Two differences from the parser's patterns, both deliberate:
- *  - whitespace-TOLERANT rather than compacted, because it is tested against
- *    `cleanTerminal` output (escapes stripped, spacing intact) rather than the
- *    parser's fully compacted tail. `\s*` between words absorbs a paint that
- *    split the phrase across a cursor move.
- *  - the same `⏸`/`⏵` glyph anchor. Readiness could afford a looser needle (a
- *    false positive only raises a confidence label), but the anchor costs
- *    nothing and keeps assistant prose about permission modes — the exact
- *    sentence a session ABOUT this code prints — out of a screen-state answer.
+ * Whitespace-TOLERANT rather than compacted, because it is tested against
+ * `cleanTerminal` output (escapes stripped, spacing intact): `\s*` between words
+ * absorbs a paint that split the phrase across a cursor move. The glyph anchor
+ * stays even though readiness could afford a looser needle (a false positive
+ * only raises a confidence label): it costs nothing and keeps assistant prose
+ * about permission modes — the exact sentence a session ABOUT this code prints —
+ * out of a screen-state answer.
  */
 export const CLAUDE_MODE_LINE_ON_SCREEN_RE = new RegExp(
-  `${MODE_LINE_GLYPH}\\s*(?:${CLAUDE_MODE_LINE_PHRASES.map(([phrase]) =>
+  `${MODE_LINE_GLYPH}\\s*(?:${CLAUDE_MODE_LINE_PHRASES.map((phrase) =>
     phrase.split(" ").join("\\s*"),
   ).join("|")})`,
   "i",
 );
 
-/** Parse the most recent TUI permission mode line out of the compacted RAW tail,
- *  or null if none is recognized yet (keep waiting until the per-step timeout).
- *  Each pattern is anchored on the leading status glyph (`⏸` / `⏵⏵`) so
- *  prose that merely contains a mode phrase can't be misread as a receipt.
- *  "Most recent" = the match at the greatest index, so a redraw of the prior
- *  mode line can't mask the step's real landing. */
-export function parseClaudePermissionModeLine(rawScan: string): ClaudePermissionMode | null {
-  const compact = cleanTerminal(rawScan).replace(/\s+/g, "").toLowerCase();
-  let best: ClaudePermissionMode | null = null;
-  let bestIndex = -1;
-  for (const [re, mode] of PERMISSION_MODE_LINE_RES) {
-    // `re` sources are glyph-anchored, lowercase, glued forms — match against the
-    // compacted tail (the glyphs are case-invariant, so lowercasing is safe).
-    const globalRe = new RegExp(re.source, "g");
-    let match: RegExpExecArray | null;
-    let lastIndex = -1;
-    while ((match = globalRe.exec(compact)) !== null) {
-      // The match index points at the glyph; order by where the PHRASE lands
-      // (index of the last char) so `⏵⏵` (2 chars) and `⏸` (1 char) rank fairly.
-      lastIndex = match.index + match[0].length;
-      globalRe.lastIndex = match.index + 1;
-    }
-    if (lastIndex > bestIndex) {
-      bestIndex = lastIndex;
-      best = mode;
-    }
-  }
-  return best;
-}
-
-/** The full ClaudePermissionMode set, for validating the `value`/`from` strings
- *  that cross the IPC seam into the permission stepping engine. */
-const CLAUDE_PERMISSION_MODE_SET: ReadonlySet<ClaudePermissionMode> = new Set<ClaudePermissionMode>([
-  "acceptEdits",
-  "auto",
-  "bypassPermissions",
-  "default",
-  "dontAsk",
-  "plan",
-]);
-
-/** Narrow an untrusted string to a ClaudePermissionMode, or null. */
-export function asClaudePermissionMode(value: string | undefined): ClaudePermissionMode | null {
-  return value && CLAUDE_PERMISSION_MODE_SET.has(value as ClaudePermissionMode)
-    ? (value as ClaudePermissionMode)
-    : null;
-}
-
-/** The Shift+Tab permission cycle order, probe-measured (claude 2.1.214 — see
- *  spikes/midsession-switch-probe §S0; re-observed 2026-07-23 in the
- *  midsession-permission-switch e2e's `observedModes`; RE-MEASURED UNCHANGED at
- *  2.1.258, SL-5 q17 arm A — 12 consecutive presses traced this exact order
- *  three times over, with no fifth member and no `bypassPermissions`):
- *  manual (default) → accept edits → plan → auto → manual. `auto` is
- *  account-gated and IS granted on this account. */
-export const CLAUDE_PERMISSION_CYCLE: readonly ClaudePermissionMode[] = [
-  "default",
-  "acceptEdits",
-  "plan",
-  "auto",
-];
-
-/** Is `mode` a member of the Shift+Tab cycle — i.e. can stepping ever LAND on
- *  it? `dontAsk` and `bypassPermissions` are the two that cannot (MEASURED,
- *  SL-5 q18 arm E: eight presses from a `dontAsk` session walk the four cycle
- *  members twice and never come back), which is what makes them unreachable
- *  return-home destinations for the stepping engine. */
-export function isClaudePermissionCycleMode(mode: ClaudePermissionMode): boolean {
-  return CLAUDE_PERMISSION_CYCLE.includes(mode);
-}
+// ── Claude model identity (statusline `model.id` ↔ launch alias) ────────────
 
 /**
- * The mode(s) a single Shift+Tab press from `from` may legitimately land on. For
- * a cycle member it is the next cycle mode, PLUS the `plan → default` wrap that
- * fires when the account-gated `auto` is absent. A landing outside this set means
- * the cycle model no longer holds — a stale two-frames-old repaint, a
- * double-press, or an unexpected screen — so the stepping engine treats it as a
- * FAILED step (fail loud) rather than reading it as the step's receipt (review
- * F3: the old engine accepted ANY post-press mode line, so a stale pre-press
- * frame read as "landed on the same mode", double-pressed, and could strand the
- * session on neither the target nor the origin).
- *
- * An OFF-cycle origin is one the cycle cannot reach (`isClaudePermissionCycleMode`
- * is false): `bypassPermissions` and `dontAsk`. Both keep the blanket exemption —
- * any cycle member is accepted — and the stale-repaint filter (landing === `from`)
- * still rejects a redraw of `from` itself. This preserves the blind-seek the
- * engine used before landing validation for those two rare cases.
- *
- * WHAT IS KNOWN ABOUT EACH, and why neither is encoded (SL-5):
- *
- *  - `bypassPermissions` — successor UNMEASURED and not measurable from Sonata.
- *    A `--permission-mode bypassPermissions` spawn parks on an unanswered
- *    "WARNING: … Bypass Permissions mode" consent screen and never paints a
- *    composer (q18 arm E), so there is no mode line to step away from.
- *  - `dontAsk` — successor OBSERVED ONCE, at 2.1.258: the single press taken
- *    from a `--permission-mode dontAsk` composer landed on `default` (q18 arm E;
- *    the seven presses after it were cycle-internal, so they corroborate the
- *    CYCLE, not this transition). **n=1 does not earn a one-member expectation
- *    here**, and the asymmetry is what decides it: a one-member set that is
- *    RIGHT buys nothing the stale-repaint filter does not already give, while a
- *    one-member set that upstream later makes WRONG turns a drive that would
- *    have worked into a guaranteed failure — and since SL-5 also removed the
- *    walking recovery for non-cycle origins (`beginPermissionReturn` stops
- *    immediately rather than pressing toward an unreachable home), that failure
- *    now resolves on press 1 with no second chance. Fail-loud is the right
- *    contract for a transition we have MODELLED; it is the wrong contract for
- *    one we have SAMPLED once. Recorded here as knowledge rather than encoded as
- *    a rule; a second independent observation would change the calculus.
- */
-export function expectedPermissionLandings(
-  from: ClaudePermissionMode,
-): ReadonlySet<ClaudePermissionMode> {
-  const idx = CLAUDE_PERMISSION_CYCLE.indexOf(from);
-  if (idx === -1) {
-    return new Set(CLAUDE_PERMISSION_CYCLE);
-  }
-  const next = CLAUDE_PERMISSION_CYCLE[(idx + 1) % CLAUDE_PERMISSION_CYCLE.length];
-  const landings = new Set<ClaudePermissionMode>();
-  if (next) {
-    landings.add(next);
-  }
-  if (from === "plan") {
-    landings.add("default");
-  }
-  return landings;
-}
-
-// ── Claude `/model` picker + `/effort` slider (D2 U4, 2026-09-03) ─────────────
-//
-// WHY THE PICKER AT ALL. `/model <alias>` — the slash form Sonata drove since S1 —
-// applies the switch AND writes the user's durable default
-// (`~/.claude/settings.json` `model`: "Set model to X and saved as your default
-// for new sessions"), MEASURED 3/3 under every launch channel (F68). The picker's
-// `s` key is the CLI's own session-scoped affordance: "Set model to X for this
-// session only", settings byte-unchanged, `PostModelSwitch` fires with
-// `source:"picker"` (F89, m2 arms a/b/f). The `/effort` picker is a SLIDER with the
-// same `s` (m2 arm e1: `Set effort level to high (this session only): …`, settings
-// unchanged; its Enter form writes `modelSettings[<id>].effortLevel`). Woody's
-// ruling (2026-09-03): ONE drive path — the picker — no slash fallback.
-//
-// EVERYTHING BELOW READS THE SCREEN GRID, never the pty tail (D-1: "is the picker
-// open / which row is focused / where is the slider" are STATE questions).
-// Frames MEASURED at claude 2.1.259 — `app/tests/fixtures/claude-midsession/
-// model-picker-2.1.259.txt`, `effort-slider-2.1.259.txt`,
-// `effort-slider-after-right-2.1.259.txt` (probe `m2-session-scoped-switch`,
-// captures `.abc` / `.defg`):
-//
-//      Select model
-//      Switch between Claude models. Your pick becomes the default for new sessions. …
-//        1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks
-//      ❯ 2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks
-//        3. Fable ✔                Fable 5.1 · Most capable for your hardest and longest-running tasks
-//        4. Sonnet                 Sonnet 5 · Efficient for routine tasks
-//        5. Haiku                  Haiku 4.5 · Fastest for quick answers
-//      ◐ Medium effort ←/→ to adjust
-//      Enter to set as default · s to use this session only · Esc to cancel
-//
-//      Effort
-//                                Faster                                                 Smarter
-//                                ──────────▲────────────────────────────────┆──────────────────
-//                                low     medium     high     xhigh      max       ultracode
-//                                                                             xhigh + workflows
-//      ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel
-//
-// `❯` = focus, `✔` = the CURRENT model (two independent marks, F15). The row
-// LABEL is not the alias (F89 item 4: `5. Haiku Haiku 4.5 · …` is digit, label,
-// description), so the drive navigates by the label column of THIS table.
-
-/**
- * The alias ↔ picker-row ↔ canonical-id table, MEASURED (F16 ids and display
- * names at 2.1.258, re-confirmed by m2 arm a at 2.1.259 for every row).
- *
- * `pickerRow` is null for plain `opus`: the picker's only Opus row is
- * `Opus (1M context)`, so a session-scoped switch to the 200K `opus` has no row to
- * land on (m2 arm a: "target row not found"). Sonata still offers `opus` at LAUNCH
- * (`--model opus` resolves); mid-session it fails loud with a named reason.
- *
- * `postRequestedModel` is what `PostModelSwitch.requested_model` carries when the
- * row is chosen through the picker — the alias for four rows, but for Fable the
- * CLI reports `claude-fable-5-1[1m]` (m2 arm a, 2/2 runs) while `to_model` is the
- * canonical `claude-fable-5-1`. The hook settle therefore matches EITHER the
- * alias/requested form OR `to_model` against `id` — never `to_model` alone from a
- * `PreModelSwitch` (whose second copy drifts, F84).
+ * The alias ↔ display ↔ canonical-id table, MEASURED (F16 ids and display names
+ * at 2.1.258, re-confirmed at 2.1.259). `alias` is what Sonata passes as
+ * `--model`; `display` and `id` are what the CLI writes back into the statusline
+ * payload (`model.display_name`, `model.id`) — a FILE contract, so this table is
+ * how a current-model reading maps back onto a launch row without parsing the
+ * screen.
  */
 export interface ClaudeModelAliasRow {
   alias: string;
-  /** The picker row label (between the digit and the description). Null = no row. */
-  pickerRow: string | null;
-  /** The statusline `model.display_name` / receipt name. */
+  /** The statusline `model.display_name`. */
   display: string;
-  /** The canonical API id (`PostModelSwitch.to_model`, statusline `model.id`). */
+  /** The canonical API id (statusline `model.id`). */
   id: string;
-  /** What `requested_model` carried for a picker-driven switch of this row. */
-  postRequestedModel: string;
 }
 export const CLAUDE_MODEL_ALIASES: readonly ClaudeModelAliasRow[] = [
-  { alias: "fable", pickerRow: "Fable", display: "Fable 5.1", id: "claude-fable-5-1", postRequestedModel: "claude-fable-5-1[1m]" },
-  { alias: "opus[1m]", pickerRow: "Opus (1M context)", display: "Opus 5 (1M context)", id: "claude-opus-5[1m]", postRequestedModel: "opus[1m]" },
-  { alias: "opus", pickerRow: null, display: "Opus 5", id: "claude-opus-5", postRequestedModel: "opus" },
-  { alias: "sonnet", pickerRow: "Sonnet", display: "Sonnet 5", id: "claude-sonnet-5", postRequestedModel: "sonnet" },
-  { alias: "haiku", pickerRow: "Haiku", display: "Haiku 4.5", id: "claude-haiku-4-5-20251001", postRequestedModel: "haiku" },
+  { alias: "fable", display: "Fable 5.1", id: "claude-fable-5-1" },
+  { alias: "opus[1m]", display: "Opus 5 (1M context)", id: "claude-opus-5[1m]" },
+  { alias: "opus", display: "Opus 5", id: "claude-opus-5" },
+  { alias: "sonnet", display: "Sonnet 5", id: "claude-sonnet-5" },
+  { alias: "haiku", display: "Haiku 4.5", id: "claude-haiku-4-5-20251001" },
 ];
-
-export function claudeModelAliasRow(alias: string): ClaudeModelAliasRow | null {
-  return CLAUDE_MODEL_ALIASES.find((row) => row.alias === alias) ?? null;
-}
-
-/**
- * Does a `PostModelSwitch` payload confirm a switch Sonata drove to `alias`?
- * Matches the alias itself (the slash-form / four picker rows), the measured
- * picker `requested_model` form, or `to_model` against the canonical id (the Fable
- * row). All three are MEASURED shapes; nothing here is a label heuristic.
- */
-export function claudeModelSwitchMatches(
-  alias: string,
-  requestedModel: string,
-  toModel: string | null | undefined,
-): boolean {
-  if (requestedModel === alias) {
-    return true;
-  }
-  const row = claudeModelAliasRow(alias);
-  if (!row) {
-    return false;
-  }
-  if (requestedModel === row.postRequestedModel) {
-    return true;
-  }
-  return typeof toModel === "string" && toModel === row.id;
-}
-
-export interface ClaudeModelPickerRow {
-  digit: number;
-  label: string;
-  current: boolean;
-  focused: boolean;
-}
-export interface ClaudeModelPicker {
-  rows: ClaudeModelPickerRow[];
-  /** The focused row's label, or null while the cursor is not legible. */
-  focused: string | null;
-}
-
-const CLAUDE_MODEL_PICKER_TITLE_RE = /Selectmodel/;
-const CLAUDE_MODEL_PICKER_FOOTER_RE = /stousethissessiononly·Esctocancel/;
-const CLAUDE_MODEL_PICKER_ROW_RE = /^\s*(❯)?\s*(\d)\.\s+(.+?)\s*$/;
-
-/** The `/model` picker is on the SCREEN (viewport text). Co-occurrence of the
- *  title and the footer that names the `s` key — the footer is also the proof
- *  the affordance this drive rests on still exists at this binary. */
-export function claudeModelPickerOpen(screenText: string): boolean {
-  const compact = cleanTerminal(screenText).replace(/\s+/g, "");
-  return CLAUDE_MODEL_PICKER_TITLE_RE.test(compact) && CLAUDE_MODEL_PICKER_FOOTER_RE.test(compact);
-}
-
-/** Parse the picker's numbered rows off the grid. Label = the text between the
- *  digit and either the `✔` mark or the two-space gap before the description. */
-export function parseClaudeModelPicker(screenText: string): ClaudeModelPicker {
-  const rows: ClaudeModelPickerRow[] = [];
-  const lines = cleanTerminal(screenText).split("\n");
-  // Scope to the picker: rows live BELOW the `Select model` title. The transcript
-  // above it stays visible and claude renders user prompts with a leading `❯ `,
-  // so a whole-viewport scan could read `❯ 4. Sonnet please` as a focused row
-  // (review M3). Focus is the LAST `❯` row, the file's convention for cursors.
-  const titleAt = lines.findIndex((line) => /^\s*Select model\s*$/.test(line));
-  for (const line of lines.slice(titleAt >= 0 ? titleAt + 1 : 0)) {
-    const match = CLAUDE_MODEL_PICKER_ROW_RE.exec(line);
-    if (!match) {
-      continue;
-    }
-    const rest = match[3] ?? "";
-    const label = rest.split(/\s✔|\s{2,}/)[0]?.trim() ?? "";
-    if (!label) {
-      continue;
-    }
-    rows.push({ digit: Number(match[2] ?? "0"), label, current: /✔/.test(rest), focused: match[1] === "❯" });
-  }
-  const focusedRows = rows.filter((row) => row.focused);
-  return { rows, focused: focusedRows.length > 0 ? (focusedRows[focusedRows.length - 1]?.label ?? null) : null };
-}
-
-/** The `/effort` slider is on the SCREEN. Footer names the `s` key; the tick
- *  labels line carries the level words. */
-const CLAUDE_EFFORT_PICKER_FOOTER_RE = /←\/→toadjust·Entertoconfirm·sforthissessiononly·Esctocancel/;
-export function claudeEffortPickerOpen(screenText: string): boolean {
-  const compact = cleanTerminal(screenText).replace(/\s+/g, "");
-  return CLAUDE_EFFORT_PICKER_FOOTER_RE.test(compact) && /low.*medium.*high/.test(compact);
-}
-
-export interface ClaudeEffortSlider {
-  /** The tick labels in screen order (2.1.259: low medium high xhigh max ultracode). */
-  levels: string[];
-  /** Index into `levels` of the tick nearest the `▲` marker, or null when either
-   *  the marker or the labels line is not legible. */
-  currentIndex: number | null;
-}
-
-/** Locate the `▲` column and the labels line; the current level is the label
- *  whose centre column is nearest the marker. Column-based rather than
- *  text-based because the slider paints no textual "current" mark. */
-export function parseClaudeEffortSlider(screenText: string): ClaudeEffortSlider {
-  const lines = cleanTerminal(screenText).split("\n");
-  let markerCol: number | null = null;
-  let labelsLine: string | null = null;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? "";
-    if (markerCol === null && /▲/.test(line) && /─/.test(line)) {
-      markerCol = line.indexOf("▲");
-      // The labels line is the first following line carrying the level words.
-      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
-        const candidate = lines[j] ?? "";
-        if (/\blow\b/.test(candidate) && /\bmedium\b/.test(candidate) && /\bhigh\b/.test(candidate)) {
-          labelsLine = candidate;
-          break;
-        }
-      }
-      break;
-    }
-  }
-  if (markerCol === null || labelsLine === null) {
-    return { levels: [], currentIndex: null };
-  }
-  const levels: string[] = [];
-  const centres: number[] = [];
-  const wordRe = /\S+/g;
-  let match: RegExpExecArray | null;
-  while ((match = wordRe.exec(labelsLine)) !== null) {
-    levels.push(match[0]);
-    centres.push(match.index + match[0].length / 2);
-  }
-  if (levels.length === 0) {
-    return { levels: [], currentIndex: null };
-  }
-  let best = 0;
-  for (let i = 1; i < centres.length; i++) {
-    if (Math.abs((centres[i] ?? 0) - markerCol) < Math.abs((centres[best] ?? 0) - markerCol)) {
-      best = i;
-    }
-  }
-  return { levels, currentIndex: best };
-}

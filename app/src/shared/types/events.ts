@@ -7,7 +7,6 @@ import type {
   ApprovalDecisionEncoding,
   ApprovalKind,
   ChangeKind,
-  ClaudePermissionMode,
   CompletionConfidence,
   CompletionHint,
   CompletionSource,
@@ -469,109 +468,6 @@ export type RemoteControlStateEvent = BaseRuntimeEvent<
   }
 >;
 
-/**
- * A mid-session Claude control switch changed phase (mid-session switch
- * program). One event family for every axis Reading can drive natively:
- *   - `model` / `effort` (S1) — Sonata injected `/model <id>` / `/effort <level>`
- *     as typed text and watches the pty stream for the CLI's own receipt line
- *     (`Set model to …` / `Set effort level to …`). One-shot.
- *   - `permission` (S2) — Sonata drove the Shift+Tab (`\x1b[Z`) stepping engine,
- *     using the TUI mode line (`plan mode on`, `auto mode on`, …) as the
- *     per-step choreography receipt. `value` is the TARGET mode id; the state
- *     SSOT stays the hook payload's `permission_mode` (lazy reconcile — the mode
- *     line is receipt-only). `observedModes` lists every mode the choreography
- *     confirmed via a receipt this run, so the renderer can learn which
- *     account-gated modes (`auto`) this session can actually reach.
- *   - `codex-model` / `codex-effort` (S4) — Sonata drove codex's `/model`
- *     TWO-level picker (level 1 = curated model rows, level 2 = reasoning rows)
- *     by TEXT, arrows + Enter, landing the non-selected dimension on its
- *     `(current)`-marked row, and read the `• Model changed to <model> <effort>`
- *     receipt. `value` is the selected model slug / reasoning id; the settled
- *     event ALSO carries `codexModel` + `codexEffort` (the receipt's own pair),
- *     which the controller writes to task.model + task.reasoningEffort (codex has
- *     no statusline/hook model mirror — the picker receipt is the channel).
- * Phases:
- *   - `pending` — the switch is driving; waiting for its receipt(s).
- *   - `settled` — the target was confirmed (model/effort receipt line, the target
- *     mode line for claude permission, or the `• Permissions updated to <label>`
- *     receipt for codex-permission). For model/effort/permission the chip follows
- *     its own SSOT (statusline / hook payload), so `settled` only clears the
- *     pending affordance. Codex-permission is the ASYMMETRIC case: codex has no
- *     hook-payload permission mirror, so the picker RECEIPT is the confirmation
- *     channel — the controller writes `task.codexPermissionMode` off this settled
- *     event (see `applyCodexPermissionSwitchReceipt` in runtime-controller).
- *   - `failed` — a clean rejection (`Model '<x>' not found`); `error` carries the
- *     surfaced reason, nothing changed CLI-side. (Not used by permission — a
- *     Shift+Tab step cannot be "rejected"; it either lands or aborts home.)
- *   - `needs-attention` — the drive could not confirm the target and the screen
- *     is in an unrecognized state (model/effort: a cache-miss confirm / consent
- *     interstitial; permission: stepping aborted and returned home, or landed
- *     somewhere the hook SSOT must reconcile). RED LINE: Sonata does NOTHING
- *     further — no auto-answer, no blind-Enter, no non-`\x1b[Z` key — and points
- *     the user at the CLI.
- */
-export type ControlSwitchStateEvent = BaseRuntimeEvent<
-  "control-switch:state",
-  {
-    taskId: TaskId;
-    kind: "model" | "effort" | "permission" | "codex-permission" | "codex-model" | "codex-effort";
-    value: string;
-    phase: "pending" | "parked" | "settled" | "failed" | "needs-attention";
-    error: string | null;
-    /** Permission axis only: the modes this Shift+Tab choreography confirmed via
-     *  a mode-line receipt (including pass-throughs). The renderer merges these
-     *  into the session's reachable-modes set so the menu never offers a mode the
-     *  cycle can't reach (D4 — no dead steps). Absent on model/effort. */
-    observedModes?: ClaudePermissionMode[];
-    /** codex-model / codex-effort SETTLED only: the (model, effort) pair the
-     *  `/model` picker's `• Model changed to <model> <effort>` receipt confirmed.
-     *  Codex has no statusline/hook mirror for its model or effort, so the picker
-     *  RECEIPT is the confirmation channel — the controller writes BOTH task.model
-     *  and task.reasoningEffort off these fields (mirrors the codex-permission
-     *  asymmetry; see runtime-controller `applyCodexModelSwitchReceipt`). Both are
-     *  the receipt's own values (receipt-corroborated, not the requested target).
-     *  Absent on every other kind/phase — the display `value` carries the pending/
-     *  needs-attention target (the model slug for codex-model, the effort id for
-     *  codex-effort). */
-    codexModel?: string | null;
-    codexEffort?: ReasoningEffort | null;
-    /** needs-attention ONLY: WHY the drive couldn't confirm, when the cause is
-     *  known — so the banner can name the exact next action instead of the generic
-     *  "check the CLI" fallback (S5). Absent ⇒ a generic timeout/opaque-screen
-     *  rollback (the fallback copy). Cases:
-     *   - `interstitial` — claude model/effort earned no receipt in time: the CLI
-     *     is showing a cache-miss confirm / Fable-consent dialog the user must
-     *     answer natively (the DEFAULT flow on a session with history — S1). Banner:
-     *     "Confirm the switch in the CLI".
-     *   - `consent` — codex Full Access opened its `Enable full access?` consent
-     *     dialog; Sonata rolled back rather than auto-answer (RED LINE 2 — a human
-     *     grant). Banner: "Confirm Full Access in the CLI".
-     *   - `drift` — a codex `/model` target row was absent from the live picker
-     *     (legacy/curated-list drift, D5) or the effort to preserve had no v1 row;
-     *     nothing changed CLI-side. Banner: "Model list changed upstream — switch
-     *     in the CLI". */
-    reason?: "interstitial" | "consent" | "drift";
-    /** `parked` ONLY (S7): a RECOGNIZED confirm dialog is open in the Terminal and
-     *  Sonata parked on it — the renderer surfaces its rows in the Action Drawer and
-     *  the user's chosen row is relayed back (`answerControlConfirm`). Which dialog:
-     *   - `claude-cachemiss` — the `Switch model? / Change effort level?` confirm a
-     *     `/model` / `/effort` inject raises on a session with history (rows: Yes/No).
-     *   - `codex-consent` — the `Enable full access?` consent the /permissions Full
-     *     Access row opens (rows: Yes continue / Cancel — codex 0.146.0).
-     *  The renderer composes the VERBATIM rows from (dialog, kind, value) + its own
-     *  registered copy; send stays gated while parked. */
-    dialog?: "claude-cachemiss" | "codex-consent";
-    /** `settled` ONLY (S7): the parked confirm was user-CANCELLED (claude No, or a
-     *  codex Cancel/native cancel) — nothing changed CLI-side, so the chip follows
-     *  its unchanged SSOT and the controller writes NO mirror. */
-    cancelled?: boolean;
-  }
->;
-
-export type ControlSwitchAttentionReason = NonNullable<
-  ControlSwitchStateEvent["payload"]["reason"]
->;
-
 export type ApprovalDetectedEvent = BaseRuntimeEvent<
   "approval:detected",
   {
@@ -786,18 +682,13 @@ export type UsageUpdatedEvent = BaseRuntimeEvent<
 /**
  * A codex rollout `turn_context` record was observed (item E — mid-session
  * switch S5). Codex has NO statusline/hook mirror for its model, reasoning
- * effort, or permission axes (the asymmetry the whole codex switch design works
- * around), so a NATIVE switch — the user typing `/model` or `/permissions`
- * directly in the co-visible Terminal, not driven by Sonata — never updates
- * task.model / task.reasoningEffort / task.codexPermissionMode; the mirrors go
- * stale. The rollout writes a per-turn `turn_context` carrying the turn's actual
- * model + effort + approval/sandbox policy, so it is the lazy SSOT: the
- * controller reconciles the three mirrors off it (see runtime-controller
- * `reconcileCodexTurnContext`), backstopping the picker-receipt FAST path with a
- * rollout-driven correction. This also removes the staleness the S4 codex-model
- * switch's effort-preservation depends on (it reads task.reasoningEffort to
- * preserve effort at picker level 2 — a stale mirror would push a stale effort
- * onto the live CLI; a reconciled mirror can't). turn_context lands at turn
+ * effort, or permission axes, so a switch the user makes in the co-visible
+ * Terminal (`/model`, `/permissions`) never reaches task.model /
+ * task.reasoningEffort / task.codexPermissionMode through any other channel.
+ * The rollout writes a per-turn `turn_context` carrying the turn's actual
+ * model + effort + approval/sandbox policy, so it is the SSOT for all three:
+ * the controller reconciles the mirrors off it (see runtime-controller
+ * `reconcileCodexTurnContext`). turn_context lands at turn
  * START (well before the Stop signal), so by the next turn's completion a native
  * switch made in the prior turn is already reflected. CONTROLLER-INTERNAL — the
  * reconcile emits `task:updated`, which the renderer already consumes, so this
@@ -867,7 +758,6 @@ export type ProductRuntimeEvent =
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
   | RemoteControlStateEvent
-  | ControlSwitchStateEvent
   | FileWatchingEvent
   | FileWatchErrorEvent
   | FileChangedEvent
@@ -916,7 +806,6 @@ export type RunIndexEvent = Exclude<
   | DeliveryReceiptEvent
   | TaskUpdatedEvent
   | RemoteControlStateEvent
-  | ControlSwitchStateEvent
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
 >;

@@ -36,7 +36,6 @@ import type {
 import type { TagDefinition, TagGroup } from "../shared/types/tags";
 import type {
   ApprovalDetectedEvent,
-  ControlSwitchAttentionReason,
   OptionPromptDetectedEvent,
   TranscriptBlocksEvent,
 } from "../shared/types/events";
@@ -278,50 +277,6 @@ export interface TaskViewState {
    *  approval card expired to the native panel. Display-only state: set/cleared
    *  from runtime events, never drives delivery or runs. */
   slashAttention: { runId: string; command: string } | null;
-  /** Mid-session Claude control switch (S1 model/effort, S2 permission) — the
-   *  non-settled state of the ONE in-flight switch (kept as one field, mirroring
-   *  the backend's single-switch guard). `pending` dims the switch's chip (model
-   *  chip for model/effort, access chip for permission) while its receipt is
-   *  awaited; `needs-attention` raises the "check the CLI" banner (model/effort:
-   *  no receipt + unrecognized screen; permission: stepping aborted home — RED
-   *  LINE). Cleared on settle (the chip follows its own SSOT — statusline for
-   *  model/effort, hook payload for permission), on dismiss, or when a new run
-   *  moots it. A `failed` switch does not live here — it surfaces as a one-line
-   *  composer notice via `status`. */
-  controlSwitch:
-    | {
-        kind:
-          | "model"
-          | "effort"
-          | "permission"
-          | "codex-permission"
-          | "codex-model"
-          | "codex-effort";
-        value: string;
-        phase: "pending" | "parked" | "needs-attention";
-        /** needs-attention ONLY, when the cause is known (S5): sharpens the banner
-         *  from the generic "check the CLI" to the exact next action. See
-         *  `ControlSwitchAttentionReason` — `interstitial` (claude cache-miss/consent
-         *  handoff), `consent` (codex Full Access gate), `drift` (codex model-list
-         *  drift). Absent ⇒ the generic fallback copy. */
-        reason?: ControlSwitchAttentionReason;
-        /** `parked` ONLY (S7): a RECOGNIZED confirm dialog is open in the Terminal
-         *  and Sonata parked on it — the Action Drawer surfaces its rows and relays
-         *  the user's choice. Which dialog (drives the drawer copy + row set):
-         *  `claude-cachemiss` (Yes/No) | `codex-consent` (Yes continue / Cancel —
-         *  codex 0.146.0). Send stays gated while parked (the `controlSwitch`
-         *  pointer is set), exactly like `pending`. */
-        dialog?: "claude-cachemiss" | "codex-consent";
-      }
-    | null;
-  /** The permission modes this session can actually reach via Shift+Tab (D4 — no
-   *  dead steps). Seeded from the spawn mode (bypassPermissions only appears here
-   *  if the session launched into it), grown as modes are OBSERVED — a hook
-   *  payload reconciling `permission_mode`, or a mode line the stepping engine
-   *  read (incl. pass-throughs; `auto` is account-gated, so it only appears once
-   *  seen). The access-chip menu offers default/acceptEdits/plan always, plus any
-   *  gated mode present here. */
-  observedPermissionModes: ClaudePermissionMode[];
   /** The broker hold expired — the request now waits in the CLI. The drawer
    *  keeps showing it (expired variant); cleared by a decision (incl.
    *  answered-natively) or a fresh detected ask. */
@@ -679,32 +634,10 @@ export interface PromptNavState {
 }
 
 export interface ComposerMenuState {
-  /** `add` = the attachment menu; `session-model` = the live Claude session's
-   *  model + effort switch menu (S1); `session-codex-model` = the live Codex
-   *  session's model + effort switch menu (S4 — the `/model` two-level picker
-   *  choreography). Both model menus share the model chip; the session's provider
-   *  selects which opens. `session-access` = the live Claude session's
-   *  permission-mode switch menu (S2); `session-codex-access` = the live Codex
-   *  session's permission-preset switch menu (S3). Both access menus share the
-   *  access chip; the provider selects which opens. One composer popover at a
-   *  time; each anchors above its chip. */
-  type:
-    | "add"
-    | "session-model"
-    | "session-codex-model"
-    | "session-access"
-    | "session-codex-access";
+  /** `add` = the attachment menu — the one composer menu of a live session. It
+   *  anchors above its button. */
+  type: "add";
   anchor: PopoverAnchor;
-  /** The STAGED (model, effort) pair for a session model menu (S7 Part 1). The
-   *  model menus (`session-model` / `session-codex-model`) become staged selectors:
-   *  a row click updates this pair (NOT the CLI), and Save applies the changed axes
-   *  as ONE logical switch. Seeded to the session's current pair when the menu opens;
-   *  Save is disabled while it equals current; Cancel/Esc/outside-click discards it
-   *  (by closing the menu). Absent for the access menus (single-axis, immediate-apply
-   *  — Woody-confirmed) and the add menu. Values are the `/model` alias / effort id,
-   *  or null for "not set / native default" (only reachable when the current value is
-   *  itself null). */
-  staged?: { model: string | null; effort: string | null };
 }
 
 export interface SlashPickerState {
@@ -892,12 +825,6 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     cliState: null,
     resumeChoice: null,
     slashAttention: null,
-    controlSwitch: null,
-    // Seed the reachable-modes set with the spawn/initial mode (createTaskView
-    // runs before any live reconciliation, so task.permissionMode is the launch
-    // value here). This is how bypassPermissions becomes menu-eligible ONLY for a
-    // session spawned into it (D4).
-    observedPermissionModes: task.permissionMode ? [task.permissionMode] : [],
     approvalExpired: false,
     status,
     unread: false,

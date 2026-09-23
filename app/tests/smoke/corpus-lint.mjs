@@ -21,13 +21,9 @@ const FIXTURES = dirname(fileURLToPath(import.meta.url)) + "/../fixtures";
 // grid frames captured from a live CLI's boot ceremony — same class, same
 // exposure (the frames carry the probe's cwd, and a boot banner can print the
 // Remote Control session URL).
-// FIFTH TREE (upstream sync 2026-09-01, SL-4): `claude-midsession` pins verbatim
-// pty windows from a live mid-session `/model` switch — raw escape bytes, and
-// each one contains a full transcript redraw, so it carries the probe's cwd and
-// whatever the banner printed at that instant. Same class, same fence.
-// SIXTH TREE (upstream sync 2026-09-01, SL-11): `claude-remote-control` pins
+// FIFTH TREE (upstream sync 2026-09-01, SL-11): `claude-remote-control` pins
 // verbatim pty windows from live Remote Control transitions. Same class and the
-// SHARPEST exposure of the six — an RC window is where the session link lives.
+// SHARPEST exposure of the five — an RC window is where the session link lives.
 // The pinned windows carry no real link (one was captured through the probe's
 // id redaction and re-seeded with a `session_REDACTED…` id; the other is trimmed
 // to start below the link row), but the tree is fenced because the next re-pin
@@ -38,7 +34,6 @@ const ROOTS = [
   resolve(FIXTURES, "reducer-goldens"),
   resolve(FIXTURES, "claude-idle"),
   resolve(FIXTURES, "claude-boot"),
-  resolve(FIXTURES, "claude-midsession"),
   resolve(FIXTURES, "claude-remote-control"),
 ];
 const HOME = os.homedir();

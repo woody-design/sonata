@@ -34,16 +34,16 @@ export const MODEL_OPTIONS: Record<
   // `(current)` / gpt-5.6-terra / gpt-5.6-luna / gpt-5.5. The three "legacy"
   // rows 0.152.1 served (gpt-5.4, gpt-5.4-mini) and the earlier
   // gpt-5.3-codex-spark are GONE from the catalog (`models_cache.json` does not
-  // even list them hidden), so they are pruned here — a row Sonata offers that
-  // the picker cannot show is a drive the mid-session switch can only roll back
-  // from (D5). NOTE the launch itself tolerates a pruned slug: MEASURED (q36 arm
+  // even list them hidden), so they are pruned here. NOTE the launch itself
+  // tolerates a pruned slug: MEASURED (q36 arm
   // C) `-m gpt-5.4` boots to a ready composer whose footer reads `gpt-5.4 high`,
   // and the picker subtitle still advertises `codex -m` for legacy access — so
   // a persisted task on a pruned model still reopens; `modelValueLabel` renders
   // its bare slug. The catalog is SERVER-mutable; re-walk every sync.
   //
-  // Labels are cosmetic on this side: the drive walks the picker by SLUG
-  // (`parseCodexModelLevel1`), unlike Claude's label-keyed lookup below.
+  // Labels are cosmetic on this side: the launch passes the SLUG (`-m`), and the
+  // session chip reads the rollout's `turn_context` slug back through
+  // `modelValueLabel`.
   codex: [
     { label: "6 Astra", value: "gpt-6-astra" },
     { label: "5.6 Sol", value: "gpt-5.6-sol" },
@@ -54,14 +54,10 @@ export const MODEL_OPTIONS: Record<
   ],
   // Claude's list is re-walked against the CLI's own `/model` picker each sync
   // (upstream sync 2026-09-01, SL-4 — probes q12/q13 at claude 2.1.258,
-  // spikes/upstream-sync-2026-09/claude/findings.md F15/F16). Two couplings make
-  // the LABELS load-bearing rather than cosmetic:
-  //
-  //  - `sessionModelValue()` (renderer/view/composer.ts) maps the LIVE statusline
-  //    `model.display_name` back to an alias BY LABEL, to mark the current row in
-  //    the session menu. A label that is not the CLI's display name silently
-  //    marks nothing (it falls back to the spawn model).
-  //  - `modelValueLabel()` renders a stored alias anywhere a chip shows a model.
+  // spikes/upstream-sync-2026-09/claude/findings.md F15/F16). The LABELS are
+  // user-facing rather than cosmetic: `modelValueLabel()` renders a stored alias
+  // anywhere a chip shows a model (the session chip before its first statusline
+  // tick, which then shows the CLI's own `model.display_name`).
   //
   // MEASURED alias → display name at 2.1.258 (q13, each verified by the receipt
   // AND the statusline payload the switch produced):
@@ -119,17 +115,13 @@ export const REASONING_OPTIONS: Record<
   //
   //  - `ultracode` — accepted, receipt `Set effort level to ultracode (this
   //    session only): xhigh + dynamic workflow orchestration`, but the banner
-  //    and the statusline mirror BOTH report it back as `xhigh`. Sonata's staged
-  //    session menu compares staged-vs-current on exactly that mirror, so an
-  //    ultracode row would be permanently dirty: Save would inject it, the CLI
-  //    would accept it, and the menu would still read "current = Extra High"
-  //    with Save enabled forever. Offering a tier the mirror cannot express is a
-  //    design fork, not a table entry.
+  //    and the statusline mirror BOTH report it back as `xhigh`, so the session
+  //    chip could never show the tier the user picked. Offering a tier the
+  //    mirror cannot express is a design fork, not a table entry.
   //  - `auto` — accepted with a DIFFERENT receipt shape (`Effort level set to
-  //    auto`, which `parseClaudeControlReceipt` does not recognise), and it
-  //    removes the effort segment from the banner while the mirror reports the
-  //    level the CLI resolved for that turn. A per-turn value has no stable
-  //    "current" for the menu to mark.
+  //    auto`), and it removes the effort segment from the banner while the
+  //    mirror reports the level the CLI resolved for that turn. A per-turn value
+  //    has no stable "current" for the session chip to show.
   //
   // Both are registered as post-sync questions rather than modelled here.
   claude: [

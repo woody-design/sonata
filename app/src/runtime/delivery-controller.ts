@@ -544,20 +544,7 @@ export class DeliveryController {
       // silent. Self-clearing: the dismissal repaints the composer, and the
       // blocked item re-pumps on the 500ms poll armed below. See
       // TerminalHost.isRewindPanelOpen.
-      !this.terminalHost.isRewindPanelOpen() &&
-      // Control-switch guard (RED LINE): a mid-session switch can PARK a consent
-      // dialog (a codex Full Access confirm — `waiting-user`, no timeout by
-      // design) or hold an interstitial. A delivery here would paste text + Enter
-      // into that dialog, auto-answering its default row ("Yes, continue anyway")
-      // — a silent full-access grant the program forbids. Unlike the approval
-      // scrape this covers ANY phase of the switch, parked included. A blocked
-      // item re-pumps the instant the switch clears: the resolution ALWAYS emits
-      // a settled/needs-attention `control-switch:state` event (after
-      // clearPendingControlSwitch), which reaches handleRuntimeEvent → pump()
-      // with the pointer already null (mirrors the approval:decision re-pump);
-      // the 500ms schedulePumpRetry poll — armed on the blocked-path branch in
-      // pump() — is the backstop for any clear that fires no event.
-      !this.terminalHost.hasPendingControlSwitch()
+      !this.terminalHost.isRewindPanelOpen()
     );
   }
 
@@ -586,10 +573,10 @@ export class DeliveryController {
           : String(error);
       this.inFlight = null;
       if (guard) {
-        // Re-queued into a transient screen owner (an approval/control switch
+        // Re-queued into a transient screen owner (an approval or Rewind panel
         // appeared in the TOCTOU gap after canDeliver passed). Arm the 500ms
         // poll exactly like the blocked path in pump(): do NOT trust an
-        // event-driven wakeup — a switch/interstitial can clear with no
+        // event-driven wakeup — an interstitial can clear with no
         // pump-triggering event, which would wedge this item until an unrelated
         // event happened to fire.
         this.schedulePumpRetry();
@@ -1153,9 +1140,9 @@ function normalizeText(value: string): string {
 
 /**
  * Guard errors are states, not failures: the screen is temporarily owned by an
- * approval panel, an in-flight control switch (a parked consent dialog) or a
- * claude Rewind panel. The item stays queued and delivers when the state clears
- * — never silently into it. canDeliver already refuses all three; these throws
+ * approval panel or a claude Rewind panel. The item stays queued and delivers
+ * when the state clears — never silently into it. canDeliver already refuses
+ * both; these throws
  * are the submitPrompt-level backstop, and re-queueing keeps their semantics
  * correct if one ever fires.
  */
@@ -1163,7 +1150,6 @@ function isDeliveryGuardError(error: unknown): boolean {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
   return (
     message.includes("native approval screen") ||
-    message.includes("control switch is pending") ||
     message.includes("rewind panel is open")
   );
 }

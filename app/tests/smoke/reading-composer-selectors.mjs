@@ -415,10 +415,10 @@ const run = (status, extra = {}) => ({
   );
   // Re-walked against the live `/model` picker at claude 2.1.258 (upstream sync
   // 2026-09-01, SL-4 — probes q12/q13). The LABELS are the load-bearing half:
-  // `sessionModelValue` maps the statusline `model.display_name` back to an alias
-  // BY LABEL, so a label that is not the CLI's display name silently marks no
-  // current model at all. Each label below is the display name the CLI itself
-  // reported after switching to that alias.
+  // the session chip shows `modelValueLabel(alias)` until the first statusline
+  // tick and the CLI's own `model.display_name` after it, so a label that is not
+  // the CLI's display name makes the chip change its mind mid-session. Each
+  // label below is the display name the CLI itself reported for that alias.
   assert.deepEqual(
     CFG.MODEL_OPTIONS.claude.map(({ label, value }) => ({ label, value })),
     [
@@ -431,11 +431,9 @@ const run = (status, extra = {}) => ({
     ],
     "claude model list follows the current native order while retaining stable aliases",
   );
-  // The label→alias round trip `sessionModelValue` performs, pinned on the
-  // MEASURED display names (q13: each is what the statusline payload carried
-  // after `/model <alias>` settled). A relabel that breaks the round trip is the
-  // exact regression this slice found and fixed, so it is tested as a round trip
-  // rather than as a list.
+  // The label ↔ statusline display-name agreement, pinned on the MEASURED
+  // display names (q13: each is what the statusline payload carried for that
+  // alias), tested as a round trip rather than as a list.
   for (const [displayName, alias] of [
     ["Fable 5.1", "fable"],
     ["Opus 5 (1M context)", "opus[1m]"],
@@ -623,9 +621,31 @@ const run = (status, extra = {}) => ({
   );
 }
 
-// (5b — live-chip switch-hint selectors retired in S5: S3/S4 made the codex
-// access + model chips interactive, dropping the last callers of
-// sessionModelSwitchHint / sessionPermissionSwitchHint.)
+// 5b) Live-chip switch hints — the display-only chip names each CLI's native
+// switch (restored by the Subtraction program, 2026-09-23, when the mid-session
+// drives that had made the chips interactive were removed).
+{
+  assert.equal(
+    C.sessionModelSwitchHint("claude"),
+    "Switch models in the CLI — /model",
+    "claude model hint names /model",
+  );
+  assert.equal(
+    C.sessionModelSwitchHint("codex"),
+    "Switch model and effort in the CLI — /model",
+    "codex model hint names /model and calls out effort",
+  );
+  assert.equal(
+    C.sessionPermissionSwitchHint("claude"),
+    "Switch modes in the CLI — Shift+Tab or /permissions",
+    "claude permission hint keeps Shift+Tab",
+  );
+  assert.equal(
+    C.sessionPermissionSwitchHint("codex"),
+    "Switch permissions in the CLI — /permissions",
+    "codex permission hint names /permissions",
+  );
+}
 
 // 6) Option-prompt receipt builders.
 {

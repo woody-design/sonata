@@ -54,7 +54,7 @@ export function removeSmokeTrustProfile() {
 //   Press enter to continue
 // gate at boot and BLOCKS composer readiness until dismissed — the real app is
 // blocked identically (upstream drift; S4 owns the product-side needs-attention
-// surfacing). The live-CLI midsession smokes cannot reach the composer while it
+// surfacing). The live-CLI codex smokes cannot reach the composer while it
 // is up, so a readiness failure whose terminal shows THIS signature is
 // environmental, not a product regression: the smoke SKIPs (exit 77). Every
 // OTHER readiness failure stays a hard FAIL — the match must be specific.

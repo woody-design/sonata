@@ -264,10 +264,6 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "controlSwitch": null,
-            "observedPermissionModes": [
-              "default"
-            ],
             "approvalExpired": false,
             "status": "Answered",
             "unread": false,
@@ -537,10 +533,6 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "controlSwitch": null,
-            "observedPermissionModes": [
-              "default"
-            ],
             "approvalExpired": false,
             "status": "Answered",
             "unread": true,

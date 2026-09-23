@@ -3,7 +3,7 @@
  *
  * A task's geometry fans out to four mirrors that must agree exactly: the PTY
  * itself, the rendered-scrollback mirror (`TerminalScrollback`), the approval /
- * control-switch grid (`TaskScreenModel`), and the status-region grid
+ * screen-owner grid (`TaskScreenModel`), and the status-region grid
  * (`StatusRegionTracker`). They agree only if every one of them is handed the
  * SAME numbers.
  *
@@ -13,7 +13,7 @@
  * `Math.max(2, …)` inside both grids. Three different clamps over one value is
  * a structural path to divergence, and the failure it produces is silent: a
  * grid that is a few columns off wraps text at different points, so
- * `viewportText()` cuts lines differently, so the consent / rewind predicates
+ * `viewportText()` cuts lines differently, so the trust-dialog / rewind predicates
  * that key on those lines read false while the dialog is on screen — the SL-2
  * failure mode through another entrance.
  *

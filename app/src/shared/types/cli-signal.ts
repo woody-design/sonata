@@ -151,12 +151,14 @@ import type { RuntimeProvider, TaskId, TurnEndWake } from "./domain";
  * cache economics of the switch (`context_tokens`, `prompt_cache_warm`,
  * `cache_ttl`, `estimated_cache_write_usd`, `pricing`).
  *
- * THE UNLOCK IS TAKEN (D2 U3, probe `h4-model-switch-hooks`). `PostModelSwitch`
- * is now INJECTED and CONSUMED: it is the mid-session model switch's confirm,
- * matched on `requested_model` against the alias Sonata typed, replacing the
- * `Set model to …` pty scrape whose needle could not be anchored on that value.
- * `PreModelSwitch` stays declared-but-unwired — measured to fire on every switch
- * ATTEMPT including cancelled ones, so it confirms nothing by itself.
+ * INJECTION HISTORY. D2 U3 (probe `h4-model-switch-hooks`) injected
+ * `PostModelSwitch` as the confirm for Sonata's mid-session model DRIVE, matched
+ * on `requested_model`. The Subtraction program (2026-09-23) removed the drive —
+ * Sonata no longer operates the CLI's pickers — so the event is no longer
+ * injected; a model switch the user makes in the Terminal reaches Sonata through
+ * the statusline payload (`model.id` / `model.display_name`), which needs no hook.
+ * `PreModelSwitch` was never injected — measured to fire on every switch ATTEMPT
+ * including cancelled ones, so it confirms nothing by itself.
  *
  * Two corrections to what SL-9 recorded here, both from re-measuring rather than
  * re-reading:
@@ -165,15 +167,14 @@ import type { RuntimeProvider, TaskId, TurnEndWake } from "./domain";
  *    different model and fired one at all) 62–64ms behind the first, same session
  *    and same `prompt_id`, and carries a DIFFERENT `to_model`
  *    (`claude-sonnet-5` while `requested_model` stayed `haiku`) with double the
- *    cost estimate. So `requested_model` is the invariant and `to_model` is not —
- *    which is why the consumer matches on the alias and nothing else.
+ *    cost estimate. So `requested_model` is the invariant and `to_model` is not.
  *  - the "Post lands 9.3s after Pre" figure was the PROBE's own latency, not the
  *    CLI's: that arm left the cache-miss confirm dialog standing and its next
  *    keystrokes answered it. Measured against the moment the switch is actually
  *    decided, `Post` lands 66–92ms after a dialog answer; on the two legs that
- *    raise no dialog it lands 159ms and 243ms after the CR. The figure the engine
- *    relies on is the DIFFERENCE, which is stable where those absolutes are not:
- *    `Post` − stream receipt = 48–53ms across all six legs producing both.
+ *    raise no dialog it lands 159ms and 243ms after the CR. The DIFFERENCE is
+ *    stable where those absolutes are not: `Post` − stream receipt = 48–53ms
+ *    across all six legs producing both.
  */
 export type HookEventName =
   | "SessionStart"
@@ -197,8 +198,8 @@ export type HookEventName =
   | "SubagentStop"
   | "PreCompact"
   | "PostCompact"
-  /** Claude only, MEASURED — the model switch pair. `PostModelSwitch` is INJECTED
-   *  and is the model axis's confirm (D2 U3); `PreModelSwitch` stays unwired. */
+  /** Claude only, MEASURED — the model switch pair. Neither is injected: the
+   *  one consumer (Sonata's own mid-session model drive) was removed. */
   | "PreModelSwitch"
   | "PostModelSwitch"
   /** Claude only, MEASURED — one per memory file loaded at session start. */
@@ -282,23 +283,6 @@ export interface HookPayload {
   source?: string;
   effort?: unknown;
   scratchpad_dir?: string;
-  /**
-   * `PreModelSwitch` / `PostModelSwitch` (claude, MEASURED 2.1.258).
-   *
-   * `requested_model` is the ALIAS the switch asked for — `haiku`, `opus[1m]`,
-   * verbatim, brackets and all — and it is the ONE field Sonata consumes: it is
-   * what `ControlSwitchEngine.noteModelSwitchConfirmed` matches against the
-   * pending switch's value. Declared here for that reason, per the
-   * permissive-boundary rule (validate what you read, pass the rest through).
-   *
-   * `to_model`/`from_model` are the canonical API ids and are declared as a
-   * WARNING rather than an offer: a second `PreModelSwitch` fires for the same
-   * switch carrying a `to_model` that is NOT the requested model (measured), so
-   * matching on it would be matching on the field that moves.
-   */
-  requested_model?: string;
-  to_model?: string;
-  from_model?: string;
   /**
    * `Stop` / `SubagentStop` (claude, MEASURED 2.1.258). The in-flight background
    * work that will wake this session — the CLI's own "session is done" vs

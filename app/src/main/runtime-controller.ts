@@ -127,8 +127,6 @@ import {
   type ResumeSettings,
 } from "../shared/types/resume-settings";
 import type {
-  ClaudeControlSwitchKind,
-  ClaudeControlSwitchResponse,
   PrepareResumeResponse,
   RemoteControlInjectResponse,
   ResumeSettingsResponse,
@@ -1185,43 +1183,6 @@ export class RuntimeController {
     return active.terminalHost.injectRemoteControl();
   }
 
-  /**
-   * Kick off a mid-session Claude `/model` / `/effort` (S1) or `permission` (S2)
-   * switch. A live PTY is required — a dormant session has nothing to drive. The
-   * provider gate lives in the TerminalHost (codex refuses: an inline `/model`
-   * arg burns a turn, and codex has no Shift+Tab cycle); the receipt(s) drive the
-   * `control-switch:state` event, not this return. `from` is the permission
-   * origin (the session's current mode) — the stepping engine's return-home
-   * anchor; ignored for model/effort.
-   */
-  switchClaudeControl(
-    taskId: TaskId,
-    kind: ClaudeControlSwitchKind,
-    value: string,
-    from?: string,
-  ): ClaudeControlSwitchResponse {
-    const active = this.requireLiveTaskRuntime(taskId);
-    return active.terminalHost.injectClaudeControlSwitch(kind, value, from);
-  }
-
-  /** Apply a STAGED claude model+effort Save (S7 Part 1) — the changed axes as one
-   *  logical switch. A live PTY is required. */
-  switchClaudeStaged(
-    taskId: TaskId,
-    model: string | null,
-    effort: string | null,
-  ): ClaudeControlSwitchResponse {
-    const active = this.requireLiveTaskRuntime(taskId);
-    return active.terminalHost.startClaudeStagedSwitch(model, effort);
-  }
-
-  /** Relay the user's chosen row for a PARKED recognized-confirm dialog (S7 Part 2)
-   *  to the choreography (which navigates+Enters it). No-op if no dialog is parked. */
-  answerControlConfirm(taskId: TaskId, rowNumber: number): void {
-    const active = this.taskRuntimes.get(taskId);
-    active?.terminalHost.answerParkedControlConfirm(rowNumber);
-  }
-
   writeTerminalUserInput(taskId: TaskId, data: string): void {
     if (typeof data !== "string" || data.length === 0) {
       return;
@@ -1930,46 +1891,6 @@ export class RuntimeController {
     eventRuntime?.deliveryController.handleRuntimeEvent(event);
     eventRuntime?.statusTracker.handleRuntimeEvent(event);
     eventRuntime?.cliState.applyRuntimeEvent(event);
-
-    // Mid-session CODEX permission switch settled (S3): the `/permissions` picker
-    // receipt is codex's confirmation channel — unlike claude, there is NO
-    // hook-payload permission mirror, so the settled event legitimately WRITES the
-    // session's mode here (the asymmetry documented on ControlSwitchStateEvent).
-    // Claude's model/effort/permission `settled` never lands here — its axes' own
-    // SSOTs (statusline / hook payload) drive the chip; only codex-permission does.
-    // A `cancelled` settle (S7 — the user chose No / Cancel on a parked confirm)
-    // changed NOTHING CLI-side, so it must NOT write the mirror (it would flip the
-    // chip to a Full Access that was declined). It still clears the pending
-    // affordance in the reducer; here we simply skip the state write.
-    if (
-      event.type === "control-switch:state" &&
-      event.payload.kind === "codex-permission" &&
-      event.payload.phase === "settled" &&
-      !event.payload.cancelled &&
-      eventRuntime
-    ) {
-      this.applyCodexPermissionSwitchReceipt(eventRuntime, event.payload.value);
-    }
-
-    // Mid-session CODEX model/effort switch settled (S4): the same asymmetry as
-    // codex-permission — codex has NO statusline/hook mirror for its model or
-    // reasoning, so the `/model` picker receipt is the confirmation channel. The
-    // settled event carries the receipt's own (model, effort) pair; write BOTH to
-    // the task so the composer's model chip (which reads task.model +
-    // task.reasoningEffort for codex — no statusline) follows. Claude's
-    // model/effort `settled` never lands here — its statusline drives the chip.
-    if (
-      event.type === "control-switch:state" &&
-      (event.payload.kind === "codex-model" || event.payload.kind === "codex-effort") &&
-      event.payload.phase === "settled" &&
-      eventRuntime
-    ) {
-      this.applyCodexModelSwitchReceipt(
-        eventRuntime,
-        event.payload.codexModel ?? null,
-        event.payload.codexEffort ?? null,
-      );
-    }
 
     // Codex hooks-liveness arms at the FIRST submission of a session, not at
     // spawn: SessionStart arrives together with the first UserPromptSubmit
@@ -2741,31 +2662,6 @@ export class RuntimeController {
       this.recordToolChangesFromHook(active, payload);
     }
 
-    // The mid-session MODEL switch confirm (D2 U3). `PostModelSwitch` is the CLI
-    // declaring a model switch complete, and `requested_model` is the alias it was
-    // asked for — the anchor the pty stream could never provide, which is why this
-    // replaces the `Set model to …` scrape rather than corroborating it. Same
-    // dispatch shape as the `PreToolUse` nudge above: a hook fact handed to the
-    // terminal host's choreography through one named method.
-    //
-    // No provider gate, for the same reason `PostToolUse` above has none: the
-    // event is claude-only capability (codex declares no model-switch hook at
-    // 0.152.1 — SL-9's census), so the name IS the gate. The payload guard is not
-    // decoration either: `requested_model` is the only field consumed, so a
-    // payload that does not carry it as a non-empty string says nothing this can
-    // act on, and the permissive-boundary rule says validate exactly what you read.
-    if (event === "PostModelSwitch") {
-      const requestedModel =
-        typeof payload.requested_model === "string" ? payload.requested_model.trim() : "";
-      // `to_model` (canonical id) travels too since D2 U4: a picker-driven switch of
-      // the Fable row reports `requested_model` as `claude-fable-5-1[1m]` (m2 arm a),
-      // so the settle matches the alias OR the id — both MEASURED shapes.
-      const toModel = typeof payload.to_model === "string" ? payload.to_model.trim() : null;
-      if (requestedModel) {
-        active.terminalHost.noteModelSwitchConfirmed(requestedModel, toModel || null);
-      }
-    }
-
     // Plan §4's "capability-driven, not provider-name-driven" applies to the
     // DISPATCH/watch gates (now `isHookCapable`). The three edges below are a
     // different class: each encodes a SPECIFIC Claude-only capability — a
@@ -3032,13 +2928,10 @@ export class RuntimeController {
    * keypress); the statusline payload has no mode field, so hooks are the only
    * structured source.
    *
-   * Contract §2 note: the clause once read "mid-session switching lives in the
-   * Terminal; Reading only DISPLAYS the mode." Amended 2026-07-18 (Mid-session
-   * Switch Program, Woody approved): Reading may now also DRIVE the switch, by stepping the native
-   * Shift+Tab cycle (S2) and reading the TUI mode line as a *choreography receipt*.
-   * That does NOT move the SSOT — this reconcile stays authoritative; the mode
-   * line is receipt-only and never writes task.permissionMode. Terminal-native
-   * Shift+Tab / /permissions continue to land here on the next hook, unchanged.
+   * Contract §2: mid-session switching lives in the Terminal; Reading only
+   * DISPLAYS the mode. (The 2026-07-18 amendment that let Reading drive the
+   * Shift+Tab cycle was retired by the Subtraction program, 2026-09-23.)
+   * Terminal-native Shift+Tab / /permissions land here on the next hook.
    */
   private applyHookPermissionMode(active: ActiveTaskRuntime, payload: HookPayload): void {
     const mode = payload.permission_mode;
@@ -3052,89 +2945,28 @@ export class RuntimeController {
   }
 
   /**
-   * Mirror a settled mid-session CODEX permission switch onto the task record
-   * (S3). Codex is the ASYMMETRIC case: it has no hook-payload permission mirror
-   * (claude rides `permission_mode` on every hook — applyHookPermissionMode
-   * above), so the `/permissions` picker's own confirm receipt is the ONLY
-   * confirmation channel. The terminal-host's picker choreography emits the
-   * settled `control-switch:state` only after reading that receipt, so writing
-   * `task.codexPermissionMode` here is receipt-corroborated, not optimistic.
-   * updatedAt stays put (a mode refresh is metadata, like rename/archive — same
-   * rule as applyHookPermissionMode) so the sidebar ordering doesn't jump.
-   */
-  private applyCodexPermissionSwitchReceipt(active: ActiveTaskRuntime, value: string): void {
-    // OFFERED guard: this event's value is a switch TARGET Sonata chose, and the
-    // picker can only be walked to one of the three rows. A `read-only` here
-    // would be a caller bug, not a state — the mode Sonata OBSERVES rather than
-    // drives arrives through `reconcileCodexTurnContext` instead.
-    if (!isCodexOfferedPermissionMode(value)) {
-      return;
-    }
-    // Receipt-corroborated (the picker read its own confirm), so this write is
-    // not optimistic. TaskMirror keeps updatedAt frozen and emits only on change.
-    this.taskMirror.apply(active, { codexPermissionMode: value });
-  }
-
-  /**
-   * Mirror a settled mid-session CODEX model/effort switch onto the task record
-   * (S4). Codex has NO statusline/hook mirror for its model or reasoning (unlike
-   * claude, whose statusline follows a `/model` switch — sessionModelSummaryLabel),
-   * so the `/model` picker's own `• Model changed to <model> <effort>` receipt is
-   * the ONLY confirmation channel. The terminal-host emits the settled event with
-   * the receipt's own values, so writing BOTH task.model and task.reasoningEffort
-   * here is receipt-corroborated, not optimistic. The picker forces a (model,
-   * effort) pair, so both are always present and always written together — this
-   * also captures any codex-side effort reset a model change might carry. Only a
-   * recognized reasoning id is written; a garbage effort leaves both fields alone.
-   * updatedAt stays put (a chip refresh is metadata, like rename/archive — same
-   * rule as applyHookPermissionMode) so the sidebar ordering doesn't jump.
-   */
-  private applyCodexModelSwitchReceipt(
-    active: ActiveTaskRuntime,
-    model: string | null,
-    effort: ReasoningEffort | null,
-  ): void {
-    const nextModel = model && model.trim().length > 0 ? model : active.task.model;
-    const nextEffort =
-      effort && REASONING_EFFORTS.has(effort) ? effort : active.task.reasoningEffort;
-    // Model + effort are always written together (the picker forces the pair);
-    // TaskMirror no-ops when neither moved and keeps updatedAt frozen.
-    this.taskMirror.apply(active, { model: nextModel, reasoningEffort: nextEffort });
-  }
-
-  /**
    * Reconcile a codex task's mirrors (model, reasoning effort, permission mode)
    * from the rollout's per-turn `turn_context` (item E — mid-session switch S5).
-   * This is the LAZY SSOT that backstops the picker-receipt fast paths
-   * (applyCodexModelSwitchReceipt / applyCodexPermissionSwitchReceipt above): a
-   * NATIVE switch — the user typing `/model` or `/permissions` directly in the
-   * co-visible Terminal — earns no receipt and leaves those mirrors stale, since
-   * codex (unlike claude's statusline/hook feed) exposes these axes ONLY in the
-   * rollout. Reading them back from turn_context corrects the drift, and removes
-   * the staleness the S4 codex-model switch's effort-preservation depends on (it
-   * reads task.reasoningEffort to hold effort at picker level 2 — a stale mirror
-   * would push a stale effort onto the live CLI).
+   * This is the SSOT for all three after spawn: a switch the user makes in the
+   * co-visible Terminal (`/model`, `/permissions`) reaches Sonata through no
+   * other channel, since codex (unlike claude's statusline/hook feed) exposes
+   * these axes ONLY in the rollout. Latency: the NEXT turn's start.
    *
-   * Same write discipline as the receipt reconcilers: mirror in place with a
-   * frozen updatedAt (a runtime-status refresh is metadata, not activity — the
-   * sidebar ordering must not jump), persist, and emit ONE task:updated only when
-   * something actually changed. Every field is validated/mapped before it lands:
-   * effort against REASONING_EFFORTS; the permission mode through
+   * Write discipline: mirror in place with a frozen updatedAt (a runtime-status
+   * refresh is metadata, not activity — the sidebar ordering must not jump),
+   * persist, and emit ONE task:updated only when something actually changed.
+   * Every field is validated/mapped before it lands: effort against
+   * REASONING_EFFORTS; the permission mode through
    * codexPermissionModeFromTurnContext, which reconciles ONLY an unambiguous
    * projection — the rollout can't tell ask-for-approval from approve-for-me (they
    * share a projection; the reviewer axis that splits them isn't a trustworthy
    * per-turn signal), so those pairs preserve the current mirror rather than
-   * corrupt a receipt-set value. Model/effort round-trip cleanly and are the axes
-   * this reconcile actually needed. Codex-only by construction (turn_context is a
+   * guess. Model/effort round-trip cleanly. Codex-only by construction (turn_context is a
    * codex rollout record), but guarded regardless.
    *
    * SINCE SL-17 this is also the channel that carries `read-only` — codex's
-   * cycle-only fourth mode. It has to be: the picker receipt, codex's other
-   * permission signal, is read ONLY inside a Sonata-initiated switch window, so it
-   * structurally cannot see a native cycle. That makes this the ONLY channel a
-   * natively-switched Read Only can arrive on, and it arrives on the same terms as
-   * every other native codex switch — at the NEXT turn's start, which is this
-   * reconcile's documented latency rather than a new one.
+   * cycle-only fourth mode, which arrives on the same terms as every other codex
+   * switch.
    */
   private reconcileCodexTurnContext(
     active: ActiveTaskRuntime,
@@ -3163,16 +2995,15 @@ export class RuntimeController {
     // An ambiguous pair returns null and keeps the current mirror (fail-safe —
     // never guess a mode from indistinguishable state; a mislabelled access level
     // is worse than a stale one). See codexPermissionModeFromTurnContext for the
-    // full boundary; the S3 picker-receipt fast path still reconciles every
-    // Sonata-driven switch.
+    // full boundary.
     const reconciledMode = codexPermissionModeFromTurnContext(
       context.sandboxPolicy,
       context.approvalPolicy,
     );
     const nextMode = reconciledMode ?? active.task.codexPermissionMode;
-    // Same metadata-write discipline as the receipt reconcilers above: TaskMirror
-    // mirrors in place with a frozen updatedAt, persists, and emits ONE
-    // task:updated only when model, effort, or the permission mode actually moved.
+    // Metadata-write discipline: TaskMirror mirrors in place with a frozen
+    // updatedAt, persists, and emits ONE task:updated only when model, effort,
+    // or the permission mode actually moved.
     this.taskMirror.apply(active, {
       model: nextModel,
       reasoningEffort: nextEffort,

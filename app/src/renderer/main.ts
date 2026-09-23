@@ -112,12 +112,6 @@ import {
   toggleSessionTag,
 } from "./flows/tags";
 import {
-  applyClaudeControlSwitch,
-  applyControlConfirmAnswer,
-  applyStagedModelSwitch,
-  initControlSwitchFlows,
-} from "./flows/control-switch";
-import {
   commitActiveRename,
   completeRenameComposition,
   initRenameFlows,
@@ -168,7 +162,6 @@ import {
   renderRemoteControlPopover,
 } from "./view/chrome";
 import {
-  currentSessionModelPair,
   initComposerView,
   renderComposerControls,
   renderComposerPopover,
@@ -334,9 +327,6 @@ initTagFlows(state, {
   renderSidebarMenu: () => renderSidebarMenu(),
   saveSidebarPrefs: () => saveSidebarPrefs(),
 });
-initControlSwitchFlows(state, {
-  currentSessionModelPair: (view, provider) => currentSessionModelPair(view, provider),
-});
 initScheduler(state, {
   renderTranscriptStream: () => renderTranscriptStream(),
   refreshSessionIndex: () => refreshSessionIndex(),
@@ -483,14 +473,6 @@ initActions({
     view.slashAttention = null;
     renderAttentionBanners(view);
   },
-  dismissControlSwitch: (view) => {
-    view.controlSwitch = null;
-    // A full render, not just the banner: clearing the switch pointer also
-    // re-enables the send button (gated on view.controlSwitch — review fix A), so
-    // the composer must repaint too, or send would stay disabled until the next
-    // unrelated render.
-    render();
-  },
   // The codex resumable-exit banner's action (SL-6). The SAME entry point the
   // CLI window's "Resume task" button relays through (`onCliAction`), so there is
   // exactly one dormant-resume path — and for codex that path already spawns
@@ -499,46 +481,6 @@ initActions({
   // true. Fire-and-forget: the flow owns its own guards.
   resumeTask: (taskId) => {
     void resumeTaskWithoutPrompt(taskId);
-  },
-  // Live session PERMISSION chips (mid-session switch): immediate-apply single-axis
-  // switches — claude via the Shift+Tab stepping engine (S2; `from` = the current
-  // mode, the return-home anchor), codex via the `/permissions` picker (S3; `from`
-  // = the current preset, to skip a no-op). Fire-and-forget — the receipt(s) arrive
-  // on the control-switch:state event.
-  switchSessionPermission: (view, mode) => {
-    void applyClaudeControlSwitch(view, "permission", mode, view.task?.permissionMode ?? undefined);
-  },
-  switchSessionCodexPermission: (view, mode) => {
-    void applyClaudeControlSwitch(
-      view,
-      "codex-permission",
-      mode,
-      view.task?.codexPermissionMode ?? undefined,
-    );
-  },
-  // STAGED model+effort menu (S7 Part 1). Row clicks only STAGE the pair (no CLI);
-  // Save applies the changed axes as ONE logical switch. Staging just mutates the
-  // open menu's staged pair and re-renders (Save enables when it differs from
-  // current). Cancel / Esc / outside-click discard by closing the menu.
-  stageSessionModel: (value) => {
-    if (popoverTransitions.stageSessionModel(state, value)) {
-      render();
-    }
-  },
-  stageSessionEffort: (value) => {
-    if (popoverTransitions.stageSessionEffort(state, value)) {
-      render();
-    }
-  },
-  saveStagedModelSwitch: (view) => {
-    void applyStagedModelSwitch(view);
-  },
-  closeSessionMenu: () => {
-    state.composerMenu = null;
-    render();
-  },
-  answerControlConfirm: (rowNumber) => {
-    void applyControlConfirmAnswer(rowNumber);
   },
   // Option-prompt card: the select grammar (single-select picks, multi-select
   // toggles — drawer S1) and the answer flow.
@@ -1092,79 +1034,16 @@ function toggleDraftMenuFromChip(kind: TaskDraftMenuKind, event: MouseEvent): vo
   render();
 }
 
-/** Toggle the live session's model+effort switch menu — Claude's `/model`+
- *  `/effort` menu (S1, `session-model`) or Codex's `/model` two-level picker menu
- *  (S4, `session-codex-model`), selected by the session's provider. Mirrors
- *  toggleDraftMenuFromChip's stopPropagation reasoning: render() rebuilds the chip
- *  mid-click, so without it the document click-away closes the menu in the same
- *  click that opened it. One composer-popover family at a time. */
-function toggleSessionModelMenuFromChip(event: MouseEvent, provider: RuntimeProvider): void {
-  event.stopPropagation();
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const menuType = provider === "codex" ? "session-codex-model" : "session-model";
-  const view = activeTaskView();
-  state.composerMenu =
-    state.composerMenu?.type === menuType
-      ? null
-      : {
-          type: menuType,
-          anchor: { left: rect.left, top: rect.top, width: rect.width },
-          // Seed the staged pair to the session's current (model, effort) — a row
-          // click restages, Save applies the changed axes (S7 Part 1).
-          staged: view ? { ...currentSessionModelPair(view, provider) } : { model: null, effort: null },
-        };
-  state.taskDraft.menu = null;
-  composerTransitions.closeSlashPicker(state);
-  render();
-}
-
-/** Toggle the live session's permission switch menu — Claude's Shift+Tab menu
- *  (S2, `session-access`) or Codex's `/permissions`-preset menu (S3,
- *  `session-codex-access`), selected by the session's provider. Same one-popover
- *  discipline as toggleSessionModelMenuFromChip. */
-function toggleSessionAccessMenuFromChip(event: MouseEvent, provider: RuntimeProvider): void {
-  event.stopPropagation();
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const menuType = provider === "codex" ? "session-codex-access" : "session-access";
-  state.composerMenu =
-    state.composerMenu?.type === menuType
-      ? null
-      : {
-          type: menuType,
-          anchor: { left: rect.left, top: rect.top, width: rect.width },
-        };
-  state.taskDraft.menu = null;
-  composerTransitions.closeSlashPicker(state);
-  render();
-}
-
 elements.providerChip.addEventListener("click", (event) => {
   toggleDraftMenuFromChip("provider", event);
 });
+// The model / access chips are New Chat launch controls; a live session renders
+// them display-only (disabled — see renderComposerControls), so a click here only
+// ever comes from New Chat.
 elements.modelChip.addEventListener("click", (event) => {
-  // A live session's model chip opens the session model+effort switch menu —
-  // Claude's `/model`+`/effort` menu (S1) or Codex's `/model` two-level picker
-  // menu (S4), keyed off the session's provider. The chip is disabled off-idle /
-  // mid-switch, so a click here always fires on an idle session. New Chat's chip
-  // opens the draft launch menu.
-  const view = activeTaskView();
-  if (view?.task) {
-    toggleSessionModelMenuFromChip(event, view.task.provider);
-    return;
-  }
   toggleDraftMenuFromChip("launch", event);
 });
 elements.permissionChip.addEventListener("click", (event) => {
-  // A live session's access chip opens the permission switch menu — Claude's
-  // Shift+Tab menu (S2) or Codex's `/permissions`-preset menu (S3), keyed off the
-  // session's provider. The chip is disabled off-idle / mid-switch, so a click
-  // here always fires on an idle session. New Chat's chip opens the draft access
-  // menu.
-  const view = activeTaskView();
-  if (view?.task) {
-    toggleSessionAccessMenuFromChip(event, view.task.provider);
-    return;
-  }
   toggleDraftMenuFromChip("access", event);
 });
 elements.projectChip.addEventListener("click", (event) => {
@@ -2104,10 +1983,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (state.composerMenu) {
-    // Esc discards an open composer menu — for the staged model+effort menu (S7
-    // Part 1) this drops the staged pair without touching the CLI, matching the
-    // Cancel button and outside-click; the same close is the natural gesture for
-    // the add / access menus (outside-click already dismisses them).
+    // Esc closes an open composer menu — the same close outside-click performs.
     event.preventDefault();
     state.composerMenu = null;
     render();

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 // SUBSTRATE HYGIENE for the two headless grids Sonata reads TUI state from —
-// `TaskScreenModel` (approval + control-switch) and `StatusRegionTracker`
+// `TaskScreenModel` (approval + screen owners) and `StatusRegionTracker`
 // (status region). Upstream sync 2026-08-03, SL-9. Two fences, one subject.
 //
 // FENCE 1 — ONE CLAMP. A task's geometry fans out to four mirrors: the PTY, the
@@ -15,7 +15,7 @@ import { createRequire } from "node:module";
 // rule (`Number(cols) || 120` / floor-and-keep-current / `Math.max(2, …)`),
 // which is a structural path to divergence — and the divergence is silent: a
 // grid a few columns off wraps text at different points, so `viewportText()`
-// cuts lines differently, so the consent / rewind predicates that key on those
+// cuts lines differently, so the trust-dialog / rewind predicates that key on those
 // lines read false while the dialog is on screen (the SL-2 failure mode through
 // another entrance). `normalizeTerminalDimensions` is now the only clamp, and
 // its branded return type makes "resize a mirror off raw numbers" a compile

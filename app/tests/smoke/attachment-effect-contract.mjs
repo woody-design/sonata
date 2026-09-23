@@ -36,7 +36,6 @@ function fakeHost() {
     hasActiveRun: () => false,
     activeRunId: () => null,
     isApprovalActive: () => false,
-    hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
     // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than

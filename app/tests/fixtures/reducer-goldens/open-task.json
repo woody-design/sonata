@@ -235,10 +235,6 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "controlSwitch": null,
-            "observedPermissionModes": [
-              "default"
-            ],
             "approvalExpired": false,
             "status": "Ready",
             "unread": false,
@@ -479,10 +475,6 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "controlSwitch": null,
-            "observedPermissionModes": [
-              "default"
-            ],
             "approvalExpired": false,
             "status": "Ready",
             "unread": true,
@@ -803,10 +795,6 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "controlSwitch": null,
-            "observedPermissionModes": [
-              "default"
-            ],
             "approvalExpired": false,
             "status": "Ready",
             "unread": false,
@@ -1122,10 +1110,6 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "controlSwitch": null,
-            "observedPermissionModes": [
-              "default"
-            ],
             "approvalExpired": false,
             "status": "Ready",
             "unread": true,

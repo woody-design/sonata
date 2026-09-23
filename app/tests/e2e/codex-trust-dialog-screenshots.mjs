@@ -175,8 +175,8 @@ try {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-/** The task's id is its own directory under the data root (the pattern
- *  midsession-permission-switch.mjs uses) — needed only to address the pty for
+/** The task's id is its own directory under the data root (the pattern the
+ *  retired midsession e2e used) — needed only to address the pty for
  *  the user's answer. */
 async function waitForTaskId(timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;

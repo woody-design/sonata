@@ -7,7 +7,7 @@
  * Electron, no renderer state. Selectors that read the active view take it
  * as a parameter (the shell passes `activeTaskView()` / draft state).
  */
-import type { ClaudePermissionMode, ReasoningEffort, SlashCommandEntry } from "../../shared/types";
+import type { ReasoningEffort, RuntimeProvider, SlashCommandEntry } from "../../shared/types";
 import type { OptionPromptDetectedEvent } from "../../shared/types/events";
 import type { OptionPromptAnswers, OptionPromptSelection } from "../../shared/types/option-prompt";
 import type {
@@ -177,7 +177,8 @@ export function sessionModelSummaryLabel(view: TaskViewState | null): string | n
   // effort switching happens in the Terminal; Reading only DISPLAYS it —
   // same shape as the S4 permission_mode wiring). Spawn settings are the
   // fallback before the first statusline event, and for codex, whose
-  // snapshots never carry a model.
+  // snapshots never carry a model — its task.model / task.reasoningEffort
+  // are reconciled from the rollout's `turn_context` instead.
   const live = view?.usageSnapshot ?? null;
   const model = live?.modelDisplayName ?? modelValueLabel(task.provider, task.model);
   const effortValue = (live?.reasoningEffort ?? task.reasoningEffort) as ReasoningEffort | null;
@@ -187,28 +188,24 @@ export function sessionModelSummaryLabel(view: TaskViewState | null): string | n
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
-/** The permission modes the live-session access menu offers (S2; D4 revised by
- *  the 2026-07-18 field test). default / acceptEdits / plan / **auto** are always
- *  offered — a session spawned Manual never OBSERVES auto, so the old observed-only
- *  rule made Auto permanently unreachable (a dead END, worse than a dead step). An
- *  account whose Shift+Tab cycle lacks auto now fails GRACEFULLY when Auto is
- *  picked (the stepping engine seeks, exhausts, returns home, and raises
- *  needs-attention) — rare, honest, and the accepted trade. `bypassPermissions`
- *  stays gated to a session that was SPAWNED into it (observed, seeded from the
- *  spawn mode) — a Sonata launch never offers it, so it is non-dead by
- *  construction and must not appear as a dead step. Order follows the vocabulary. */
-const PERMISSION_MENU_BASE: readonly ClaudePermissionMode[] = [
-  "default",
-  "acceptEdits",
-  "plan",
-  "auto",
-];
-const PERMISSION_MENU_GATED: readonly ClaudePermissionMode[] = ["bypassPermissions"];
+/** The live model chip's tooltip. The chip is display-only (contract §2):
+ *  switching is a Terminal action, and each CLI names it its own way — Claude's
+ *  /model swaps the model (effort has its own /effort); Codex's /model ("Select
+ *  Model and Effort") covers both. The copy points at the native command rather
+ *  than implying an in-composer switch. */
+export function sessionModelSwitchHint(provider: RuntimeProvider): string {
+  return provider === "codex"
+    ? "Switch model and effort in the CLI — /model"
+    : "Switch models in the CLI — /model";
+}
 
-export function sessionPermissionMenuModes(view: TaskViewState): ClaudePermissionMode[] {
-  const observed = view.observedPermissionModes;
-  const gated = PERMISSION_MENU_GATED.filter((mode) => observed.includes(mode));
-  return [...PERMISSION_MENU_BASE, ...gated];
+/** The live permission chip's tooltip. Claude cycles modes with Shift+Tab or
+ *  /permissions; Codex's own switch is /permissions. Display-only, like the
+ *  model chip. */
+export function sessionPermissionSwitchHint(provider: RuntimeProvider): string {
+  return provider === "codex"
+    ? "Switch permissions in the CLI — /permissions"
+    : "Switch modes in the CLI — Shift+Tab or /permissions";
 }
 
 /**

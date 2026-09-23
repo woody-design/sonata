@@ -36,9 +36,6 @@ export type RenderDirective =
       taskId: string;
       chipChanged: boolean;
       popoverOpen: boolean;
-      /** (D) The usage tick also cleared a landed control-switch needs-attention
-       *  pointer — repaint the banner row (usage-in-place otherwise skips banners). */
-      bannersChanged?: boolean;
     }
   /** New live/structured transcript content: the 160 ms debounced
    *  transcript-stream render (T3). */
