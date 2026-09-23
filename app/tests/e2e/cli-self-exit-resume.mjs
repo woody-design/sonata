@@ -46,7 +46,10 @@ import { _electron as electron } from "playwright-core";
 import { installFakeCli } from "./helpers/fake-cli.mjs";
 
 const DORMANT_PLACEHOLDER = "Message Claude — resumes this session";
-const STARTING_PLACEHOLDER = "Claude is starting — your message will send when it's ready";
+// Subtraction X2: the boot latch is the host's own ("has this CLI reached its
+// prompt"), no longer opened by the first send — so an idle Start-CLI session reads
+// as the booted, empty conversation it is once the fake paints its composer.
+const LIVE_PLACEHOLDER = "Message Claude";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-self-exit-resume-"));
 const dataRoot = path.join(root, "data-root");
@@ -119,9 +122,8 @@ try {
 }
 
 /**
- * A session with no prompt: live, its boot latch still shut, no run in flight — the
- * plainest possible subject, and the state the composer's boot promise is written
- * for. Born through the CLI window, which is the one door that starts a session
+ * A session with no prompt: live, booted, no run in flight — the plainest possible
+ * subject, whose composer speaks to the live conversation until the pty dies. Born through the CLI window, which is the one door that starts a session
  * without delivering anything.
  */
 async function startSessionWithoutPrompt(main, cli, { firstSession }) {
@@ -142,10 +144,9 @@ async function startSessionWithoutPrompt(main, cli, { firstSession }) {
   const runtimeDir = path.join(dataRoot, "data", "runtime", taskId);
   await waitUntil(() => readSpawnCount(runtimeDir) === 1, `the fake CLI's first spawn (${taskId})`);
   await main.locator("#prompt-input").waitFor({ state: "visible" });
-  assert.equal(
-    await placeholderOf(main),
-    STARTING_PLACEHOLDER,
-    "a live, unlatched session promises the boot it is still waiting for",
+  await waitUntil(
+    async () => (await placeholderOf(main)) === LIVE_PLACEHOLDER,
+    `a live, booted session with no run invites a message (${taskId})`,
   );
   return { taskId, runtimeDir };
 }

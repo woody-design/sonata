@@ -8,11 +8,11 @@ const require = createRequire(import.meta.url);
 const {
   BRACKETED_PASTE_END,
   BRACKETED_PASTE_START,
-  DeliveryController,
   ProviderTranscript,
   TerminalHost,
   cleanTerminal,
   codexArgs,
+  composePromptWrite,
 } = require("../../dist/runtime");
 const {
   CODEX_SMOKE_PROFILE,
@@ -27,8 +27,8 @@ const results = [];
 // decoder accepts. Every case below feeds `redPngBytes()` to a live model, and
 // for years none of them could tell that the model was receiving
 // `"image content omitted because it could not be processed"` instead of an
-// image — because they all assert on the DELIVERY channel (receipt, chip,
-// attachment count), which a corrupt file travels through perfectly. See
+// image — because they all assert on the DELIVERY channel (transcript record,
+// chip, attachment count), which a corrupt file travels through perfectly. See
 // `redPngBytes()` for the full diagnosis (upstream sync SL-7).
 //
 // This is deliberately a STRUCTURAL check and not an end-to-end one. It cannot
@@ -116,8 +116,7 @@ async function runMultiImageConsecutiveCheck(provider) {
       };
     });
     const firstPrompt = `Reply exactly SONATA_${provider.toUpperCase()}_SIX_IMAGE_RECEIPT.`;
-    const firstItem = controller.delivery.enqueue(firstPrompt, attachments);
-    const firstReceipt = await waitForReceipt(controller.deliveryEvents, firstItem.id, 180000);
+    controller.send(firstPrompt, attachments);
     const firstBlock = await waitForUserBlock(controller, firstPrompt, 180000);
 
     if (provider === "codex") {
@@ -129,17 +128,14 @@ async function runMultiImageConsecutiveCheck(provider) {
     }
 
     const secondPrompt = `Reply exactly SONATA_${provider.toUpperCase()}_CLEAN_SECOND_SEND.`;
-    const secondItem = controller.delivery.enqueue(secondPrompt);
-    const secondReceipt = await waitForReceipt(controller.deliveryEvents, secondItem.id, 180000);
+    controller.send(secondPrompt);
     const secondBlock = await waitForUserBlock(controller, secondPrompt, 180000);
     const secondHasFirstMarkerResidue = /\[Image\s+#\d+\]/i.test(secondBlock?.text ?? "");
 
     return {
       name: `${provider} six images attach; consecutive send has no marker residue`,
       verified:
-        Boolean(firstReceipt) &&
         firstBlock?.attachments.length === 6 &&
-        Boolean(secondReceipt) &&
         Boolean(secondBlock) &&
         secondBlock.attachments.length === 0 &&
         !secondHasFirstMarkerResidue,
@@ -187,20 +183,15 @@ async function runImageDeliveryCheck(provider) {
       provenance: "referenced",
       kind: "image",
     };
-    const item = controller.delivery.enqueue(prompt, [attachment]);
-    const receipt = await waitForReceipt(controller.deliveryEvents, item.id, 180000);
+    controller.send(prompt, [attachment]);
+    const userBlock = await waitForUserBlock(controller, prompt, 180000);
     const tail = controller.cleanTail();
-    const userBlock = controller.transcript.blocks().find(
-      (block) => block.kind === "user-message" && block.text.includes(prompt),
-    );
     return {
-      name: `${provider} no-space PNG becomes native image and receipts`,
+      name: `${provider} no-space PNG becomes native image and is recorded`,
       verified:
-        Boolean(receipt) &&
         imageMarkerCount(tail) > 0 &&
         Boolean(userBlock) &&
         userBlock.attachments.length >= 1,
-      receiptSource: receipt?.payload.receipt.source ?? null,
       transcriptAttachmentCount: userBlock?.attachments.length ?? 0,
       evidenceTail: redact(tail.slice(-1200)),
     };
@@ -210,9 +201,9 @@ async function runImageDeliveryCheck(provider) {
 }
 
 // The gate: an image at a path with a SPACE (and an apostrophe) chips via the
-// real delivery path, which now double-quotes the path before bracketed-paste.
-// Proves the quoting works end-to-end on both CLIs (the probe proved the quoting
-// itself; this proves it through DeliveryController + terminal-host timing).
+// real send path, which double-quotes the path before bracketed-paste. Proves
+// the quoting works end-to-end on both CLIs (the probe proved the quoting
+// itself; this proves it through the production write + terminal-host timing).
 async function runSpaceyImageDeliveryCheck(provider) {
   const controller = await startHost(provider, `${provider}-spacey-image`);
   try {
@@ -230,20 +221,15 @@ async function runSpaceyImageDeliveryCheck(provider) {
       provenance: "referenced",
       kind: "image",
     };
-    const item = controller.delivery.enqueue(prompt, [attachment]);
-    const receipt = await waitForReceipt(controller.deliveryEvents, item.id, 180000);
+    controller.send(prompt, [attachment]);
+    const userBlock = await waitForUserBlock(controller, prompt, 180000);
     const tail = controller.cleanTail();
-    const userBlock = controller.transcript.blocks().find(
-      (block) => block.kind === "user-message" && block.text.includes(prompt),
-    );
     return {
       name: `${provider} spacey+quote PNG path chips via double-quote delivery`,
       verified:
-        Boolean(receipt) &&
         imageMarkerCount(tail) > 0 &&
         Boolean(userBlock) &&
         userBlock.attachments.length >= 1,
-      receiptSource: receipt?.payload.receipt.source ?? null,
       transcriptAttachmentCount: userBlock?.attachments.length ?? 0,
       evidenceTail: redact(tail.slice(-1200)),
     };
@@ -262,7 +248,7 @@ async function runReferenceTextCheck(provider) {
     // Space + apostrophe — realistic folder-name special chars that must deliver
     // VERBATIM on both CLIs (the text channel must not shell-escape them). The
     // bug-#1-specific "no backslash-escaping of $/`/\\" is guarded deterministically
-    // in delivery-receipts.mjs; shell-EXPANSION chars ($, `) in a referenced path
+    // in native-send.mjs; shell-EXPANSION chars ($, `) in a referenced path
     // are mangled by Codex's own composer (carry-forward), so not asserted here.
     const dir = path.join(controller.workspace, "ref's space");
     fs.mkdirSync(dir, { recursive: true });
@@ -278,17 +264,13 @@ async function runReferenceTextCheck(provider) {
       provenance: "referenced",
       kind: "file",
     };
-    const item = controller.delivery.enqueue(prompt, [attachment]);
-    const receipt = await waitForReceipt(controller.deliveryEvents, item.id, 180000);
-    const userBlock = controller.transcript.blocks().find(
-      (block) => block.kind === "user-message" && block.text.includes(prompt),
-    );
+    controller.send(prompt, [attachment]);
+    const userBlock = await waitForUserBlock(controller, prompt, 180000);
     const pathInText = Boolean(userBlock) && userBlock.text.includes(refPath);
     const chippedAsImage = (userBlock?.attachments.length ?? 0) > 0;
     return {
       name: `${provider} referenced file delivers as path-in-text (no chip)`,
-      verified: Boolean(receipt) && pathInText && !chippedAsImage,
-      receiptSource: receipt?.payload.receipt.source ?? null,
+      verified: pathInText && !chippedAsImage,
       pathInText,
       chippedAsImage,
       evidenceTail: redact(controller.cleanTail().slice(-1200)),
@@ -306,9 +288,7 @@ async function startHost(provider, name) {
   let exited = false;
   let raw = "";
   const runtimeEvents = [];
-  const deliveryEvents = [];
   let host = null;
-  let delivery = null;
   let transcript = null;
 
   const runtimeEventSink = (event) => {
@@ -327,11 +307,10 @@ async function startHost(provider, name) {
       // the default row to "No, exit", and both former encodings exited the CLI);
       // MEASURED reaching a composer in ~1.8s at 2.1.257 (findings.md F9).
       //
-      // Answer OUTSIDE this dispatch. A synchronous sendApprove() here made the
-      // delivery controller (line below) see approval:decision BEFORE this very
-      // approval:detected, wedging `approvalPending` true forever — a re-entrancy
-      // that cannot happen in production, where answers arrive via async IPC
-      // (s3-diags/image-smoke-gate-diag).
+      // Answer OUTSIDE this dispatch: a synchronous sendApprove() here would let
+      // a consumer see approval:decision BEFORE this very approval:detected — a
+      // re-entrancy that cannot happen in production, where answers arrive via
+      // async IPC (s3-diags/image-smoke-gate-diag).
       setTimeout(() => {
         void host.sendApprove().catch((error) => console.error("sendApprove failed:", error));
       }, 0);
@@ -339,7 +318,6 @@ async function startHost(provider, name) {
     if (event.type === "run:started") {
       transcript.ensureDiscovery();
     }
-    delivery?.handleRuntimeEvent(event);
   };
 
   host = new TerminalHost({
@@ -356,19 +334,6 @@ async function startHost(provider, name) {
     resolveRunId: () => null,
     pollMs: 500,
   });
-  delivery = new DeliveryController({
-    taskId,
-    provider,
-    terminalHost: host,
-    eventSink: (event) => deliveryEvents.push(event),
-    hasLiveTranscriptSource: () => transcript.hasLiveSource(),
-    receiptTimeoutMs: 120000,
-    // Keep this real-spawn attachment test byte-for-byte in its pre-fix
-    // behavior: no 500ms boot grace, no auto Enter re-sends into the live CLI.
-    // The boot-race mechanisms are fenced against fake hosts + a live probe.
-    bootDeliveryGraceMs: 0,
-    enterRetryDelaysMs: [],
-  });
 
   // Declared BEFORE the boot can throw. Every case's happy path already ran this
   // in its `finally`, but the two failure paths below (readiness timeout, a CLI
@@ -380,7 +345,6 @@ async function startHost(provider, name) {
   // #2). Cleanup rather than a terminal `process.exit`, deliberately — an
   // explicit exit would also hide the NEXT leak of this class.
   const disposeAll = () => {
-    delivery.dispose();
     transcript.dispose();
     host.dispose();
   };
@@ -426,34 +390,19 @@ async function startHost(provider, name) {
   return {
     workspace,
     host,
-    delivery,
     transcript,
-    deliveryEvents,
+    // The production send, minus the controller's path validation: the same
+    // write transform (`composePromptWrite`) into the same host entry point
+    // (`submitPromptWhenReady`) RuntimeController.submitPrompt uses.
+    send: (text, attachments = []) => {
+      const write = composePromptWrite(text, attachments);
+      host.submitPromptWhenReady(write.text, {
+        attachments: write.imageAttachments.map((attachment) => ({ path: attachment.path })),
+      });
+    },
     cleanTail: () => cleanTerminal(raw),
     dispose: disposeAll,
   };
-}
-
-async function waitForReceipt(events, itemId, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const receipt = events.find(
-      (event) => event.type === "delivery:receipt" && event.payload.itemId === itemId,
-    );
-    if (receipt) {
-      return receipt;
-    }
-    const undelivered = events.find(
-      (event) =>
-        event.type === "delivery:state" &&
-        event.payload.queue.some((item) => item.id === itemId && item.status === "undelivered"),
-    );
-    if (undelivered) {
-      return null;
-    }
-    await delay(500);
-  }
-  return null;
 }
 
 async function waitForUserBlock(controller, prompt, timeoutMs) {
@@ -561,7 +510,7 @@ function assertDecodablePng(bytes) {
  * PNG with a truncated deflate stream is correct behaviour.
  *
  * And it is not what made this file red: the assertions here all read the
- * DELIVERY channel (receipt, chip, `userBlock.attachments.length`), which the
+ * DELIVERY channel (transcript record, chip, `userBlock.attachments.length`), which the
  * corrupt bytes travelled through perfectly. The codex cases were failing on the
  * boot/transcript problems SL-6 and SL-8 fixed. The two defects were adjacent and
  * unrelated, which is why the fixture could hide behind the other one.

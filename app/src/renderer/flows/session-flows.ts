@@ -314,13 +314,13 @@ export async function selectSession(taskId: string): Promise<void> {
     const snapshot = await window.sonataRuntime.readSession({ taskId });
     const view = createTaskView(snapshot.task, snapshot.live ? "Ready" : "Idle", snapshot.live);
     view.report = snapshot.report;
-    // Seed the delivery state the same way as the transcript: from the snapshot.
-    // `delivery:state` events are deltas (S1 — they fire on real change), so a
+    // Seed the session state the same way as the transcript: from the snapshot.
+    // `session:state` events are deltas (they fire on real change), so a
     // view for a session that booted before this view existed — reopened after
     // the Reading window was closed, or started headless through the local API —
     // would otherwise hold null forever and read as "Claude is starting" on a
     // long-idle session. Null for a dormant session, which is the truth there.
-    view.deliveryState = snapshot.delivery;
+    view.sessionState = snapshot.sessionState;
     view.transcriptSources = snapshot.sources;
     for (const block of snapshot.blocks) {
       view.transcriptBlockOrder.push(block.id);
@@ -555,7 +555,7 @@ export async function submitPrompt(): Promise<void> {
   // prompt can be drafted while an installer runs. The builtin command list is a
   // hardcoded snapshot that needs no installed CLI, so a listed passthrough
   // without an argument hint (`/status`, `/model`, `/init`, …) would create a
-  // session on a provider that cannot boot and queue the prompt in silence — the
+  // session on a provider that cannot boot and hold the prompt in silence — the
   // exact failure this program exists to remove.
   //
   // Inert for an open session by construction: the card is New-Chat-only, so
@@ -565,7 +565,7 @@ export async function submitPrompt(): Promise<void> {
     return;
   }
   // No slash interpretation here, by design (2026-07-27, decision 3): a "/…"
-  // draft is submitted verbatim like any other text. Delivery types the prompt
+  // draft is submitted verbatim like any other text. A send types the prompt
   // into the provider's PTY, so the CLI must see exactly what the user typed —
   // including an unknown command it will reject locally, and a pasted absolute
   // path that merely looks like one.
@@ -623,7 +623,8 @@ export async function submitPrompt(): Promise<void> {
       // New chat: the first message (text and/or attachments) creates the session.
       await createSessionFromComposer(text, ownerToken);
     } else if (!view.live) {
-      // Dormant session: lazy spawn + native resume, then queue the message.
+      // Dormant session: lazy spawn + native resume, then send the message
+      // (held until the resumed CLI first reaches its prompt).
       // When resume needs a choice, resumeSession releases the claim itself and
       // leaves the panel on the view; the finally-release below is then a no-op.
       enteredDormantResume = true;
@@ -634,7 +635,8 @@ export async function submitPrompt(): Promise<void> {
       // (untrimmed) value for error restore.
       liveSendRawInput = elements.promptInput.value;
       elements.promptInput.value = "";
-      view.status = "Queued";
+      // A new send supersedes any earlier point-of-action message.
+      view.status = "";
       render();
       const attachments = await materializeAttachments(view.pendingAttachments, taskId);
       await window.sonataRuntime.submitPrompt({ taskId, text, attachments });

@@ -27,6 +27,7 @@ import type {
   RunStatus,
   StopInterruptEncoding,
   TaskId,
+  TaskSessionState,
 } from "../../shared/types/domain";
 import type {
   RuntimeEvent,
@@ -68,26 +69,35 @@ export const BRACKETED_PASTE_END = "\x1b[201~";
 export const CSI_U_ENTER = "\x1b[13u";
 // Claude 2.1.214 completed six separately-pasted image paths in 157–203ms in
 // the clean probe, but the affected field session exceeded 260ms. Poll the
-// rendered effect with a generous bound that still precedes the 2.5s Enter
-// recovery rung; the bound is a fallback, never the success criterion.
+// rendered effect with a generous bound; the bound is a fallback, never the
+// success criterion.
 const ATTACHMENT_EFFECT_POLL_MS = 25;
 const ATTACHMENT_EFFECT_TIMEOUT_MS = 1_500;
 // The settle gap between pasting the attachment paths and pasting the prompt
-// text / opening the effect poll. Named (not an inline literal) so the exported
-// worst-case bound below is derived from the real value, never a copy that can
-// silently drift.
+// text / opening the effect poll.
 const ATTACHMENT_SUBMIT_SETTLE_MS = 120;
-/**
- * Worst-case elapsed time from the start of an attachment submit sequence to
- * the submit Enter: the pre-paste baseline poll, the settle gap, then the
- * bounded effect fallback. This is a hard cross-file invariant — the
- * DeliveryController's first Enter-retry rung MUST stay above it, so a heal
- * nudge can never fire while this sequence is still legitimately mid-paste.
- * DeliveryController asserts `ATTACHMENT_SUBMIT_WORST_CASE_MS < enterRetryDelaysMs[0]`
- * at construction, so retuning either constant to violate the margin fails loud.
- */
-export const ATTACHMENT_SUBMIT_WORST_CASE_MS =
-  ATTACHMENT_EFFECT_POLL_MS + ATTACHMENT_SUBMIT_SETTLE_MS + ATTACHMENT_EFFECT_TIMEOUT_MS;
+// The boot hold (subtraction X2). A message sent before the CLI first reaches
+// its prompt is held and written ONCE, in order, when it does — what a person
+// at a terminal does (wait for the prompt, then type). MEASURED at claude
+// 2.1.281 (X2 probe): a paste + Enter written at +0 or +1000ms after spawn sits
+// UNSENT in the composer (2/2 and 1/1, 60s), at +2000ms it runs.
+//   - BOOT_LATCH_POLL_MS: the latch is re-checked on every settled pty batch
+//     while shut; this poll is the floor for a boot whose last paint arrives
+//     before the grid has parsed it (no later batch would re-check). Armed at
+//     spawn, cleared the moment the latch opens or the pty goes.
+//   - BOOT_SEND_GRACE_MS: claude's TUI swallows a submit Enter inside a
+//     boot-init window ending ≈SessionStart+300ms (probe
+//     spikes/first-prompt-enter-race, claude 2.1.210); held messages go out
+//     this long after the latch opens (≈1.7× margin past the window's tail).
+//   - HELD_SEND_POLL_MS: two sends must not interleave their bytes (resume
+//     `/compact` then the user's message; or two sends inside one ~120ms paste +
+//     Enter sequence) — the write lock buffers human keys but does NOT serialise
+//     two automation writers (see injectRemoteControl), so a send waits for the
+//     previous sequence to release the lock. Byte-level atomicity, the same
+//     invariant the write lock already keeps for the human's keystrokes.
+const BOOT_LATCH_POLL_MS = 500;
+const BOOT_SEND_GRACE_MS = 500;
+const HELD_SEND_POLL_MS = 50;
 const CODEX_SKILL_MENTION_RE = /^\$[A-Za-z0-9][\w.-]*$/;
 
 export function attachmentChipEffectSatisfied(
@@ -269,12 +279,13 @@ const CLAUDE_TRUST_WALK_STEP_MS = 350;
  *  awaiting IPC call — and the drawer's disabled buttons — would hang forever. */
 const CLAUDE_TRUST_WALK_GRID_READ_MS = 2000;
 /** How long after the human's last terminal keystroke Sonata treats them as
- *  actively typing and holds delivery (S2). Bridges the gaps between keystrokes
+ *  actively typing — used to reconcile a native approval they may be answering
+ *  in the terminal (S2). Bridges the gaps between keystrokes
  *  — and the pause-to-think over a half-typed line — that the idle-prompt
  *  heuristic alone cannot see. Dogfood-tuned. */
 const HUMAN_ACTIVE_WINDOW_MS = 3500;
 /** How long after a codex spawn to check for the boot "Update available!" gate
- *  (consolidation S4). Past a normal boot (the delivery latch opens ~1s after
+ *  (consolidation S4). Past a normal boot (the boot latch opens ~1s after
  *  spawn), so a session that is STILL not composer-ready here AND whose tail
  *  matches the gate signature is genuinely stuck behind it. One-shot; the
  *  signature match is the real discriminator, so the window only needs to clear
@@ -284,7 +295,7 @@ const CODEX_BOOT_UPDATE_CHECK_MS = 4000;
  *  (codex-trust S2). Deliberately the SAME window as the update gate above and
  *  for the same reason, not by coincidence: both are onboarding screens codex
  *  paints in its first frames instead of the composer, so the window only has to
- *  clear a HEALTHY boot (the delivery latch opens ~1s after spawn) — past that,
+ *  clear a HEALTHY boot (the boot latch opens ~1s after spawn) — past that,
  *  a session still not composer-ready is genuinely parked. Kept as its own
  *  constant rather than shared, so a future measurement can move one gate's
  *  window without silently moving the other's. One-shot; codex-only. */
@@ -312,7 +323,7 @@ const CLAUDE_BOOT_FULLSCREEN_OFFER_CHECK_MS = 4000;
  * `CoreService.triggerDataEvent`'s `wasUserInput` is not surfaced; and even
  * iTerm2 classifies mouse reports identically to keystrokes). So the activity
  * tracker must filter them structurally, or `isHumanActivelyTyping` never clears
- * and delivery wedges — which is exactly what mouse motion/scroll (`ESC[<…M`)
+ * (it once wedged delivery) — which is exactly what mouse motion/scroll (`ESC[<…M`)
  * and `?`-prefixed cursor reports did on the post-reply screen.
  *
  * The set is the well-specified terminal INPUT grammar (CSI/OSC/DCS/mouse) — a
@@ -515,19 +526,9 @@ export interface PromptSubmission {
   taskId: TaskId;
   runId: RunId | null;
   kind: RunKind;
-  /** When submitPrompt returned — the WRITE time. For a plain send this is also
-   *  the effect time (the Enter fires within the same 120ms deferred tick). */
+  /** When submitPrompt returned — the WRITE time. A plain send's Enter follows
+   *  ~120ms later; an attachment send's after its effect-verified paste. */
   submittedAt: string;
-  /**
-   * Present ONLY for an attachment send, whose submit Enter fires asynchronously
-   * — 145ms to ~1.65s later — after the effect-verified paste sequence. Resolves
-   * to the ISO time the sequence actually pressed Enter (or resolved its bounded
-   * fallback). DeliveryController re-stamps the in-flight epoch and re-arms the
-   * receipt timeout + heal ladder from this time, so none of them run from the
-   * lying write-time epoch. Never resolves if the sequence is canceled (Stop),
-   * which the stop path handles separately.
-   */
-  effect?: Promise<string>;
 }
 
 export interface PromptAttachmentSubmission {
@@ -617,8 +618,9 @@ interface TerminalProviderProfile {
    *  Consumed ONLY by `detectIdlePrompt` — never by `detectApprovalCandidate`
    *  — so the codex approval scrape stays retired (S4) while readiness stops
    *  lying about a dialog screen. The dialog itself is answered by the human
-   *  in the co-visible Terminal; until then delivery must hold, because a
-   *  submitted prompt's Enter would silently answer it (the trust dialog eats
+   *  in the co-visible Terminal; until then the boot latch stays shut (a held
+   *  first message waits), because a submitted prompt's Enter would silently
+   *  answer it (the trust dialog eats
    *  the pasted text AND its Enter picks "Yes, continue" — probed 0.144.5,
    *  spikes/codex-boot-input-window, field-hit 2026-07-17 BeDog session). */
   bootDialogHints: string[];
@@ -858,7 +860,7 @@ export class TerminalHost extends EventEmitter {
    * flushed the instant the sequence completes, so the two byte streams never
    * interleave (no `git che`+paste corruption; no split bracketed-paste frame).
    * `lastHumanInputAt` timestamps the human's last terminal keystroke — used
-   * ONLY to reconcile natively-answered approvals, never to hold delivery.
+   * ONLY to reconcile natively-answered approvals, never to hold a send.
    */
   private sonataWriteDepth = 0;
   private pendingHumanInput = "";
@@ -867,22 +869,26 @@ export class TerminalHost extends EventEmitter {
   // Deferred automation writes (submitPrompt's text/Enter, /rc's Enter) that
   // have not fired yet. stopRun cancels them: an Esc aimed at a turn must not
   // be followed by our own deferred paste STARTING one (probe S0,
-  // stop-after-send race). Each handle balances its write-lock hold on
-  // cancel. `owner` distinguishes a run-starting prompt's bytes from control
-  // sends (/stop, /rc Enter) so a canceled control write can never produce a
-  // false "your prompt never reached the CLI" verdict (review F3).
-  private readonly pendingDeferredWrites = new Set<{
-    owner: "prompt" | "control";
-    cancel: () => void;
-  }>();
-  // Whether the CURRENT prompt submission's text/paths have actually been
-  // written into the composer (they are visible, awaiting the submit Enter).
-  // Reset when a prompt submission begins, set the moment its bytes land. stopRun
-  // reads it so a mid-sequence cancel can report honestly whether the prompt
-  // reached the CLI (paths/text pasted) or never left — an attachment send's
-  // Enter can lag ~1.65s behind its paste, so "canceled before it reached the
-  // CLI" was a lie for the whole in-between.
-  private promptTextReachedComposer = false;
+  // stop-after-send race). Each handle balances its write-lock hold on cancel.
+  private readonly pendingDeferredWrites = new Set<{ cancel: () => void }>();
+  // The boot latch (one-shot, per pty): false until the CLI first reaches its
+  // prompt (`acceptsFirstPrompt`), then true for the life of this pty — it never
+  // re-closes, and nothing re-gates a write on it afterwards. It is the
+  // readiness display bit (`session:state.bootLatched`) and the trigger for the
+  // boot hold below. `bootLatchedAt` times the send grace.
+  private bootLatchOpen = false;
+  private bootLatchedAt: number | null = null;
+  private bootLatchPollTimer: NodeJS.Timeout | null = null;
+  // Sends not yet written, in order: held by the boot hold (sent before the
+  // latch opened; written once, when it does, plus BOOT_SEND_GRACE_MS) or, for
+  // at most one write sequence, by byte-level atomicity (a previous send's paste
+  // + Enter still in flight). No receipts, no retry, no per-message state; they
+  // die with the pty (clearBootHold) and with a Stop (stopRun).
+  private heldSends: Array<{ text: string; attachments: PromptAttachmentSubmission[] }> = [];
+  private heldSendFlushTimer: NodeJS.Timeout | null = null;
+  // Emit-on-change for `session:state`: the serialized payload last put on the
+  // wire, or null before the first one of this pty.
+  private lastSessionStateFingerprint: string | null = null;
   // The CLI's input line may hold text Sonata did not put there on purpose —
   // Esc-interrupt restores the interrupted prompt into the composer (probe
   // C1/X1). While set, the next injection prefixes a kill-line flood; the
@@ -963,9 +969,9 @@ export class TerminalHost extends EventEmitter {
    * fence (contract §4 permanent fence list). Prompt detection requires the
    * prompt to render AFTER any approval-screen text, so a pending trust
    * screen blocks this both via approvalActive and via the prompt-ordering
-   * rule. The delivery pump re-polls THIS gate every ~500ms while blocked;
-   * it opens the boot latch (~1s after spawn, probe s6-diags) and never
-   * re-gates delivery after that.
+   * rule. `acceptsFirstPrompt` (its stricter sibling) opens the one-shot
+   * boot latch (~1s after spawn, probe s6-diags); nothing re-gates a send on
+   * either after that.
    *
    * No PTY-quiet gate. A modern TUI never goes byte-quiet — the idle claude
    * TUI emits a control-only chunk every ~200ms forever (s4-diags), which is
@@ -1019,9 +1025,9 @@ export class TerminalHost extends EventEmitter {
    * WHY A GRID PREDICATE WHEN `bootDialogHints` ALREADY GUARDS THIS. The needle
    * guard is an ORDERING claim over the pty tail and it holds while the dialog's
    * footers are the most recent thing in the window — MEASURED true at 0.152.0
-   * (q20). What it cannot do is UN-latch: `DeliveryController`'s boot latch is
-   * one-way, and codex 0.152.0 paints a composer-shaped startup draft ~120ms
-   * before this dialog exists, so a pump landing in that window latches on a
+   * (q20). What it cannot do is UN-latch: the boot latch is one-way, and codex
+   * 0.152.0 paints a composer-shaped startup draft ~120ms before this dialog
+   * exists, so a latch check landing in that window latches on a
    * screen the needles cannot describe yet. The confidence gate on the latch
    * (`acceptsFirstPrompt`) is what closes that window; this predicate is the
    * belt — a second, independent reason the same latch stays shut, keyed on the
@@ -1052,13 +1058,13 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * May the DELIVERY BOOT LATCH open right now? (SL-6.)
+   * May the BOOT LATCH open right now? (SL-6.)
    *
    * A strictly stronger question than {@link acceptsPromptInput}, and the split
    * is the point: `acceptsPromptInput()` answers "is a composer accepting input"
    * for every caller, while this answers the one-way, irreversible question
-   * `DeliveryController.pump()` asks ONCE per session — after which delivery is
-   * send-is-send and no scrape re-gates it. An irreversible decision deserves a
+   * `checkBootLatch` asks until it first reads true — after which every send
+   * writes through and no scrape re-gates it. An irreversible decision deserves a
    * stricter test than a reversible one.
    *
    * THE EXTRA TERM, codex only: the idle-prompt read must be MEDIUM confidence,
@@ -1068,9 +1074,9 @@ export class TerminalHost extends EventEmitter {
    * paints a startup DRAFT at ~147ms whose box reads `model: loading` /
    * `directory: loading` under a real composer glyph and placeholder. That draft
    * reads `ready: true` at LOW confidence; the resolved composer ~850ms later
-   * reads MEDIUM. Without this term a pump landing in the draft window latches,
-   * and the trust dialog that replaces the draft at ~270ms then receives the
-   * first delivery's paste and Enter — Sonata emits `prompt:submitted`, the
+   * reads MEDIUM. Without this term a latch check landing in the draft window
+   * latches, and the trust dialog that replaces the draft at ~270ms then
+   * receives the first message's paste and Enter — Sonata emits `prompt:submitted`, the
    * Enter grants directory trust, and the prompt itself is discarded.
    *
    * The reproduction is an A/B PAIR, and reading the right file matters:
@@ -1082,7 +1088,7 @@ export class TerminalHost extends EventEmitter {
    *       dialog is still unanswered at the end of the watch.
    * Both at codex-cli 0.152.1, same probe, same arranged race. The PRE-FIX half
    * also settles which leg carries the fix: with ONLY the grid belt in place the
-   * incident still reproduced, because `canDeliver()` never consults
+   * incident still reproduced, because the write path never consults
    * `acceptsPromptInput()` — once the latch is open, nothing re-gates the write.
    * So this term is the fix and the belt is the belt; do not relax this one on
    * the theory that the other covers it.
@@ -1101,21 +1107,19 @@ export class TerminalHost extends EventEmitter {
    * already encodes everywhere else in this file.
    *
    * THE DELIBERATE CONSEQUENCE, chosen rather than incurred: a codex spawn whose
-   * footer NEVER resolves never latches, so a queued prompt stays queued. The
+   * footer NEVER resolves never latches, so a held first message stays held. The
    * reachable case is a session that cannot take prompts anyway — logged out
    * (the boot parks on the login onboarding screen), or offline so the model
    * catalog never answers. MEASURED for the logged-out arm in
    * `q26-unauthenticated-latch.capture.txt`. Sending a prompt into either would
    * paste it into a screen that will never run it; holding is the honest
    * outcome, and it is VISIBLE rather than silent — `bootLatched` is surfaced on
-   * `DeliveryTaskState` as the "is the CLI still starting?" display bit, so the
-   * queue reads "still starting" instead of pretending to have sent. That is the
-   * opposite of the invisible hold S3 decision A warns about.
+   * `session:state` as the "is the CLI still starting?" display bit, so the
+   * composer reads "still starting" instead of pretending to have sent.
    *
    * The hook short-circuit is honoured — and is INERT for codex today, which is
-   * worth saying plainly so nobody reads it as load-bearing. `bootLatched` never
-   * re-arms (`noteSessionBoundary` only refreshes the grace), so this predicate
-   * is consulted ONLY during initial boot; and codex emits `SessionStart` lazily,
+   * worth saying plainly so nobody reads it as load-bearing. The latch never
+   * re-arms, so this predicate is consulted ONLY during initial boot; and codex emits `SessionStart` lazily,
    * with the first `UserPromptSubmit`, which cannot happen before the latch it
    * gates. So for codex the term is provably false whenever it is evaluated, and
    * for claude the provider test already returns true ahead of it. It is kept
@@ -1130,8 +1134,9 @@ export class TerminalHost extends EventEmitter {
    * (`isRewindPanelOpen`, `isFullscreenOfferOpen`, the workspace-trust needles),
    * and claude's composer carries no equivalent model/cwd footer to key on.
    *
-   * Cost: one extra `detectIdlePrompt` scan per pump, ONLY while unlatched and
-   * ONLY for codex — `pump()` stops calling this the moment the latch opens.
+   * Cost: one extra `detectIdlePrompt` scan per latch check, ONLY while
+   * unlatched and ONLY for codex — `checkBootLatch` stops calling this the
+   * moment the latch opens.
    */
   acceptsFirstPrompt(): boolean {
     if (!this.acceptsPromptInput()) {
@@ -1148,50 +1153,24 @@ export class TerminalHost extends EventEmitter {
    * an idle composer opens it — see STOP_ESC_RETRY_MIN_MS for Sonata's own
    * exposure, and `claudeRewindPanelOpen` for the measured frames).
    *
-   * A SCREEN OWNER, joining `approvalActive` at the same four gates: readiness
-   * (above), `canDeliver`, `submitPrompt` and the Enter-retry ladder. It has to
-   * be its own gate rather than ride the idle-prompt ordering, because after the
-   * boot latch opens nothing re-reads that scrape — delivery is send-is-send
-   * from then on (S6).
-   *
-   * This is a deliberate, narrow exception to S3 decision A ("a slash-opened
-   * panel does not hold delivery — a paste into a panel the user opened is
-   * visible and recoverable, an invisible hold is the S1 wedge class"). Both of
-   * that decision's premises fail here and only here: the panel's Enter is a
-   * RESTORE, so a mis-delivery is NOT recoverable; and the hold is not invisible
-   * — it carries a delivery-state flag and its own composer status line
-   * ("Rewind panel open…"). It also self-clears with no event needed: the
-   * dismissal repaints the composer, and the blocked queue re-pumps on the
-   * 500ms poll.
+   * A SCREEN OWNER for READINESS only (`acceptsPromptInput`): the panel is not a
+   * composer, so it must not read as one. It is NOT a send gate any more
+   * (subtraction X2, native semantics): a Send while it is open pastes into it
+   * and its Enter RESTORES the highlighted row — exactly what an Enter typed in
+   * the CLI would do. Sonata itself can no longer open it (STOP_ESC_RETRY_MIN_MS),
+   * so reaching it means the user pressed Esc Esc in the CLI.
    *
    * Reads the SCREEN GRID (D-1's standing rule: a state query belongs on the
    * grid). The stream cannot answer this — see `claudeRewindPanelOpen` for the
    * measured per-line-diff failure that forced the migration.
    *
    * SYNCHRONOUS `viewportText()`, not the `whenSettled` deferral the approval
-   * scan uses, because every caller here is a synchronous predicate
-   * (`acceptsPromptInput`, `canDeliver`, `submitPrompt`, `nudgePromptSubmit`)
-   * and a callback cannot answer them.
-   * That is sound: per `TaskScreenModel`'s contract a naked read is
-   * stale-but-consistent — a complete byte-stream PREFIX, never torn. The two
-   * staleness edges are NOT symmetric, and the honest reading is:
-   *   - DISMISSAL (grid still shows the panel): reads open → holds → SAFE, and
-   *     it self-corrects on the delivery pump's 500ms re-poll.
-   *   - OPENING (grid has not yet parsed the panel's write): reads closed. This
-   *     is the unsafe edge, bounded by one write-drain: `@xterm` parses at least
-   *     by the next microtask, so every timer- and event-driven caller is past
-   *     it (the approval events that re-pump are themselves emitted from
-   *     inside `whenSettled`, i.e. after the drain). It survives only for a
-   *     caller firing in the same turn as the panel's own pty batch — and the
-   *     one Esc pair Sonata itself could emit is now impossible by
-   *     STOP_ESC_RETRY_MIN_MS, so reaching it means the user pressed Esc Esc in
-   *     the CLI and hit Send in Sonata inside the same microtask.
-   * Rejected: holding whenever writes are pending. During any active turn writes
-   * are always pending, and claude delivery is write-through mid-turn, so that
-   * would wedge the normal path to defend a microtask.
+   * scan uses, because its caller is a synchronous predicate. That is sound:
+   * per `TaskScreenModel`'s contract a naked read is stale-but-consistent — a
+   * complete byte-stream PREFIX, never torn — and the boot-latch check that
+   * matters most already runs inside `whenSettled`.
    *
-   * No screen model means no PTY — read closed rather than hold, matching every
-   * other gate here (`!this.ptyProcess` already refuses upstream).
+   * No screen model means no PTY — read closed.
    *
    * Codex has no such panel; the predicate is claude-only so a codex frame can
    * never reach a claude-shaped needle.
@@ -1207,24 +1186,18 @@ export class TerminalHost extends EventEmitter {
    * Claude's fullscreen-renderer BOOT offer is on screen (claude 2.1.257;
    * MEASURED frames + the delivery-into-the-offer experiment in
    * `claudeFullscreenOfferOpen`). A screen owner for READINESS: the boot latch
-   * must not open on it, because the Enter that opens delivery answers the
-   * offer, destroys the queued prompt and re-execs the CLI under a different
-   * renderer.
+   * must not open on it, because a held first message's Enter would answer the
+   * offer, destroy the prompt and re-exec the CLI under a different renderer.
    *
-   * READINESS ONLY, and deliberately not the other three gates the Rewind panel
-   * feeds (`canDeliver`, `submitPrompt`, `nudgePromptSubmit`). Those are all
-   * POST-latch paths, and this offer is strictly PRE-latch: it paints between
-   * the trust grant and the alternate-screen switch, before the session starts,
-   * and the boot latch is what unlocks every one of them. Holding
-   * `acceptsPromptInput()` therefore holds all of them, and adding gates for a
-   * state that cannot exist behind them would be scaffolding, not safety. If a
-   * future sync moves an interstitial of this class past the latch, THAT is when
-   * it earns the Rewind panel's full treatment.
+   * READINESS ONLY: the offer is strictly PRE-latch (it paints between the trust
+   * grant and the alternate-screen switch, before the session starts), and the
+   * latch is the one hold Sonata keeps. If a future sync moves an interstitial of
+   * this class past the latch, native semantics apply to it like any other screen.
    *
    * Sonata NEVER answers it — same standing rule as the Rewind panel and the
    * codex trust dialog. The two answers are a renderer choice for the user's own
    * tool; the human answers in the co-visible Terminal and the hold clears by
-   * itself when the composer paints (the delivery pump re-polls this gate).
+   * itself when the composer paints (the latch poll re-checks it).
    *
    * SYNCHRONOUS `viewportText()` and grid-not-stream, for the reasons spelled
    * out on `isRewindPanelOpen` above; the staleness asymmetry is the same, and
@@ -1244,6 +1217,150 @@ export class TerminalHost extends EventEmitter {
    *  or /clear) — record the CLI's own boot declaration. */
   noteHookSessionStart(): void {
     this.hookSessionStarted = true;
+    this.checkBootLatch();
+  }
+
+  /** Has this pty's CLI reached its prompt at least once? One-shot; see the
+   *  `bootLatchOpen` field. Survives the pty's exit — the S4 start diagnosis
+   *  reads it after the process is gone ("was a prompt ever reached?"). */
+  bootLatched(): boolean {
+    return this.bootLatchOpen;
+  }
+
+  /** The `session:state` payload as of now — also what a session snapshot
+   *  carries, so a late listener starts from the same value the deltas follow. */
+  sessionState(): TaskSessionState {
+    return {
+      taskId: this.taskId,
+      activeRun: Boolean(this.activeRun),
+      activeRunId: this.activeRun ? this.activeRun.id : null,
+      bootLatched: this.bootLatchOpen,
+    };
+  }
+
+  /**
+   * Send a prompt the way a person at a terminal would: at once, unless the CLI
+   * has not yet reached its prompt for the first time — then it is held and
+   * written once, in order with anything else sent before that moment, when the
+   * boot latch opens (+BOOT_SEND_GRACE_MS). This is the only hold Sonata keeps
+   * (subtraction X2): after the latch, every call writes through immediately,
+   * whatever the CLI is doing — a turn in flight, a dialog on screen — exactly
+   * as a terminal Enter would. The one exception is byte-level: a send that
+   * arrives while Sonata's previous write sequence is still in flight (~120ms
+   * for a plain paste + Enter) follows it rather than splitting it, as a
+   * person's second message follows their first.
+   *
+   * Every sender goes through here (a New Chat's first message, a message to a
+   * resumed session, the resume `/compact`, a Send typed during boot, the
+   * local API) so a later send can never overtake a held one. Control sends
+   * that act on a live turn (`/stop`) call {@link submitPrompt} directly.
+   */
+  submitPromptWhenReady(text: string, options: { attachments?: PromptAttachmentSubmission[] } = {}): void {
+    const attachments = options.attachments ?? [];
+    if (!text.trim() && attachments.length === 0) {
+      return;
+    }
+    if (!this.ptyProcess) {
+      throw new Error("No PTY process is running.");
+    }
+    if (this.heldSends.length === 0 && this.bootSendGraceElapsed() && !this.sonataWriting) {
+      this.submitPrompt(text, { attachments });
+      return;
+    }
+    this.heldSends.push({ text, attachments: attachments.map((attachment) => ({ ...attachment })) });
+    this.scheduleHeldSendFlush();
+  }
+
+  private bootSendGraceElapsed(): boolean {
+    return this.bootLatchedAt !== null && Date.now() - this.bootLatchedAt >= BOOT_SEND_GRACE_MS;
+  }
+
+  /** Open the latch the first time the CLI reaches its prompt. Re-checked on
+   *  every settled pty batch and on the poll while shut; a no-op once open. */
+  private checkBootLatch(): void {
+    if (this.bootLatchOpen || !this.ptyProcess || !this.acceptsFirstPrompt()) {
+      return;
+    }
+    this.bootLatchOpen = true;
+    this.bootLatchedAt = Date.now();
+    this.clearBootLatchPoll();
+    this.publishSessionState();
+    this.scheduleHeldSendFlush();
+  }
+
+  private armBootLatchPoll(): void {
+    this.clearBootLatchPoll();
+    this.bootLatchPollTimer = setInterval(() => this.checkBootLatch(), BOOT_LATCH_POLL_MS);
+    this.bootLatchPollTimer.unref?.();
+  }
+
+  private clearBootLatchPoll(): void {
+    if (this.bootLatchPollTimer) {
+      clearInterval(this.bootLatchPollTimer);
+      this.bootLatchPollTimer = null;
+    }
+  }
+
+  /** Arm the next flush of the held sends: at the latch's grace deadline, or
+   *  (while a write sequence is still in flight) at the next write-lock poll.
+   *  Nothing to arm before the latch opens — checkBootLatch arms it then. */
+  private scheduleHeldSendFlush(): void {
+    if (this.heldSendFlushTimer || this.heldSends.length === 0 || this.bootLatchedAt === null) {
+      return;
+    }
+    const graceLeftMs = Math.max(0, this.bootLatchedAt + BOOT_SEND_GRACE_MS - Date.now());
+    const delayMs = graceLeftMs > 0 ? graceLeftMs : this.sonataWriting ? HELD_SEND_POLL_MS : 0;
+    this.heldSendFlushTimer = setTimeout(() => {
+      this.heldSendFlushTimer = null;
+      this.flushHeldSends();
+    }, delayMs);
+    this.heldSendFlushTimer.unref?.();
+  }
+
+  private flushHeldSends(): void {
+    if (!this.ptyProcess) {
+      this.clearBootHold();
+      return;
+    }
+    // One send per pass: the next waits until this one's write sequence has
+    // released the lock, so two sends never interleave their bytes.
+    if (!this.sonataWriting) {
+      const next = this.heldSends.shift();
+      if (next) {
+        this.submitPrompt(next.text, { attachments: next.attachments });
+      }
+    }
+    this.scheduleHeldSendFlush();
+  }
+
+  /** Drop every send not yet written. */
+  private dropHeldSends(): void {
+    this.heldSends = [];
+    if (this.heldSendFlushTimer) {
+      clearTimeout(this.heldSendFlushTimer);
+      this.heldSendFlushTimer = null;
+    }
+  }
+
+  /** Drop the boot hold. The hold belongs to ONE pty: it never survives the
+   *  process (exit, dispose, respawn) — a relaunch sends nothing unless the
+   *  user sends again. */
+  private clearBootHold(): void {
+    this.dropHeldSends();
+    this.clearBootLatchPoll();
+  }
+
+  /** Emit `session:state` when its payload changed. Called after every event
+   *  this host emits (run start/finish move `activeRun`) and when the latch
+   *  opens; the fingerprint keeps it a delta stream. */
+  private publishSessionState(): void {
+    const next = this.sessionState();
+    const fingerprint = JSON.stringify(next);
+    if (fingerprint === this.lastSessionStateFingerprint) {
+      return;
+    }
+    this.lastSessionStateFingerprint = fingerprint;
+    this.emitEvent("session:state", next);
   }
 
   startTask(options: StartTaskOptions = {}): StartedPty {
@@ -1272,6 +1389,11 @@ export class TerminalHost extends EventEmitter {
     // scrape's native surfacing (S4b R1).
     this.approvalBrokerOn = options.approvalBroker === true;
     this.hookSessionStarted = false;
+    // A fresh pty starts shut: its own boot is what opens the latch, and the
+    // first session:state of this pty goes out unconditionally.
+    this.bootLatchOpen = false;
+    this.bootLatchedAt = null;
+    this.lastSessionStateFingerprint = null;
     this.clearPersistReceiptTimers();
     this.clearNativeAnswerRecheckTimers();
     this.activeRun = null;
@@ -1375,6 +1497,9 @@ export class TerminalHost extends EventEmitter {
       // stopEscRetry could fire an Esc into the NEXT session within its 45s
       // window (review F8).
       this.clearStopHygieneState();
+      // Nor may the boot hold: a message held for THIS pty is not re-sent to a
+      // relaunch.
+      this.clearBootHold();
     });
 
     this.emitEvent("task:started", {
@@ -1406,6 +1531,8 @@ export class TerminalHost extends EventEmitter {
     if (options.remoteControl) {
       this.setRemoteControlActive(true);
     }
+
+    this.armBootLatchPoll();
 
     // Boot watchdogs: surface the screens that can park a boot instead of the
     // composer. Codex has two — the "Update available!" gate (S4) and the
@@ -1527,8 +1654,8 @@ export class TerminalHost extends EventEmitter {
    * `UserPromptSubmit`, not at spawn (probed at 0.144.4 and 0.144.5;
    * runtime-controller's `watchHooks` documents the same fact and declines to
    * arm a spawn-anchored liveness window because of it) — and a first
-   * UserPromptSubmit requires a delivery, which requires the very boot latch
-   * this dialog is guarding. So during a codex boot `hookSessionStarted` is
+   * UserPromptSubmit requires a send, and a send before the latch is held by
+   * the very boot latch this dialog is guarding. So during a codex boot `hookSessionStarted` is
    * PROVABLY false, and **leg 1 (the dialog leaves the screen) is the only
    * operative leg there**.
    *
@@ -1584,8 +1711,8 @@ export class TerminalHost extends EventEmitter {
    * hold is right: MEASURED (F8, claude 2.1.257), a delivery's paste is DISCARDED
    * here and its submit CR answers the focused `1. Yes, try it`, after which the
    * CLI re-execs under a new renderer and the user's prompt is gone with no
-   * receipt and no error. But the hold is SILENT — the task reads "starting", the
-   * queued prompt waits, and nothing tells the user the CLI is parked on a
+   * receipt and no error. But the hold is SILENT — the task reads "starting", a
+   * held first message waits, and nothing tells the user the CLI is parked on a
    * question only the terminal pane can answer. Codex's parked boots have said so
    * since codex-trust S2; this is the same honesty for claude.
    *
@@ -1672,7 +1799,7 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * Inject `/remote-control` out-of-band (NOT via the delivery queue). claude
+   * Inject `/remote-control` out-of-band (not through the boot hold). claude
    * handles `/rc` as a client-side command in parallel with any active turn, so
    * this works mid-stream (verified 2026-06-27, claude 2.1.195). Held under the
    * write-lock so a human keystroke mid-inject buffers instead of splitting the
@@ -1709,7 +1836,7 @@ export class TerminalHost extends EventEmitter {
       return { ok: false, reason: "panel-open" };
     }
     // The write-lock (beginSonataWrite) only BUFFERS human keystrokes; it does NOT
-    // serialise two automation writers. If a prompt delivery is mid-sequence (its
+    // serialise two automation writers. If a prompt send is mid-sequence (its
     // deferred paste/Enter still pending), injecting now would interleave `/rc`
     // bytes with the prompt's — refuse and let the caller retry once it clears.
     if (this.sonataWriting) {
@@ -1717,17 +1844,13 @@ export class TerminalHost extends EventEmitter {
     }
     this.beginSonataWrite();
     this.ptyProcess.write(`${BRACKETED_PASTE_START}/remote-control${BRACKETED_PASTE_END}`);
-    // Defer the Enter under the held lock (mirrors the prompt-delivery path): a
+    // Defer the Enter under the held lock (mirrors the prompt send path): a
     // human keystroke landing in the gap buffers rather than splitting the frame.
-    this.deferSonataWrite(
-      120,
-      () => {
-        if (this.ptyProcess) {
-          this.ptyProcess.write(CSI_U_ENTER);
-        }
-      },
-      "control",
-    );
+    this.deferSonataWrite(120, () => {
+      if (this.ptyProcess) {
+        this.ptyProcess.write(CSI_U_ENTER);
+      }
+    });
     this.endSonataWrite();
     // Optimistic: we asked to connect. The scraped URL confirms + carries the
     // link. A second invocation opens the panel (still active), so flipping to
@@ -1820,7 +1943,7 @@ export class TerminalHost extends EventEmitter {
 
   /**
    * The human's keystrokes into the terminal. The human may type anytime;
-   * delivery is never held on "the human is typing" (send-is-send). The one
+   * a send is never held on "the human is typing" (send-is-send). The one
    * invariant kept here is byte-level atomicity: a keystroke that arrives mid
    * automation-sequence buffers and flushes AFTER it, never interleaving (the
    * AtomicWriter — a split bracketed-paste frame is corruption). `lastHumanInputAt`
@@ -1871,7 +1994,7 @@ export class TerminalHost extends EventEmitter {
 
   /** The human just finished a burst of terminal input — they may have answered
    *  a native approval/panel directly. Re-derive readiness from fresh screen
-   *  evidence; a held queue re-pumps via the 500ms poll. */
+   *  evidence. */
   private onHumanInputSettled(): void {
     if (!this.ptyProcess) {
       return;
@@ -1905,9 +2028,9 @@ export class TerminalHost extends EventEmitter {
    *  the timer gap so a human keystroke in that window buffers rather than
    *  splitting the sequence. Cancellable as a group by stopRun (a canceled
    *  handle releases its write-lock hold without writing). */
-  private deferSonataWrite(ms: number, fn: () => void, owner: "prompt" | "control" = "prompt"): void {
+  private deferSonataWrite(ms: number, fn: () => void): void {
     this.beginSonataWrite();
-    const handle = { owner, cancel: () => {} };
+    const handle = { cancel: () => {} };
     const timer = setTimeout(() => {
       this.pendingDeferredWrites.delete(handle);
       try {
@@ -1933,14 +2056,12 @@ export class TerminalHost extends EventEmitter {
   private deferAttachmentSubmission(
     attachments: PromptAttachmentSubmission[],
     trimmed: string,
-    owner: "prompt" | "control",
-    onEffect?: (at: string) => void,
   ): void {
     this.beginSonataWrite();
     let canceled = false;
     let settled = false;
     const timers = new Set<NodeJS.Timeout>();
-    const handle = { owner, cancel: () => {} };
+    const handle = { cancel: () => {} };
     const finish = (): void => {
       if (settled) {
         return;
@@ -1982,11 +2103,6 @@ export class TerminalHost extends EventEmitter {
             `${BRACKETED_PASTE_START}${shellQuotePath(attachment.path)}${BRACKETED_PASTE_END}`,
           );
         }
-        if (owner === "prompt") {
-          // The paths are in the composer now — a stop from here on can no longer
-          // honestly claim nothing reached the CLI.
-          this.promptTextReachedComposer = true;
-        }
         const pastedAt = Date.now();
         schedule(ATTACHMENT_SUBMIT_SETTLE_MS, () => {
           if (!this.ptyProcess) {
@@ -2016,11 +2132,6 @@ export class TerminalHost extends EventEmitter {
                 );
               if (effectSatisfied || timedOut) {
                 this.ptyProcess.write(CSI_U_ENTER);
-                // The sequence has pressed Enter — signal the effect epoch so
-                // delivery re-stamps its receipt/heal timing off the real
-                // submit, not submitPrompt's synchronous return. Fires once,
-                // whether Enter came from a satisfied effect or the fallback.
-                onEffect?.(new Date().toISOString());
                 // An effect can still materialize after the bounded fallback.
                 // The next send must fence the composer even when this one
                 // appeared clean at Enter time (probe P2).
@@ -2085,19 +2196,11 @@ export class TerminalHost extends EventEmitter {
     }
   }
 
-  /** Cancel every deferred automation write that has not fired. Returns how
-   *  many PROMPT-owned writes were canceled (0 = the prompt's bytes were all
-   *  out; canceled control writes — /stop, /rc Enter — don't count, review
-   *  F3: they must never mark a delivered prompt undelivered). */
-  private cancelPendingDeferredWrites(): number {
-    let promptCancels = 0;
+  /** Cancel every deferred automation write that has not fired. */
+  private cancelPendingDeferredWrites(): void {
     for (const handle of [...this.pendingDeferredWrites]) {
-      if (handle.owner === "prompt") {
-        promptCancels += 1;
-      }
       handle.cancel();
     }
-    return promptCancels;
   }
 
   private get sonataWriting(): boolean {
@@ -2106,7 +2209,7 @@ export class TerminalHost extends EventEmitter {
 
   /** True within the activity window of the human's last terminal keystroke.
    *  Used only to reconcile a natively-answered approval (handlePtyData +
-   *  onHumanInputSettled) — NOT to hold delivery (send-is-send). */
+   *  onHumanInputSettled) — NOT to hold a send (send-is-send). */
   isHumanActivelyTyping(): boolean {
     return (
       this.lastHumanInputAt > 0 && Date.now() - this.lastHumanInputAt < HUMAN_ACTIVE_WINDOW_MS
@@ -2116,7 +2219,7 @@ export class TerminalHost extends EventEmitter {
   /**
    * A natively-answered approval leaves no decision event of its own — the
    * human's keys are invisible to the automation flags, and a stuck
-   * approvalActive wedges the delivery gate forever. Screen evidence is the
+   * approvalActive keeps a stale card up and readiness shut. Screen evidence is the
    * source of truth: when the approval text is gone (or the idle prompt
    * rendered after it), the screen WAS answered. Only evaluated around
    * take-over, where native answers are possible.
@@ -2217,15 +2320,10 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess) {
       throw new Error("No PTY process is running.");
     }
-    if (this.approvalActive) {
-      throw new Error("Cannot submit a prompt while a native approval screen is active.");
-    }
-    // RED LINE, claude's own interstitial: the Rewind panel's Enter is a
-    // RESTORE of the conversation (and possibly the code) to the highlighted
-    // row. Delivery gates on isRewindPanelOpen upstream; this is the backstop.
-    if (this.isRewindPanelOpen()) {
-      throw new Error("Cannot submit a prompt while the rewind panel is open.");
-    }
+    // No screen-owner refusals (subtraction X2): a Send is a terminal Enter. A
+    // dialog on screen — an approval panel, an AskUserQuestion form, claude's
+    // Rewind picker — receives the paste and the Enter exactly as it would
+    // from a person typing into the CLI.
 
     // A slash command is a single line with no attachments. A folded file/folder
     // reference makes the text multi-line (path on its own line), so the newline
@@ -2234,11 +2332,11 @@ export class TerminalHost extends EventEmitter {
       trimmed.startsWith("/") && !trimmed.includes("\n") && attachments.length === 0 ? "slash" : "prompt";
     const runText = trimmed || attachmentPromptTitle(attachments.length);
     // Begin a run ONLY when the composer is idle (no active run). A mid-turn
-    // send (write-through) must NOT beginRun here: beginRun would finish the
-    // live turn as "closed by next input" and orphan it. Its run instead begins
-    // when the CLI dequeues it and fires UserPromptSubmit (beginRunFromHook) —
-    // the honest start moment. Codex (gated by hasActiveRun) only ever submits
-    // when idle, so it is unaffected. createRun:false (e.g. /stop) never begins.
+    // send (write-through, either provider) must NOT beginRun here: beginRun
+    // would finish the live turn as "closed by next input" and orphan it. Its
+    // run instead begins when the CLI takes it up and fires UserPromptSubmit
+    // (beginRunFromHook) — the honest start moment. createRun:false (e.g.
+    // /stop) never begins.
     const run =
       options.createRun === false || this.activeRun ? null : this.beginRun(runText, kind);
     const submittedAt = new Date().toISOString();
@@ -2259,8 +2357,6 @@ export class TerminalHost extends EventEmitter {
       options.createRun === false ? "control" : "prompt";
     if (submissionOwner === "prompt") {
       this.stopEscRetry = null;
-      // A fresh prompt sequence: nothing of ITS bytes is in the composer yet.
-      this.promptTextReachedComposer = false;
     }
     // Hold the write-lock across the whole sync+deferred sequence so a human
     // keystroke landing mid-paste buffers (and flushes after) rather than
@@ -2279,39 +2375,22 @@ export class TerminalHost extends EventEmitter {
       this.cliDirtyLineHighWater,
       trimmed.split("\n").length + attachments.length,
     );
-    // Attachment sends press Enter asynchronously (after the effect-verified
-    // paste). Expose that moment as `effect` so delivery times its receipt/heal
-    // from the real Enter, not this synchronous write time.
-    let effect: Promise<string> | undefined;
+    // Attachment sends press Enter asynchronously, after the effect-verified
+    // paste; a plain send pastes on the next tick and presses Enter ~120ms later.
     if (attachments.length > 0) {
-      let resolveEffect!: (at: string) => void;
-      effect = new Promise<string>((resolve) => {
-        resolveEffect = resolve;
-      });
-      this.deferAttachmentSubmission(attachments, trimmed, submissionOwner, resolveEffect);
+      this.deferAttachmentSubmission(attachments, trimmed);
     } else {
       this.writeCliInputClearFlood("pre-submit");
-      this.deferSonataWrite(
-        0,
-        () => {
-          if (this.ptyProcess && trimmed) {
-            this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
-            if (submissionOwner === "prompt") {
-              this.promptTextReachedComposer = true;
-            }
-          }
-        },
-        submissionOwner,
-      );
-      this.deferSonataWrite(
-        120,
-        () => {
-          if (this.ptyProcess) {
-            this.ptyProcess.write(CSI_U_ENTER);
-          }
-        },
-        submissionOwner,
-      );
+      this.deferSonataWrite(0, () => {
+        if (this.ptyProcess && trimmed) {
+          this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
+        }
+      });
+      this.deferSonataWrite(120, () => {
+        if (this.ptyProcess) {
+          this.ptyProcess.write(CSI_U_ENTER);
+        }
+      });
     }
     // A bare Codex skill mention ("$name") opens the skill-mention popup,
     // whose "Press enter to insert" consumes the first Enter. The second
@@ -2322,15 +2401,11 @@ export class TerminalHost extends EventEmitter {
       attachments.length === 0 &&
       needsCodexSkillMentionEnter(this.profile.provider, trimmed)
     ) {
-      this.deferSonataWrite(
-        440,
-        () => {
-          if (this.ptyProcess) {
-            this.ptyProcess.write(CSI_U_ENTER);
-          }
-        },
-        submissionOwner,
-      );
+      this.deferSonataWrite(440, () => {
+        if (this.ptyProcess) {
+          this.ptyProcess.write(CSI_U_ENTER);
+        }
+      });
     }
     // Release the initial begin; the deferred writes hold the depth until they
     // fire, so the lock spans the full sequence.
@@ -2356,45 +2431,7 @@ export class TerminalHost extends EventEmitter {
       runId: submissionRunId,
       kind,
       submittedAt,
-      ...(effect ? { effect } : {}),
     };
-  }
-
-  /**
-   * Re-send the submit Enter for a prompt whose delivery earned no receipt.
-   *
-   * WHY: Claude's TUI silently swallows the submit Enter inside a boot-init
-   * window (≈[first ❯ paint, +200ms]; probe spikes/first-prompt-enter-race,
-   * claude 2.1.210) — the bracketed-paste prompt text buffers into the composer
-   * but the Enter is dropped, so a first-of-session prompt can sit unsent until
-   * a human presses Enter in the terminal. DeliveryController calls this when an
-   * in-flight prompt is still unreceipted after a delay. An extra Enter on an
-   * already-empty composer is a harmless no-op, so re-sending is always safe: if
-   * the first Enter landed, nothing happens; if it was swallowed, the stuck text
-   * finally submits (matches the manual-Enter recovery observed 10/10 in probe).
-   *
-   * Guards: no PTY → nothing to write; an active approval → a stray Enter would
-   * confirm the panel (the caller also guards this, belt-and-suspenders); an
-   * in-flight automation sequence (sonataWriting) → never interleave our own bytes
-   * mid-paste. Returns whether it wrote.
-   */
-  nudgePromptSubmit(): boolean {
-    // The Enter-retry ladder refuses while a claude Rewind panel is open,
-    // mirroring the submitPrompt and canDeliver gates: the bare Enter this writes
-    // IS the restore action — the sharpest form of the exposure, since there is
-    // not even pasted text to make it visible.
-    if (
-      !this.ptyProcess ||
-      this.approvalActive ||
-      this.sonataWriting ||
-      this.isRewindPanelOpen()
-    ) {
-      return false;
-    }
-    this.beginSonataWrite();
-    this.ptyProcess.write(CSI_U_ENTER);
-    this.endSonataWrite();
-    return true;
   }
 
   /**
@@ -2618,8 +2655,8 @@ export class TerminalHost extends EventEmitter {
    * BOTH rows, or with the cursor on neither, aborts — it never presses an arrow
    * "to see what happens", and it never confirms except from a frame that shows
    * the affirm row focused. Aborting is safe by construction: no decision is
-   * emitted, the panel stays live and answerable (drawer or Terminal), and the
-   * delivery gate stays shut. The thrown reason reaches the drawer's status line.
+   * emitted, and the panel stays live and answerable (drawer or Terminal). The
+   * thrown reason reaches the drawer's status line.
    *
    * The write-lock is held across the whole walk (as `sendOptionPromptAnswer`
    * does) so a human keystroke buffers instead of interleaving between an arrow
@@ -2824,11 +2861,10 @@ export class TerminalHost extends EventEmitter {
    * "stopped" — the honest reason the run is over).
    *
    * Without this the stop paths clear nothing: `approvalActive` stays true with
-   * no clearer reachable from a stop, and the scrape's `SCRAPE_APPROVAL_KEY` in
-   * `DeliveryController.pendingApprovalKeys` — released ONLY by an
-   * `approval:decision` — is never freed. `canDeliver()` then reads false on two
-   * independent gates and every later send sits "Queued" until the user types in
-   * the Terminal (ask-flows review B1, 2026-08-07).
+   * no clearer reachable from a stop, and the scraped ask never earns its
+   * `approval:decision` — the card stays up and readiness stays shut until the
+   * user types in the Terminal (ask-flows review B1, 2026-08-07; it then held
+   * every later send too, through the since-deleted delivery gate).
    *
    * `runId` is the CALLER's captured id, never `activeRunId()`: the retry path
    * runs with no active run at all (its own guard), and the stop path's pointer
@@ -3004,19 +3040,16 @@ export class TerminalHost extends EventEmitter {
 
   async stopRun(
     options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {},
-  ): Promise<{ canceledPendingPromptWrite: boolean; promptReachedComposer: boolean }> {
+  ): Promise<void> {
     const stoppedRunId = this.activeRun ? this.activeRun.id : null;
     const stoppedCommandApprovalRun = this.activeRun?.approvalKind === "command";
-    // Abort our own undelivered bytes FIRST: submitPrompt defers its text and
+    // Abort our own unwritten bytes FIRST: submitPrompt defers its text and
     // Enter writes on timers, so a stop clicked right after a send would
     // otherwise be trailed by our own paste starting the very turn the user
-    // tried to stop (probe S0, stop-after-send race). The caller relays
-    // `canceledPendingPromptWrite` to the DeliveryController so the aborted
-    // item is reported honestly instead of waiting out the receipt timeout.
-    const canceledPendingPromptWrite = this.cancelPendingDeferredWrites() > 0;
-    // Capture BEFORE any control write (the deferred /stop) can touch it: whether
-    // the aborted prompt had already pasted its text/paths into the composer.
-    const promptReachedComposer = this.promptTextReachedComposer;
+    // tried to stop (probe S0, stop-after-send race). A send still waiting on
+    // that sequence is the same class of unwritten bytes: drop it too.
+    this.cancelPendingDeferredWrites();
+    this.dropHeldSends();
     // WHICH key, decided from the run pointer read in this same breath — see
     // `stopInterruptKey`. Read BEFORE `finishActiveRun` below nulls the pointer.
     const interrupt = this.stopInterruptKey();
@@ -3052,15 +3085,12 @@ export class TerminalHost extends EventEmitter {
     // the surface ends on "Stopped" rather than "Approval denied").
     //
     // POSITIONED HERE, NOT NEXT TO THE INTERRUPT KEY (review 1): the emit is
-    // synchronously RE-ENTRANT — eventSink → RuntimeController.handleRuntimeEvent
-    // → DeliveryController.pump → deliver → submitPrompt, all on this stack. A
-    // queued item released by this very decision therefore submits from inside
-    // stopRun, so every piece of stop state it reads must already be written:
-    //   - `cliInputMaybeDirty` (above) or its pre-submit kill-line flood is
-    //     skipped and the paste CONCATENATES onto an Esc-restored prompt;
-    //   - `stopEscRetry` (above) or that submit's own `stopEscRetry = null`
-    //     is clobbered by this method's re-arm, leaving a 45s Esc retry armed
-    //     behind a send that already went out.
+    // synchronously RE-ENTRANT (eventSink → RuntimeController.handleRuntimeEvent),
+    // so any send it could trigger on this stack must find the stop state above
+    // already written — `cliInputMaybeDirty` (or its pre-submit kill-line flood is
+    // skipped and a paste CONCATENATES onto an Esc-restored prompt) and
+    // `stopEscRetry` (or a send's own `stopEscRetry = null` is clobbered by this
+    // method's re-arm).
     this.settleApprovalAsStopKeyDeny(stoppedRunId, interrupt.encodedAs);
     this.emitEvent("run:stop-requested", {
       taskId: this.taskId,
@@ -3091,7 +3121,6 @@ export class TerminalHost extends EventEmitter {
       });
     }, inspectDelayMs);
     this.slashStopTimer.unref?.();
-    return { canceledPendingPromptWrite, promptReachedComposer };
   }
 
   /** Arm (or re-arm) the post-stop belt clear of the CLI input line. */
@@ -3283,6 +3312,7 @@ export class TerminalHost extends EventEmitter {
     // Outside the ptyProcess guard: after a crash-exit already nulled the
     // process, a following dispose/startTask must still not leak timers.
     this.clearStopHygieneState();
+    this.clearBootHold();
     // The boot watchdogs must never fire on a dead/replaced session.
     if (this.codexBootUpdateTimer) {
       clearTimeout(this.codexBootUpdateTimer);
@@ -3413,6 +3443,11 @@ export class TerminalHost extends EventEmitter {
     // the grid is queried on the trailing scan cadence AFTER the write drains
     // (see scheduleApprovalScan → screenModel.whenSettled).
     this.screenModel?.write(data);
+    if (!this.bootLatchOpen) {
+      // Read the latch off the SETTLED grid (this batch parsed), not the
+      // pre-write one; the poll armed at spawn is the floor.
+      this.screenModel?.whenSettled(() => this.checkBootLatch());
+    }
     this.detectRemoteControlState(data);
     // Approval scanning is coalesced onto a trailing-edge throttle instead of
     // running the grid extract+parse on every chunk: under a
@@ -3582,7 +3617,7 @@ export class TerminalHost extends EventEmitter {
     // identity alone cannot dedupe it — a PARTIAL repaint hashes to a NEW
     // fingerprint, which re-armed `approvalPending` with no decision ever
     // coming (the fresh-workspace trust wedge: answered → ~6ms later the same
-    // screen re-detects → delivery gate closed forever; s3-diags). Honesty
+    // screen re-detects → a card that never clears; s3-diags). Honesty
     // backstop: checkApprovalSettled re-derives from the live screen once the
     // window closes and resurfaces anything genuinely unanswered — so the
     // worst case of this suppression is a ≤1.2s VISIBLE delay, never a hold.
@@ -3782,24 +3817,13 @@ export class TerminalHost extends EventEmitter {
       (Boolean(options.forceSlashStop) ||
         Boolean(options.stoppedCommandApprovalRun) ||
         this.hasBackgroundTerminalHint());
+    // Sonata's own cleanup write, not a user Send: it still stands down while a
+    // native approval owns the screen, where `/stop` + Enter would answer it.
     const approvalGuardBlockedSlashStop = shouldSubmitSlashStop && this.approvalActive;
-    // Report what HAPPENED, not what was intended. `submitPrompt` has two
-    // screen-owner throws — approval (pre-empted by the guard above) and the
-    // Rewind panel — and the catch swallows both, so a predicted flag would make
-    // `run:stopped` claim a `/stop` that was never written. Deriving the flag
-    // from the actual outcome covers the rewind throw — that one cannot fire
-    // today, since the panel is claude's and claude has supportsSlashStop false,
-    // but the flag no longer depends on that staying true.
     let slashStopSent = false;
-    let slashStopThrew = false;
     if (shouldSubmitSlashStop && !approvalGuardBlockedSlashStop && this.ptyProcess) {
-      try {
-        this.submitPrompt("/stop", { createRun: false });
-        slashStopSent = true;
-      } catch {
-        // A stopped run should not be reopened by cleanup failure.
-        slashStopThrew = true;
-      }
+      this.submitPrompt("/stop", { createRun: false });
+      slashStopSent = true;
     }
 
     if (!shouldSubmitSlashStop && !approvalGuardBlockedSlashStop) {
@@ -3812,11 +3836,9 @@ export class TerminalHost extends EventEmitter {
       slashStopSent,
       slashStopReason: approvalGuardBlockedSlashStop
         ? "slash stop was not sent because a native approval screen was still active"
-        : slashStopThrew
-          ? "slash stop was refused by a screen-owner guard (rewind panel)"
-          : options.stoppedCommandApprovalRun
-            ? "stopped run had an active command approval"
-            : "background terminal hint detected or forceSlashStop requested",
+        : options.stoppedCommandApprovalRun
+          ? "stopped run had an active command approval"
+          : "background terminal hint detected or forceSlashStop requested",
     });
   }
 
@@ -4481,9 +4503,8 @@ export class TerminalHost extends EventEmitter {
       this.debugCompletion("stop hook while approval flagged — treating as stale scrape state");
       // The scraped ask this flag stands for already emitted an
       // `approval:detected`, and clearing the flag here is SILENT — so its
-      // decision never comes and the DeliveryController's SCRAPE_APPROVAL_KEY
-      // (released only by an `approval:decision`) gates every later send
-      // forever, while `isApprovalActive()` reads clean the whole time. Hand
+      // decision never comes — the card and the report's open ask stay forever,
+      // while `isApprovalActive()` reads clean the whole time. Hand
       // the orphan to the controller rather than emitting here; see
       // `takeOrphanedScrapeApproval` for why this must not be an event.
       // Gated on the FLAG, not on `staleApproval`: the status-only arm of that
@@ -4547,7 +4568,7 @@ export class TerminalHost extends EventEmitter {
    * stale-approval clear left behind, or null when there is none.
    *
    * A HANDOFF, not an event, and deliberately so. The decision that releases
-   * this orphan has to reach the delivery gate, the renderer and the run-index
+   * this orphan has to reach the renderer and the run-index
    * WITHOUT passing through this host's event sink — that sink is the only feed
    * into `CliStateModel.applyRuntimeEvent`, whose `approval:decision` → `busy`
    * rule would overwrite the `turn-ended` the Stop hook set moments earlier
@@ -4670,6 +4691,12 @@ export class TerminalHost extends EventEmitter {
     this.emit(type, event);
     if (this.eventSink) {
       this.eventSink(event);
+    }
+    // Nothing to report before this host's first spawn (the pre-spawn
+    // file-watcher event); from the spawn on, every event is a chance for the
+    // run pointer to have moved.
+    if (type !== "session:state" && (this.ptyProcess || this.lastSessionStateFingerprint !== null)) {
+      this.publishSessionState();
     }
   }
 }
@@ -4990,7 +5017,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
     // Without this glyph the last prompt found in an Ultra tail is a STALE `›`/`>`
     // from the scrollback, which sits BEFORE the run's activity text — so
     // `detectIdlePrompt.ready` goes permanently false and, hook-first path aside,
-    // the boot latch never opens (delivery) and the quiescence net never closes a
+    // the boot latch never opens and the quiescence net never closes a
     // no-Stop codex turn.
     composerPromptGlyphs: [">", "›", "❯", "»"],
     // The effort tokens are independent redundancy behind `gpt[-\w.]*` (an Ultra
@@ -5426,7 +5453,7 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
     ...profile.approvalEndMarkers,
     // Boot dialogs (codex directory trust) paint the composer's `›` as their
     // option cursor; their footers sit after it and must outrank it, or a
-    // dialog screen reads as an idle composer and the first delivery's Enter
+    // dialog screen reads as an idle composer and a held first message's Enter
     // silently answers "Yes, continue" (upstream-sync 2026-07-17).
     ...profile.bootDialogHints,
   ].flatMap((hint) => [hint, compactText(hint)]);

@@ -260,13 +260,7 @@ export function renderComposerControls(view = activeTaskView(state)): void {
     lifecycleBusy ||
     readinessBlocked ||
     (!stopMode && !hasContent);
-  elements.sendPrompt.title = sendPromptTitle(
-    view,
-    stopMode,
-    pendingApproval,
-    hasContent,
-    sessionStartBlocked,
-  );
+  elements.sendPrompt.title = sendPromptTitle(view, stopMode, hasContent, sessionStartBlocked);
   elements.sendPrompt.textContent = stopMode ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", stopMode);
   // D1 (two grains of freeze): only the draft-moving phases disable typing.

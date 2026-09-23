@@ -121,8 +121,8 @@ export class StatusRegionTracker {
         return;
       case "run:started":
         this.runActive = true;
-        // A run can only start when no approval is pending (delivery is
-        // gated on it) — clears any stale flag from reentrant event order.
+        // A run starting means the CLI took a prompt, so no approval panel is
+        // still pending — clears any stale flag from reentrant event order.
         this.approvalPending = false;
         this.lastDataAt = Date.now();
         this.scheduleSample();

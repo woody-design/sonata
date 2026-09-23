@@ -173,11 +173,11 @@ function makeController(readiness, seq) {
     controller,
     events,
     blocked: () => events.filter((e) => e.type === "cli-session-start:blocked"),
-    /** The latest boot-latch reading, straight off the delivery state the controller
+    /** The latest boot-latch reading, straight off the session state the host
      *  publishes — the bit the pre-latch-exit trigger reads, observed the way the
      *  renderer observes it rather than through a test-only accessor. */
     bootLatched: () =>
-      events.filter((e) => e.type === "delivery:state").at(-1)?.payload.bootLatched === true,
+      events.filter((e) => e.type === "session:state").at(-1)?.payload.bootLatched === true,
   };
 }
 
@@ -364,12 +364,11 @@ const HEALTHY_FACTS = {
   const { controller, events, blocked, bootLatched } = makeController(readiness, "active-run");
   try {
     const task = await controller.createTask({ provider: "claude", cwd: workspace });
-    // A real delivery is what starts a real run, and the SEND is what drives it: the
-    // enqueue pumps, the pump latches once the fixture's prompt is on screen, the
-    // bytes go out, and the host begins the turn. (The latch flips inside the pump,
-    // so waiting for it before sending would wait forever — the same fact D-2's
-    // correction turns on.) The fixture never paints a SECOND prompt, so the run
-    // stays open, which is precisely the state this block is about.
+    // A real send is what starts a real run: sent at once after spawn, it rides the
+    // boot hold — the host latches once the fixture's prompt is on screen, the held
+    // bytes go out, and the host begins the turn. The fixture never paints a SECOND
+    // prompt, so the run stays open, which is precisely the state this block is
+    // about.
     controller.submitPrompt(task.task.id, "hello");
     await waitFor(
       () => events.some((event) => event.type === "run:started"),

@@ -1,12 +1,12 @@
 {
   "01.jsonl": {
     "active": {
-      "events": 171,
+      "events": 141,
       "directiveCounts": {
         "none": 25,
         "report-refresh": 16,
         "session-index-debounced": 12,
-        "full": 56,
+        "full": 26,
         "usage-in-place": 4,
         "sidebar": 7,
         "transcript-debounced": 40,
@@ -165,32 +165,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114145642-1",
-              "provider": "claude",
-              "deliverable": false,
               "activeRun": true,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": [
-                {
-                  "id": "delivery-1783114160149-4",
-                  "taskId": "task-1783114145642-1",
-                  "text": {
-                    "~len": 225,
-                    "~sha256": "e2e68b7c25d72f8d",
-                    "~head": "/architect I'm sketching a tiny two-way-door UI choice and want ",
-                    "~tail": "e a 2-sentence gut read. Do not read any files or run any tools."
-                  },
-                  "attachments": [],
-                  "status": "delivering",
-                  "enqueuedAt": "2026-07-03T21:29:20.149Z",
-                  "deliveringAt": "2026-07-03T21:29:20.150Z",
-                  "runId": "run-1783114160150-4",
-                  "receipt": null,
-                  "failureReason": null
-                }
-              ]
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -235,7 +214,7 @@
             "resumeChoice": null,
             "slashAttention": null,
             "approvalExpired": false,
-            "status": "Delivering to Claude",
+            "status": "Claude is working",
             "unread": false,
             "completedUnseen": false
           }
@@ -243,12 +222,12 @@
       }
     },
     "background": {
-      "events": 171,
+      "events": 141,
       "directiveCounts": {
         "none": 40,
         "report-refresh": 16,
         "session-index-debounced": 12,
-        "unread-only": 96,
+        "unread-only": 66,
         "sidebar": 7
       },
       "state": {
@@ -404,32 +383,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114145642-1",
-              "provider": "claude",
-              "deliverable": false,
               "activeRun": true,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": [
-                {
-                  "id": "delivery-1783114160149-4",
-                  "taskId": "task-1783114145642-1",
-                  "text": {
-                    "~len": 225,
-                    "~sha256": "e2e68b7c25d72f8d",
-                    "~head": "/architect I'm sketching a tiny two-way-door UI choice and want ",
-                    "~tail": "e a 2-sentence gut read. Do not read any files or run any tools."
-                  },
-                  "attachments": [],
-                  "status": "delivering",
-                  "enqueuedAt": "2026-07-03T21:29:20.149Z",
-                  "deliveringAt": "2026-07-03T21:29:20.150Z",
-                  "runId": "run-1783114160150-4",
-                  "receipt": null,
-                  "failureReason": null
-                }
-              ]
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -474,7 +432,7 @@
             "resumeChoice": null,
             "slashAttention": null,
             "approvalExpired": false,
-            "status": "Delivering to Claude",
+            "status": "Claude is working",
             "unread": true,
             "completedUnseen": false
           }

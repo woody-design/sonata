@@ -1,6 +1,5 @@
 export type TaskId = string;
 export type RunId = string;
-export type DeliveryItemId = string;
 export type RuntimeSessionId = string;
 export type ProviderSessionRef = string;
 export type ApprovalId = string;
@@ -260,28 +259,6 @@ export interface TurnEndWake {
   returned: boolean;
 }
 
-export type DeliveryItemStatus =
-  | "queued"
-  | "delivering"
-  | "delivered"
-  | "delivered-partial"
-  | "undelivered";
-export type DeliveryReceiptSource =
-  | "provider-transcript"
-  | "pty-composer-echo"
-  // A mid-turn write-through send: the bytes were written and the CLI native-
-  // queued it (P2/P6) → sent. Its transcript block arrives only at dequeue, so
-  // this is the receipt at hand-off time (no 45s undelivered timer).
-  | "native-queue"
-  // A verbatim slash command submitted on an idle composer: a LOCAL command
-  // never yields a transcript user-block (and the echo path is off once the
-  // transcript is live), so the transcript receipt is structurally
-  // unreachable — its 45s timeout marked the item undelivered, and an
-  // undelivered head blocks the queue forever (the S4 /config wedge,
-  // s4-diags). Sent-is-sent: the bytes are in the PTY and the command's
-  // panel/output is visible in the co-present terminal.
-  | "slash-write";
-
 /** Who owns the bytes. `blob` = Sonata copied them into the per-task attachments
  *  dir (deleted with the chip/session). `referenced` = the user's own path, never
  *  copied and NEVER deleted by Sonata. */
@@ -310,59 +287,29 @@ export interface ReferenceResult {
   previewDataUrl: string | null;
 }
 
-export interface DeliveryReceipt {
-  source: DeliveryReceiptSource;
-  receivedAt: string;
-  runId: RunId | null;
-  sourceId: string | null;
-  blockId: string | null;
-  backfilled: boolean;
-  /** Present for transcript receipts of attachment-bearing prompts. Actual
-   *  provider payloads only; literal [Image #N] text is not counted. */
-  expectedImages?: number;
-  receivedImages?: number;
-}
-
-export interface DeliveryQueueItem {
-  id: DeliveryItemId;
+/**
+ * The live session facts a Reading view needs between run-report refreshes,
+ * owned and emitted by the task's `TerminalHost` (`session:state`, on change).
+ *
+ * Not delivery state: Sonata keeps none. A Send writes to the pty at once
+ * (subtraction X2); the only hold left is the boot one-shot described on
+ * `bootLatched`.
+ */
+export interface TaskSessionState {
   taskId: TaskId;
-  text: string;
-  attachments: DeliveryAttachment[];
-  status: DeliveryItemStatus;
-  enqueuedAt: string;
-  deliveringAt: string | null;
-  runId: RunId | null;
-  receipt: DeliveryReceipt | null;
-  failureReason: string | null;
-}
-
-export interface DeliveryTaskState {
-  taskId: TaskId;
-  provider: RuntimeProvider;
-  deliverable: boolean;
   activeRun: boolean;
-  /** WHICH run is active — read from the same host in the same breath as the
-   *  boolean above, so the two can never disagree. The boolean alone cannot tell
-   *  "still the run I asked to stop" from "the next one", and the renderer's
-   *  single-flight stop (S2 D2) needs exactly that distinction: delivery state is
-   *  emitted on change while the run report rides a 1000ms trailing debounce, so
-   *  for up to a second at each end of a turn this is the ONLY evidence naming
-   *  the live run. Optional: recorded event fixtures predate the field, and a
-   *  missing value must read as "a run, name unknown". */
-  activeRunId?: RunId | null;
-  approvalActive: boolean;
-  /** One-shot boot readiness: false only until the CLI first accepts input.
-   *  Display copy keys "Starting <provider>" on this — never on a continuous
-   *  composer-ready scrape (retired, S6). */
+  /** WHICH run is active, read from the same host in the same breath as the
+   *  boolean, so the two cannot disagree. The renderer's single-flight stop
+   *  (S2 D2) needs the identity: this event is emitted on change while the run
+   *  report rides a 1000ms trailing debounce, so for up to a second at each end
+   *  of a turn it is the only evidence naming the live run. */
+  activeRunId: RunId | null;
+  /** One-shot boot readiness: false until the CLI first reaches its prompt,
+   *  then true for the life of this pty (never re-closes). The readiness copy
+   *  ("<provider> is starting…") and the S4 start diagnosis key on it, and any
+   *  message sent before it opens is held and written once, in order, when it
+   *  does (the boot hold, `TerminalHost.submitPromptWhenReady`). */
   bootLatched: boolean;
-  /** Claude's Rewind restore picker owns the screen, so delivery is held (its
-   *  Enter is a RESTORE). Optional: recorded event fixtures predate the field,
-   *  and a missing value must read as "not open". */
-  rewindPanelOpen?: boolean;
-  /** Sticky until the next enqueue so a partial provider receipt remains visible
-   *  after the live queue item is removed. */
-  attachmentNotice?: string | null;
-  queue: DeliveryQueueItem[];
 }
 
 export interface CompletionEvidence {

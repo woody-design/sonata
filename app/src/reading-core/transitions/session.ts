@@ -150,7 +150,7 @@ export function evictDormantTaskView(state: RendererState, taskId: string): bool
     view.pendingOptionPrompt !== null ||
     view.optionPromptReceipt !== null ||
     view.slashAttention !== null ||
-    view.deliveryState !== null
+    view.sessionState !== null
   ) {
     return false;
   }

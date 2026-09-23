@@ -56,7 +56,7 @@ import {
   type TaskManifestV1,
 } from "../shared/schemas";
 import {
-  DeliveryController,
+  composePromptWrite,
   ProviderTranscript,
   RunIndex,
   isRunIndexEvent,
@@ -244,7 +244,6 @@ interface ActiveTaskRuntime {
   reportPath: string;
   runtime: ReturnType<TerminalHost["startTask"]>;
   providerTranscript: ProviderTranscript;
-  deliveryController: DeliveryController;
   statusTracker: StatusRegionTracker;
   cliState: CliStateModel;
   /** SL-16 — the session's memory of which background tasks are in flight, and
@@ -331,12 +330,12 @@ export class RuntimeController {
   /** Per task: broker asks that TIMED OUT (id → detected kind) and degraded to
    *  the CLI's native card, awaiting conclusion at turn-end. For CLAUDE the
    *  scrape re-detects the native card and emits `approval:decision`
-   *  (answered-natively) to release the delivery gate + expiry banner; CODEX
-   *  has no scrape (S4 funeral), so nothing else would ever clear those — the
-   *  keyed delivery gate would wedge every later send and the "Waiting in the
-   *  terminal" banner would ride forever. We remember them here and conclude
-   *  them at turn-end (the turn cannot end while a native card still blocks, so
-   *  turn-end PROVES the card was resolved). Populated for codex only. */
+   *  (answered-natively) to clear the expiry banner; CODEX has no scrape (S4
+   *  funeral), so nothing else would ever clear it — the "Waiting in the
+   *  terminal" banner would ride forever and the report would keep an
+   *  unbalanced ask. We remember them here and conclude them at turn-end (the
+   *  turn cannot end while a native card still blocks, so turn-end PROVES the
+   *  card was resolved). Populated for codex only. */
   private readonly expiredBrokerApprovals = new Map<TaskId, Map<string, ApprovalKind>>();
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private readonly taskMirror = new TaskMirror(
@@ -683,10 +682,10 @@ export class RuntimeController {
     });
 
     if (claudeResume && request.resumeMode === "summary") {
-      // The panel's option 1, made explicit and receipted: /compact runs
-      // first, ahead of anything the user queued, and shows up in the
-      // delivery queue as its own item.
-      activeTask.deliveryController.enqueue("/compact");
+      // The panel's option 1, made explicit: /compact is this spawn's first
+      // message, so it rides the boot hold — written once when the resumed CLI
+      // first reaches its prompt, ahead of anything the user sends meanwhile.
+      activeTask.terminalHost.submitPromptWhenReady("/compact");
     }
 
     for (const source of persistedSources) {
@@ -848,10 +847,10 @@ export class RuntimeController {
 
   /**
    * The assembly choreography shared by createTask and openTask: build the
-   * provider transcript, terminal host, delivery controller, status tracker and
-   * CLI-state model on one running task, spawn the PTY, register + watch +
-   * persist the runtime. This is the ONE construction site for TerminalHost /
-   * DeliveryController — any future constructor-injection (settings, tags) is
+   * provider transcript, terminal host, status tracker and CLI-state model on
+   * one running task, spawn the PTY, register + watch + persist the runtime.
+   * This is the ONE construction site for TerminalHost — any future
+   * constructor-injection (settings, tags) is
    * threaded here, not duplicated across the two entry points. The callers own
    * only their own deltas (the pinned/resume session id, the start options they
    * built) and the post-assembly work: startDiscovery is caller-driven so
@@ -884,13 +883,6 @@ export class RuntimeController {
       defaultWorkspace: providerCwd,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
-    const deliveryController = new DeliveryController({
-      taskId: task.id,
-      provider: task.provider,
-      terminalHost,
-      eventSink: (event) => this.sendEvent(event),
-      hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
-    });
     const cliState = new CliStateModel((snapshot) => this.emitCliState(task.id, snapshot));
     // Built with the task and discarded with it: a respawn starts from "nothing
     // known to be running", which is the honest prior for a session that has not
@@ -920,7 +912,6 @@ export class RuntimeController {
       reportPath,
       runtime,
       providerTranscript,
-      deliveryController,
       statusTracker,
       cliState,
       backgroundWork,
@@ -1073,10 +1064,10 @@ export class RuntimeController {
         report: live.runIndex.read(),
         sources: live.providerTranscript.sources(),
         blocks: live.providerTranscript.blocks(),
-        // The delivery state a renderer would otherwise only learn from the next
+        // The session state a renderer would otherwise only learn from the next
         // CHANGE (see the field's own note): a session that booted before this
         // view existed has already made all of its early transitions.
-        delivery: live.deliveryController.state(),
+        sessionState: live.terminalHost.sessionState(),
       };
     }
 
@@ -1109,8 +1100,8 @@ export class RuntimeController {
         report: runIndex.read(),
         sources: transcript.sources(),
         blocks: transcript.blocks(),
-        // Dormant: no controller exists, so there is no delivery state to report.
-        delivery: null,
+        // Dormant: no pty exists, so there is no session state to report.
+        sessionState: null,
       };
     } finally {
       transcript.dispose();
@@ -1257,7 +1248,12 @@ export class RuntimeController {
       this.cleanupAttachments(taskId, attachments);
       throw error;
     }
-    active.deliveryController.enqueue(text, normalized);
+    // Send is send (subtraction X2): the prompt goes to the pty now, exactly as
+    // typed — or, before the CLI has first reached its prompt, once it does.
+    const write = composePromptWrite(text, normalized);
+    active.terminalHost.submitPromptWhenReady(write.text, {
+      attachments: write.imageAttachments.map((attachment) => ({ path: attachment.path })),
+    });
   }
 
   createAttachment(
@@ -1293,7 +1289,7 @@ export class RuntimeController {
 
   /** Reference user paths by absolute path — NO copy, NEVER deleted (Invariant 4).
    *  taskId-independent (works before a session exists). Classifies each path by
-   *  stat + extension so delivery can pick the channel (image chip vs path text),
+   *  stat + extension so a send can pick the channel (image chip vs path text),
    *  and reads a capped thumbnail for image references (a small file read for a
    *  chip preview — the agent reads the file itself anyway). */
   createReference(paths: string[]): ReferenceResult[] {
@@ -1349,8 +1345,8 @@ export class RuntimeController {
       // Orphan-reply guard (reviewer C2): if the broker already self-expired in
       // the poll gap (its `expired-<id>.json` is on disk), its native card is now
       // the live surface and no broker will ever read a reply. Writing one would
-      // let Sonata record a decision the CLI never received and release the delivery
-      // gate over a wedged turn. Leave the pending entry so the watcher's expiry
+      // let Sonata record a decision the CLI never received. Leave the pending
+      // entry so the watcher's expiry
       // path (handleApprovalExpired) clears the card + raises the banner; the user
       // answers the native card in the Terminal. (The broker's own final
       // reply-check closes the symmetric window on its side.)
@@ -1376,13 +1372,11 @@ export class RuntimeController {
           decision,
           encodedAs: "reply-file",
           previousKind: classifyApprovalKind(pending.payload),
-          // The keyed delivery gate releases exactly THIS ask (S6 review P1).
           approvalId,
         },
         ts: new Date().toISOString(),
       };
       this.sendEvent(decisionEvent); // renderer clears the card + cli-state resyncs
-      active.deliveryController.handleRuntimeEvent(decisionEvent); // clear the delivery gate
       // Audit trail (same reason as surfaceBrokerApproval): reply-channel
       // decisions must reach the run-index themselves.
       // Critical event: consume flushes immediately (markCritical), and the
@@ -1477,10 +1471,10 @@ export class RuntimeController {
       }
       const provider = active.task.provider;
       active.cliState.applyHook(ask.payload);
-      // Ask arrival is the ONE moment for gate + record (S6 review P2: doing
-      // this inside the show path recorded a queued-then-shown ask twice —
-      // the run-index appends, it does not dedupe). The event is built here
-      // and stored so the show path re-sends it verbatim.
+      // Ask arrival is the ONE moment to record (S6 review P2: doing this
+      // inside the show path recorded a queued-then-shown ask twice — the
+      // run-index appends, it does not dedupe). The event is built here and
+      // stored so the show path re-sends it verbatim.
       const kind = classifyApprovalKind(ask.payload);
       const event: RuntimeEvent = {
         type: "approval:detected",
@@ -1504,10 +1498,6 @@ export class RuntimeController {
         payload: ask.payload,
         event,
       });
-      // Gate: keyed per approvalId (S6 review P1) — a hidden queued ask
-      // blocks delivery from the moment it exists, and deciding a DIFFERENT
-      // ask cannot release it.
-      active.deliveryController.handleRuntimeEvent(event);
       // The report is the approval audit trail: broker asks never flow
       // through the terminal-host eventSink, so consume into the run-index
       // here or the durable record silently loses hook-broker provenance.
@@ -1520,11 +1510,10 @@ export class RuntimeController {
   }
 
   /**
-   * SHOW a broker approval card — presentation only; the delivery gate and
-   * the run-index record happened once at ask arrival (handleApprovalAsk).
-   * Only ONE card per task at a time (P3): a concurrent ask stays in
-   * pendingBrokerApprovals (still answerable + gate-blocking) and shows when
-   * the current one resolves.
+   * SHOW a broker approval card — presentation only; the run-index record
+   * happened once at ask arrival (handleApprovalAsk). Only ONE card per task
+   * at a time (P3): a concurrent ask stays in pendingBrokerApprovals (still
+   * answerable) and shows when the current one resolves.
    */
   private surfaceBrokerApproval(active: ActiveTaskRuntime, id: string): void {
     const pending = this.pendingBrokerApprovals.get(id);
@@ -1541,13 +1530,11 @@ export class RuntimeController {
    * A turn-terminal signal orphans every broker ask still pending for the
    * task: PermissionRequest hooks live INSIDE the turn, so an interrupt
    * kills the holding hook — no reply will ever be read and no expired
-   * marker will ever be written. Without this release the keyed delivery
-   * gate held those ids forever and every later send wedged (stop-continue
-   * caught it on the keyed gate's first Esc run, 2026-07-03; the old
-   * boolean was accidentally rescued by ANY later decision clearing it
-   * globally). The CLI's own model of an interrupt is a rejection ("The
+   * marker will ever be written. Without this release those ids would sit in
+   * pendingBrokerApprovals forever, their cards unanswerable (stop-continue,
+   * 2026-07-03). The CLI's own model of an interrupt is a rejection ("The
    * user doesn't want to proceed"), so the asks resolve honestly as
-   * deny/Esc — gate released, report balanced, the shown card cleared.
+   * deny/Esc — report balanced, the shown card cleared.
    */
   private abortPendingBrokerApprovals(active: ActiveTaskRuntime, runId: RunId | null): void {
     for (const [id, pending] of this.pendingBrokerApprovals) {
@@ -1572,7 +1559,6 @@ export class RuntimeController {
         },
         ts: new Date().toISOString(),
       };
-      active.deliveryController.handleRuntimeEvent(decisionEvent); // release the gate key
       // Critical event: consume flushes immediately (markCritical), and the
       // flush's notify sink broadcasts report:updated — no explicit emit here.
       active.runIndex.consume(decisionEvent);
@@ -1599,10 +1585,9 @@ export class RuntimeController {
    * up and the CLI's native card took over; a turn cannot end while a native
    * card still blocks the tool call, so reaching turn-end PROVES the user
    * resolved it. One `approval:decision(answered-natively)` per expired ask
-   * repairs all three consumers through their existing contracts: the keyed
-   * delivery gate releases (approvalId path, delivery-controller), the reducer
-   * clears the drawer's expired state + the "Waiting in the CLI" status,
-   * and the run-index records a balanced decision row for the earlier detected
+   * repairs both consumers through their existing contracts: the reducer
+   * clears the drawer's expired state + the "Waiting in the CLI" status, and
+   * the run-index records a balanced decision row for the earlier detected
    * ask. Covers BOTH turn-end paths (Stop hook AND the D6 quiescence net) —
    * called from the turn-terminal branch of handleRuntimeEvent for both. Idempotent:
    * the per-task map is cleared, so a re-emitted turn-end is a no-op.
@@ -1626,7 +1611,6 @@ export class RuntimeController {
         },
         ts: new Date().toISOString(),
       };
-      active.deliveryController.handleRuntimeEvent(decisionEvent); // release the keyed gate
       this.sendEvent(decisionEvent); // reducer clears the expiry banner + status
       // Critical event: consume flushes immediately (markCritical), and the
       // flush's notify sink broadcasts report:updated — no explicit emit here.
@@ -1638,10 +1622,9 @@ export class RuntimeController {
    * A Stop/StopFailure hook completed a run while the scrape still had a panel
    * flagged. `TerminalHost.completeRunFromTurnEnd` rightly treats that flag as a
    * stale artifact and clears it — but SILENTLY, so the `approval:detected` the
-   * scrape emitted for that panel never earns a decision. Its
-   * SCRAPE_APPROVAL_KEY then sits in `DeliveryController.pendingApprovalKeys`
-   * forever and `canDeliver()` reads false while `isApprovalActive()` reads
-   * clean: the wedge is invisible from the host flag alone (S1 review 3).
+   * scrape emitted for that panel never earns a decision: the card would stay
+   * up and the report would keep an unanswered ask while `isApprovalActive()`
+   * reads clean (S1 review 3).
    *
    * `answered-natively` is the honest value by the same turn-end reasoning
    * `concludeExpiredBrokerApprovals` uses: a native panel BLOCKS the tool call,
@@ -1651,7 +1634,7 @@ export class RuntimeController {
    * — `deny` would be an outright lie, no Esc was written, and a new value
    * would change a wire vocabulary this phase freezes.)
    *
-   * Dispatched to the three consumers EXPLICITLY, never through the terminal
+   * Dispatched to its consumers EXPLICITLY, never through the terminal
    * host's event sink: that sink is the only feed into
    * `CliStateModel.applyRuntimeEvent`, and its `approval:decision` → `busy` rule
    * would overwrite the `turn-ended` `applyHookToTask` set just before
@@ -1676,12 +1659,10 @@ export class RuntimeController {
         decision: "answered-natively",
         encodedAs: "native-keys",
         previousKind: orphan.previousKind,
-        // No `approvalId`: this IS the scraped panel, so the id-less arm is what
-        // clears its SCRAPE_APPROVAL_KEY sentinel.
+        // No `approvalId`: this IS the scraped panel.
       },
       ts: new Date().toISOString(),
     };
-    active.deliveryController.handleRuntimeEvent(decisionEvent); // release the sentinel
     this.sendEvent(decisionEvent); // reducer retracts the phantom card
     // Critical event: consume flushes immediately (markCritical), and the
     // flush's notify sink broadcasts report:updated — no explicit emit here.
@@ -1703,8 +1684,8 @@ export class RuntimeController {
   /**
    * A broker gave up (timeout) — the CLI's native panel is taking over. Clear
    * the hook card, but emit `approval:expired` (NOT a false "answered-natively"
-   * decision): nothing was answered, so cli-state stays waiting-approval and the
-   * delivery gate stays blocked (reviewer P1/P2).
+   * decision): nothing was answered, so cli-state stays waiting-approval
+   * (reviewer P1/P2).
    *
    * Provider asymmetry after the S4 funeral: for CLAUDE the scrape re-detects
    * the native card, so we arm the one-shot resurface recognition below to keep
@@ -1729,9 +1710,6 @@ export class RuntimeController {
         payload: { taskId: active.task.id, approvalId: id },
         ts: new Date().toISOString(),
       };
-      // Gate: the key transitions asked→expired and keeps blocking through
-      // the expiry→scrape gap (per-ask since the S6 review).
-      active.deliveryController.handleRuntimeEvent(expiredEvent);
       // Arm the scrape's resurface recognition (reviewer C1) — Claude only. The
       // native card that appears when this broker gave up IS the same request
       // the user was already notified about; without this, Claude's scrape
@@ -1746,8 +1724,7 @@ export class RuntimeController {
       } else {
         // Codex: no scrape will ever re-detect this native card to conclude it
         // (S4 funeral). Remember the ask (with its kind for the report row) so
-        // the turn-end hook releases the keyed delivery gate + the expiry
-        // banner — otherwise every later send wedges Queued and a stale
+        // the turn-end hook clears the expiry banner — otherwise a stale
         // "Waiting in the terminal" rides the healthy session forever.
         this.rememberExpiredBrokerApproval(active.task.id, id, classifyApprovalKind(pending.payload));
       }
@@ -1766,17 +1743,7 @@ export class RuntimeController {
 
   async stopRun(taskId: TaskId, options: { inspectDelayMs?: number; forceSlashStop?: boolean }): Promise<void> {
     const active = this.requireTaskRuntime(taskId);
-    const { canceledPendingPromptWrite, promptReachedComposer } =
-      await active.terminalHost.stopRun(options);
-    // Stop reaches the delivery layer too: disarm the Enter-retry ladder and,
-    // when the stop aborted this send's undelivered bytes, report the item
-    // honestly instead of letting it ride the 45s receipt timeout —
-    // distinguishing "nothing reached the CLI" from "text/paths pasted, Enter
-    // not sent".
-    active.deliveryController.handleStopRequested({
-      promptWriteCanceled: canceledPendingPromptWrite,
-      promptReachedComposer,
-    });
+    await active.terminalHost.stopRun(options);
   }
 
   /** The fan-out point for a live resize: clamp ONCE (the numbers arrive from
@@ -1888,7 +1855,6 @@ export class RuntimeController {
     }
 
     const eventRuntime = this.taskRuntimes.get(event.payload.taskId);
-    eventRuntime?.deliveryController.handleRuntimeEvent(event);
     eventRuntime?.statusTracker.handleRuntimeEvent(event);
     eventRuntime?.cliState.applyRuntimeEvent(event);
 
@@ -1959,20 +1925,16 @@ export class RuntimeController {
           // typed in the terminal) CANCELS the AskUserQuestion tool, so no
           // PostToolUse fires — and Esc is hook-invisible besides (P4, the
           // option-prompt module header: it declines the form and emits neither
-          // PostToolUse nor Stop). The gate would then hold every later send
-          // forever, with its explanation gone: the reducer drops the card on
-          // the next run:started while main keeps the slot, so the hold goes
-          // invisible — the S1 wedge class exactly.
+          // PostToolUse nor Stop). Main would then keep the slot forever: the
+          // reducer drops the card on the next run:started, and the drawer's
+          // answer path would target a form that is gone.
           //
           // P4 is also what makes this release honest rather than optimistic:
           // by the time the stop's Esc has landed, the form is already declined
-          // and off the screen. There is nothing left for a delivery to
-          // mis-answer. `answers: null` is the shape every consumer already
-          // reads as "cleared, unanswered".
+          // and off the screen. `answers: null` is the shape every consumer
+          // already reads as "cleared, unanswered".
           //
-          // PTY death is one of these signals, so it needs no separate release:
-          // a dead terminal can swallow nothing, and a queue still held there
-          // would be a hold with no remaining reason.
+          // PTY death is one of these signals, so it needs no separate release.
           if (eventRuntime.pendingOptionPrompt) {
             this.resolveOptionPrompt(eventRuntime, eventRuntime.pendingOptionPrompt.toolUseId, null);
           }
@@ -1996,9 +1958,7 @@ export class RuntimeController {
       // did not happen. The latch, and not `acceptsPromptInput()` as the observation
       // window uses, because the process is GONE — the host has nothing left to
       // scrape, and the latch is the one DURABLE record that a prompt was once
-      // reached. Its known imprecision is the harmless direction: the latch also
-      // stays shut on a healthy session nobody sent anything to, so quitting such a
-      // session costs one probe that finds nothing and says nothing.
+      // reached.
       //
       // `sonataInitiated` exits are excluded because Sonata killed the process
       // itself — a close, a respawn, an app quit — which says nothing about whether
@@ -2017,7 +1977,7 @@ export class RuntimeController {
       // one that dies instantly.
       if (
         event.payload.sonataInitiated !== true &&
-        !eventRuntime.deliveryController.state().bootLatched
+        !eventRuntime.terminalHost.bootLatched()
       ) {
         void this.diagnoseSessionStart(eventRuntime.task.id, eventRuntime.task.provider);
       }
@@ -2076,8 +2036,8 @@ export class RuntimeController {
 
     // Allowlist boundary: only events RunIndex.consume actually handles cross
     // into it. Everything else — renderer-facing UI/state events
-    // (remote-control:state), plus events delivered on other paths (delivery:*,
-    // report:updated, transcript:blocks, pty:data) — was already sent to the
+    // (remote-control:state, session:state), plus events delivered on other
+    // paths (report:updated, transcript:blocks, pty:data) — was already sent to the
     // renderer above and stops here. This replaces the old denylist skip-list +
     // `event as RunIndexEvent` cast, which turned any un-routed event into an
     // assertNever main-process crash (the 2026-06 modal:state incident).
@@ -2262,7 +2222,6 @@ export class RuntimeController {
       updatedAt: new Date().toISOString(),
     }, active.storageRoot);
     active.providerTranscript.dispose();
-    active.deliveryController.dispose();
     active.statusTracker.dispose();
     active.terminalHost.dispose();
     // The boot observation window belongs to THIS spawn (S4 / L5). Clearing it here
@@ -2493,14 +2452,10 @@ export class RuntimeController {
       if (this.disposed || current !== active) {
         return;
       }
-      // "No idle prompt yet" (L5), asked of the terminal host directly rather than
-      // of the delivery boot latch — and the difference is load-bearing. The latch
-      // is a DELIVERY fact: it flips inside the pump, so it stays shut on a session
-      // nobody has sent anything to, however healthily that session booted. Keying
-      // the window on it would have diagnosed every "Start CLI" that opens a session
-      // without a prompt. `acceptsPromptInput()` is the question L5 actually asks —
-      // has this CLI shown a composer — and it answers `true` on the hook
-      // handshake or the idle-prompt scrape, neither of which needs a send.
+      // "No idle prompt yet" (L5), asked of the terminal host's CURRENT screen:
+      // `acceptsPromptInput()` is the question L5 asks — is a composer showing
+      // right now — and it answers `true` on the hook handshake or the
+      // idle-prompt scrape, neither of which needs a send.
       if (active.terminalHost.acceptsPromptInput()) {
         return;
       }
@@ -2687,20 +2642,13 @@ export class RuntimeController {
     }
 
     // `SessionStart` is the CLI's own boot declaration (startup, resume, /clear)
-    // — it opens the delivery boot latch structurally for BOTH providers. The
-    // idle-prompt scrape cannot do this for a resumed session whose history
-    // repaint reads as activity-after-prompt forever (Claude ≥2.1.186; the same
-    // starvation class applies to a resumed Codex TUI), so the latch would
-    // starve and queued resume messages never deliver. Opening it only ever
-    // makes `acceptsPromptInput` MORE permissive earlier; the busy/panel guards
-    // still protect delivery.
+    // — it opens the boot latch structurally for BOTH providers. The idle-prompt
+    // scrape cannot do this for a resumed session whose history repaint reads
+    // as activity-after-prompt forever (Claude ≥2.1.186; the same starvation
+    // class applies to a resumed Codex TUI), so the latch would starve and a
+    // message held for the resumed session would never be written.
     if (event === "SessionStart") {
       active.terminalHost.noteHookSessionStart();
-      // Re-arm the delivery boot grace: startup, resume, AND /clear all repaint
-      // the composer through the same Enter-swallow window class. This is what
-      // protects a post-/clear write-through send (which completes as a
-      // native-queue receipt, arming no Enter-retry) and the resume repaint.
-      active.deliveryController.noteSessionBoundary();
     }
 
     // `UserPromptSubmit` is the authoritative "a turn is starting" signal — the
@@ -2710,12 +2658,6 @@ export class RuntimeController {
     // not when Sonata wrote the bytes. Symmetric with the Stop-hook completion.
     if (event === "UserPromptSubmit") {
       const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
-      // Authoritative submission proof: corroborate the echo-retry ladder from
-      // UPS (fast) rather than the slow transcript-adoption chain, so a
-      // genuinely-submitted first message never earns a wasteful — or, if the
-      // model raced an option-prompt onto the screen, dangerous — rung-0 Enter.
-      // A stuck send fires no UPS, so this never suppresses a real heal.
-      active.deliveryController.notePromptSubmittedByCli(prompt);
       active.terminalHost.beginRunFromHook(prompt, {
         // The run↔turn bridge: Claude's `prompt_id` == the transcript's
         // promptId/turnKey (2026-07-03 loop-wakeup fix). Codex carries `turn_id`
@@ -2772,15 +2714,14 @@ export class RuntimeController {
       // codex 0.152.1 with the production broker holding a real ask: Ctrl+C →
       // `Interrupt` at +131ms, NO `Stop`, and the `ask-<id>.json` still on disk
       // 25s later with no reply and no expiry marker. Left on the hook-stop
-      // route those ids would sit in `pendingBrokerApprovals` forever and
-      // `canDeliver()` would read false until the pty died — an invisible
-      // permanent hold, and one the pre-SL-9 scrape closer (a
-      // `terminal-idle-heuristic` completion, which IS a pending turn end) used
-      // to release at ~+2s.
+      // route those ids would sit in `pendingBrokerApprovals` forever (a card
+      // and a report row nothing can ever answer), where the pre-SL-9 scrape
+      // closer (a `terminal-idle-heuristic` completion, which IS a pending turn
+      // end) used to release them at ~+2s.
       //
       // The ending is now NAMED at the completion instead of marked beside it
-      // (SL-15): the run closes as `hook-interrupt`, which the gate reads off the
-      // event. The run-id side channel SL-9 shipped in its place — and registered
+      // (SL-15): the run closes as `hook-interrupt`, which the turn-end fan-out
+      // reads off the event. The run-id side channel SL-9 shipped in its place — and registered
       // for replacement — is deleted, so there is no second place a turn ending
       // has to be recorded and nothing to keep in sync.
       active.terminalHost.completeRunFromTurnEnd({ ending: "interrupt", ...(turnEndWake ? { turnEndWake } : {}) });
@@ -3038,13 +2979,6 @@ export class RuntimeController {
         ts: new Date().toISOString(),
       };
       this.sendEvent(detected);
-      // Gate delivery from here (B4): the form owns the composer, so a queued
-      // send would paste text + Enter into its option rows. The hand-off is
-      // explicit — main SYNTHESIZES this event from the hook sink, so unlike a
-      // terminal-host event it never passes the deliveryController fan-out in
-      // handleRuntimeEvent. Same pattern handleApprovalAsk uses for a broker
-      // ask, and the resolution side funnels through resolveOptionPrompt.
-      active.deliveryController.handleRuntimeEvent(detected);
       return;
     }
 
@@ -3068,11 +3002,9 @@ export class RuntimeController {
    * a `Stop` with the form still open, the dismiss window's local clear, and
    * any turn-terminal signal that is NOT a Stop hook (Sonata's ■, the
    * quiescence run-closer, PTY death — the release beside the broker-approval
-   * ones in handleRuntimeEvent). Each has to reach BOTH consumers — the
-   * renderer (which drops the card) and the task's delivery controller (which
-   * was holding the queue for as long as the form owned the composer, B4).
-   * Funneled so a fifth path cannot ship with only half the wiring, which is
-   * precisely how all four shipped with only half of it.
+   * ones in handleRuntimeEvent). Each clears main's slot AND tells the renderer
+   * (which drops the card) — funneled so a fifth path cannot ship with only
+   * half the wiring.
    *
    * `answered` is true ONLY with a real answers object: a resolution without one
    * (Stop, dismiss, PTY death — or a decline reaching PostToolUse in some future
@@ -3091,7 +3023,6 @@ export class RuntimeController {
       ts: new Date().toISOString(),
     };
     this.sendEvent(resolved);
-    active.deliveryController.handleRuntimeEvent(resolved); // release the gate + re-pump
   }
 
   /**
@@ -3494,7 +3425,7 @@ export class RuntimeController {
       const resolved = path.resolve(attachment.path);
       if (attachment.provenance === "blob") {
         // Sonata-owned blob: MUST live inside the per-task attachments dir and be a
-        // real image. (No space-reject — delivery double-quotes the path now.)
+        // real image. (No space-reject — the paste double-quotes the path.)
         if (!resolved.startsWith(attachmentDirectory)) {
           throw new Error("Attachment path was not a generated Sonata attachment path.");
         }
@@ -3520,11 +3451,9 @@ export class RuntimeController {
   private cleanupAttachments(_taskId: TaskId, attachments: DeliveryAttachment[]): void {
     for (const attachment of attachments) {
       // LOAD-BEARING for Invariant 4 — DO NOT REMOVE this guard. A referenced
-      // IMAGE has kind:"image", so DeliveryController.enqueue (which splits by
-      // kind, not provenance) keeps it in item.attachments; cancelling a queued
-      // prompt then calls this with the user's ORIGINAL image. Only this
-      // provenance check stops us from deleting it. (Referenced files/folders are
-      // folded into the prompt text and never reach here; referenced images do.)
+      // IMAGE has kind:"image" (composePromptWrite splits by kind, not
+      // provenance), so a failed send calls this with the user's ORIGINAL
+      // image. Only this provenance check stops us from deleting it.
       if (attachment.provenance !== "blob") {
         continue;
       }

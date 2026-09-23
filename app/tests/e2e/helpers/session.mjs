@@ -5,7 +5,7 @@ import { approveVisibleBanner } from "./approval.mjs";
  *
  * Sessions are born from the first composer message (deferred creation) —
  * there is no "create empty task" button anymore. Tests start their session
- * by sending their first real prompt; the DeliveryController queues it
+ * by sending their first real prompt; the host's boot hold keeps it
  * through the provider cold start, and the workspace-trust approval (which
  * surfaces during that cold start) is answered here.
  */

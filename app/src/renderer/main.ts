@@ -2151,13 +2151,13 @@ window.sonataRuntime.onRuntimeEvent((event) => {
     render();
     return;
   }
-  // This task reached a prompt: its delivery boot latch opened, so whatever the
+  // This task reached a prompt: its boot latch opened, so whatever the
   // machine facts still say, this session did NOT fail to start (review round 1). One
   // rule retires both surfaces — the banner's accusation and the composer's honest
   // copy — and it is what makes a true-but-wrong diagnosis self-correct (the
   // env-API-key case: `auth status` says signed out, the CLI runs fine anyway). The
   // reducer repaints off this same event, so the clear needs no paint of its own.
-  if (event.type === "delivery:state" && event.payload.bootLatched) {
+  if (event.type === "session:state" && event.payload.bootLatched) {
     clearCliSessionStartBlocked(state, event.payload.taskId);
   }
   if (event.type === "task:started") {

@@ -976,8 +976,8 @@ export function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput):
   // (transcript `user-message`) carries the markers, the run prompt (raw typed
   // text Sonata stored) does not. Without this, an image prompt whose promptId
   // never bridged (the stage-1 miss above) fell through to an un-attributed run
-  // and a second husk card (2026-07-05). Same canonical rule as the delivery
-  // matcher and the hook back-stamp guards.
+  // and a second husk card (2026-07-05). Same canonical rule as the hook
+  // back-stamp guards.
   const text = normalizePromptForMatch(input.text);
   const windowMs = input.textWindowMs ?? 15 * 60_000;
   let best: { runId: RunId; distance: number } | null = null;

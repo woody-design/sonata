@@ -6,8 +6,8 @@
 //   (a) THE BUTTON TELLS THE TRUTH, AND ITS CLICK AGREES WITH IT. `stop ⟺ a run
 //       is under way AND nothing is staged` (D1) — one predicate
 //       (`composerActionMode`) drawn by the painter and asked again by the click
-//       handler. Sending mid-turn has always worked in Sonata (Claude writes
-//       through to the CLI's native queue; the placeholder says so); only the
+//       handler. Sending mid-turn has always worked in Sonata (a send is written
+//       straight to the CLI, which queues it natively; the placeholder says so); only the
 //       button denied it by wearing ■ for the whole run. So: ■ while the turn
 //       runs and the composer is empty → ↑ the moment something is typed → back
 //       to ■ when it is cleared, and the ↑ actually SENDS mid-turn.
@@ -21,9 +21,8 @@
 // Fixture provenance:
 //   - the fake CLI: COMPOSED, and deliberately the same body as
 //     tests/e2e/question-drawer-focus-storm.mjs's — a session-species fake (see
-//     tests/e2e/helpers/fake-cli.mjs) that echoes stdin (so a send earns its
-//     pty-composer-echo receipt instead of waiting out the 45s timeout) and,
-//     once the first prompt lands, paints a claude-shaped status region every
+//     tests/e2e/helpers/fake-cli.mjs) that echoes stdin (as a real composer does)
+//     and, once the first prompt lands, paints a claude-shaped status region every
 //     100ms so the turn keeps LOOKING alive and the terminal-idle completion
 //     heuristic never settles the run out from under the test. Its glyphs are
 //     MEASURED constants (CLAUDE_STATUS_GLYPHS,
@@ -79,7 +78,7 @@ try {
   await main.locator("#prompt-input").fill("start the turn");
   await main.keyboard.press("Enter");
   const taskId = await waitForActiveTask(main);
-  await waitFor(() => readStdin(taskId).toString("utf8").includes("start the turn"), "first delivery");
+  await waitFor(() => readStdin(taskId).toString("utf8").includes("start the turn"), "the first message");
   fireHook(taskId, {
     hook_event_name: "UserPromptSubmit",
     session_id: SESSION_ID,
@@ -144,10 +143,10 @@ try {
   // and NO Esc would reach the PTY at all. Single-flight is re-asserted here too,
   // because a latch that is merely never released would also pass check (b).
   //
-  // What this canNOT stage is the delivery-only window itself (the gap where only
-  // `delivery:state` knows the run). Measured while writing this: a new run's
+  // What this canNOT stage is the session-only window itself (the gap where only
+  // `session:state` knows the run). Measured while writing this: a new run's
   // `report:updated` is not debounced in practice — it arrives in the same batch
-  // as the delivery event — and the residual gap is an async report REFETCH
+  // as the session event — and the residual gap is an async report REFETCH
   // inside the renderer, which no harness signal exposes. The event count below
   // is recorded as a diagnostic for the next reader, deliberately NOT asserted:
   // event arrival is not the same fact as the view having updated, and a check
@@ -164,7 +163,7 @@ try {
   });
   await main.locator("#send-prompt.stop-mode").waitFor({ state: "attached" });
   // Diagnostic only (see above): how much report traffic had reached the renderer
-  // before this stop. 0 would mean the click landed in the delivery-only window.
+  // before this stop. 0 would mean the click landed in the session-only window.
   const reportEventsBeforeSecondStop = (await counts(main))["report:updated"] ?? 0;
   const escBeforeWindow = bareEscapeCount(readStdin(taskId));
   await main.evaluate(() => {

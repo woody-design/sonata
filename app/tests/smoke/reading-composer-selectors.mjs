@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 // scoring/filtering, placeholder/title/status suppression tables, model
 // summary (incl. the A2 modelValueLabel/reasoningValueLabel behavior tables
 // via its fallback path), option-prompt receipt builders, run outcome/tone,
-// task/delivery status labels, and the remoteControlContext family.
+// task/session status labels, and the remoteControlContext family.
 // Assertions pin MEASURED behavior (A1 lesson).
 const require = createRequire(import.meta.url);
 const C = require("../../dist/reading-core/selectors/composer");
@@ -39,7 +39,7 @@ const view = (extra = {}) => ({
   task: task(),
   live: true,
   report: null,
-  deliveryState: null,
+  sessionState: null,
   usageSnapshot: null,
   pendingOptionPrompt: null,
   optionPromptReceipt: null,
@@ -48,14 +48,12 @@ const view = (extra = {}) => ({
   ...extra,
 });
 
-const delivery = (extra = {}) => ({
+// The host's `session:state` payload (X2: replaces the delivery state).
+const session = (extra = {}) => ({
   taskId: "task-1",
-  provider: "claude",
-  deliverable: true,
   activeRun: false,
-  approvalActive: false,
+  activeRunId: null,
   bootLatched: true,
-  queue: [],
   ...extra,
 });
 
@@ -107,14 +105,12 @@ const run = (status, extra = {}) => ({
   const suppressed = [
     "Idle",
     "Ready",
-    "Queued",
     "Stopping",
     "Stopped",
     "Failed",
     "Claude is working",
     "Codex is starting",
     "Starting Claude",
-    "Delivering to Codex",
     "Waiting for Claude approval",
     "Claude PTY 12345",
     "Opening session",
@@ -124,6 +120,9 @@ const run = (status, extra = {}) => ({
     "Resumed — your message will send when the agent is ready",
     "Choose how to resume",
     "Answer sent",
+    "Approval sent",
+    "Approval denied",
+    "Answered in CLI",
     "Type a message before sending",
   ];
   for (const status of suppressed) {
@@ -132,7 +131,6 @@ const run = (status, extra = {}) => ({
   const shown = [
     // The fenced Invariant 5: partial attachment failure surfaced, not silent.
     "Attached 3 of 4 — the rest were unavailable.",
-    "3 of 6 images attached",
     "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable",
     "Something exploded: ENOENT",
   ];
@@ -162,22 +160,22 @@ const run = (status, extra = {}) => ({
   );
   assert.equal(p(view({ live: false })), "Message Claude — resumes this session", "dormant view");
   assert.equal(
-    p(view({ deliveryState: delivery({ bootLatched: false }) })),
+    p(view({ sessionState: session({ bootLatched: false }) })),
     "Claude is starting — your message will send when it's ready",
     "boot not latched",
   );
   assert.equal(
-    p(view({ deliveryState: null })),
+    p(view({ sessionState: null })),
     "Claude is starting — your message will send when it's ready",
-    "no delivery state reads as not latched (optional chain)",
+    "no session state reads as not latched (optional chain)",
   );
   assert.equal(
-    p(view({ deliveryState: delivery(), report: { runs: [] } })),
+    p(view({ sessionState: session(), report: { runs: [] } })),
     "Message Claude",
     "latched + zero runs",
   );
   assert.equal(
-    p(view({ deliveryState: delivery(), report: { runs: [run("completed")] } })),
+    p(view({ sessionState: session(), report: { runs: [run("completed")] } })),
     "Continue, correct, or redirect this Task",
     "latched + history",
   );
@@ -218,15 +216,15 @@ const run = (status, extra = {}) => ({
     );
   }
 
-  // A run known only to delivery state (the report has not caught up) is still
+  // A run known only to the session state (the report has not caught up) is still
   // a run — the union is the whole reason this selector exists.
   assert.equal(
-    C.composerActionMode(st(), view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-9" }) }), ""),
+    C.composerActionMode(st(), view({ sessionState: session({ activeRun: true, activeRunId: "run-9" }) }), ""),
     "stop",
-    "delivery-only active run reads as stop-mode",
+    "session-only active run reads as stop-mode",
   );
   assert.equal(
-    C.composerActionMode(st(), view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-9" }) }), "queue this"),
+    C.composerActionMode(st(), view({ sessionState: session({ activeRun: true, activeRunId: "run-9" }) }), "queue this"),
     "send",
     "…and text still wins over it",
   );
@@ -240,9 +238,9 @@ const run = (status, extra = {}) => ({
   assert.equal(C.composerActiveRun(null), false, "no view is not running");
   assert.equal(C.composerActiveRun(runningView()), true, "report says running");
   assert.equal(
-    C.composerActiveRun(view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-9" }) })),
+    C.composerActiveRun(view({ sessionState: session({ activeRun: true, activeRunId: "run-9" }) })),
     true,
-    "delivery says running",
+    "session state says running",
   );
   assert.equal(C.composerHasContent(st(), null, "  "), false, "whitespace is not content");
   assert.equal(C.composerHasContent(st([image]), null, ""), true, "new chat draft attachment counts");
@@ -261,7 +259,7 @@ const run = (status, extra = {}) => ({
   //
   // What the single-flight stop latches on (S2 D2). The invariant, and the whole
   // point of review round 1: ONE RUN HAS ONE KEY, whichever evidence has arrived.
-  // The first cut returned a `"delivery"` sentinel before the report propagated
+  // The first cut returned a sentinel before the report propagated
   // and `run:<id>` after — one run, two names — which released the latch mid-run
   // (a second bare Esc, the exact D2 hazard) and let a stale sentinel block a
   // LATER run's honest stop. So: run ids or nothing.
@@ -271,57 +269,57 @@ const run = (status, extra = {}) => ({
 
   {
     // The propagation boundary, in the three shapes one run passes through:
-    // delivery knows it first (emit-on-change), then the report catches up
-    // (1000ms trailing debounce), then delivery lets go first at the end.
-    const deliveryOnly = view({
+    // the session state knows it first (emit-on-change), then the report catches
+    // up (1000ms trailing debounce), then the session state lets go first.
+    const sessionOnly = view({
       report: { runs: [run("completed", { runId: "run-0" })] },
-      deliveryState: delivery({ activeRun: true, activeRunId: "run-1" }),
+      sessionState: session({ activeRun: true, activeRunId: "run-1" }),
     });
     const bothKnow = view({
       report: { runs: [run("active")] },
-      deliveryState: delivery({ activeRun: true, activeRunId: "run-1" }),
+      sessionState: session({ activeRun: true, activeRunId: "run-1" }),
     });
     const reportOnly = view({
       report: { runs: [run("active")] },
-      deliveryState: delivery({ activeRun: false, activeRunId: null }),
+      sessionState: session({ activeRun: false, activeRunId: null }),
     });
-    assert.equal(R.activeRunKey(deliveryOnly), "run-1", "delivery names the run before the report");
+    assert.equal(R.activeRunKey(sessionOnly), "run-1", "the session state names the run before the report");
     assert.equal(R.activeRunKey(bothKnow), "run-1", "…the same name once both know");
-    assert.equal(R.activeRunKey(reportOnly), "run-1", "…and still the same as delivery lets go");
+    assert.equal(R.activeRunKey(reportOnly), "run-1", "…and still the same as the session state lets go");
     // Stated as the invariant itself, not three coincidences.
     assert.equal(
-      new Set([deliveryOnly, bothKnow, reportOnly].map(R.activeRunKey)).size,
+      new Set([sessionOnly, bothKnow, reportOnly].map(R.activeRunKey)).size,
       1,
       "one run keeps ONE key across the whole propagation boundary",
     );
     // The composer's boolean is the union and stays true throughout — a
     // different question, deliberately not derived from the identity.
-    for (const v of [deliveryOnly, bothKnow, reportOnly]) {
+    for (const v of [sessionOnly, bothKnow, reportOnly]) {
       assert.equal(C.composerActiveRun(v), true, "the button sees a run in every shape");
     }
   }
 
-  // Freshness order: delivery is emitted on change, the report is debounced, so
-  // a report still naming the PREVIOUS run must not outrank a live delivery id.
+  // Freshness order: session state is emitted on change, the report is debounced,
+  // so a report still naming the PREVIOUS run must not outrank a live session id.
   assert.equal(
     R.activeRunKey(
       view({
         report: { runs: [run("active", { runId: "run-1" })] },
-        deliveryState: delivery({ activeRun: true, activeRunId: "run-2" }),
+        sessionState: session({ activeRun: true, activeRunId: "run-2" }),
       }),
     ),
     "run-2",
     "the fresher evidence names the run",
   );
 
-  // Scenario B (review round 1): a latch taken in run 1's delivery-only window
+  // Scenario B (review round 1): a latch taken in run 1's session-only window
   // must never match run 2 — the failure mode was a stop silently dropped, with
   // no Esc and no feedback.
   {
     const stopRequestedRunId = R.activeRunKey(
-      view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-1" }) }),
+      view({ sessionState: session({ activeRun: true, activeRunId: "run-1" }) }),
     );
-    const laterRun = view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-2" }) });
+    const laterRun = view({ sessionState: session({ activeRun: true, activeRunId: "run-2" }) });
     assert.notEqual(
       stopRequestedRunId,
       R.activeRunKey(laterRun),
@@ -329,23 +327,23 @@ const run = (status, extra = {}) => ({
     );
   }
 
-  // A run delivery asserts but cannot NAME (only reachable for payloads recorded
-  // before activeRunId existed): fall back to the report, and to null — never to
-  // a token that is not run-unique.
+  // A run the session state asserts but cannot NAME (the host never emits one —
+  // pinned as the defensive fallback): fall back to the report, and to null —
+  // never to a token that is not run-unique.
   assert.equal(
-    R.activeRunKey(view({ deliveryState: delivery({ activeRun: true }) })),
+    R.activeRunKey(view({ sessionState: session({ activeRun: true }) })),
     null,
     "an unnameable run yields no key (the latch stands down rather than lie)",
   );
   assert.equal(
     R.activeRunKey(
-      view({ report: { runs: [run("active")] }, deliveryState: delivery({ activeRun: true }) }),
+      view({ report: { runs: [run("active")] }, sessionState: session({ activeRun: true }) }),
     ),
     "run-1",
     "…unless the report can name it",
   );
   assert.equal(
-    C.composerActiveRun(view({ deliveryState: delivery({ activeRun: true }) })),
+    C.composerActiveRun(view({ sessionState: session({ activeRun: true }) })),
     true,
     "the button still shows stop for a run it cannot name",
   );
@@ -354,45 +352,38 @@ const run = (status, extra = {}) => ({
 // 4) sendPromptTitle — the state table. Argument 2 is the MODE, not the run
 // (S2): the title must describe the press the user is about to make.
 {
-  const t = (v, stopMode, pendingApproval, hasContent) =>
-    C.sendPromptTitle(v, stopMode, pendingApproval, hasContent);
-  assert.equal(t(null, false, false, true), "", "no task → empty title");
-  assert.equal(t(view(), true, false, false), "Stop Claude", "stop-mode → stop");
-  assert.equal(t(view(), false, false, false), "Type a message before sending.", "no text");
-  // Mid-run with a staged message: send-mode falls through to the delivery
-  // ladder, which already distinguishes the providers' mid-turn semantics —
-  // Claude writes through (deliverable) and Codex holds (not deliverable).
+  const t = (v, stopMode, hasContent) => C.sendPromptTitle(v, stopMode, hasContent);
+  assert.equal(t(null, false, true), "", "no task → empty title");
+  assert.equal(t(view(), true, false), "Stop Claude", "stop-mode → stop");
+  assert.equal(t(view(), false, false), "Type a message before sending.", "no text");
+  // Mid-run with a staged message: send-mode is a send for BOTH providers — a
+  // Send is written at once and the CLI decides what a mid-turn message means
+  // (X2; codex sends were held until run end before).
   assert.equal(
-    t(view({ deliveryState: delivery() }), false, false, true),
+    t(view({ sessionState: session({ activeRun: true, activeRunId: "run-1" }) }), false, true),
     "Send to Claude",
-    "mid-run Claude write-through reads as a send",
+    "mid-run Claude send reads as a send",
   );
   assert.equal(
     t(
-      view({ task: task({ provider: "codex" }), deliveryState: delivery({ deliverable: false }) }),
-      false,
+      view({ task: task({ provider: "codex" }), sessionState: session({ activeRun: true, activeRunId: "run-1" }) }),
       false,
       true,
     ),
-    "Queued — delivers when Codex is ready.",
-    "mid-run Codex hold reads as a queue",
+    "Send to Codex",
+    "mid-run Codex send reads as a send (no queue statement)",
   );
   assert.equal(
-    t(view(), false, true, true),
-    "Queued — delivers after Claude approval is resolved.",
-    "pending approval",
-  );
-  assert.equal(
-    t(view({ deliveryState: delivery({ bootLatched: false }) }), false, false, true),
+    t(view({ sessionState: session({ bootLatched: false }) }), false, true),
     "Claude is starting — your message sends as soon as it accepts input.",
-    "live + not latched",
+    "live + not latched: the boot hold",
   );
   assert.equal(
-    t(view({ live: false, deliveryState: delivery({ deliverable: false }) }), false, false, true),
-    "Queued — delivers when Claude is ready.",
-    "not deliverable (dormant skips the boot branch)",
+    t(view({ live: false, sessionState: null }), false, true),
+    "Send to Claude",
+    "dormant skips the boot branch (the send resumes the session)",
   );
-  assert.equal(t(view({ deliveryState: delivery() }), false, false, true), "Send to Claude", "ready");
+  assert.equal(t(view({ sessionState: session() }), false, true), "Send to Claude", "ready");
 }
 
 // 5) sessionModelSummaryLabel — live statusline wins; spawn settings fallback.
@@ -889,7 +880,7 @@ const run = (status, extra = {}) => ({
   );
 }
 
-// 9) taskStatusLabel / deliveryStatusLabel tables.
+// 9) taskStatusLabel / sessionStatusLabel tables.
 {
   assert.equal(R.taskStatusLabel(task({ status: "running" })), "Claude is working");
   assert.equal(R.taskStatusLabel(task({ status: "waiting-for-approval" })), "Waiting for approval");
@@ -900,73 +891,11 @@ const run = (status, extra = {}) => ({
   assert.equal(R.taskStatusLabel(task({ status: "new" })), "Claude is starting");
   assert.equal(R.taskStatusLabel(task({ status: "ready" })), "Ready");
 
-  const item = (status) => ({ id: "i", status });
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ queue: [item("delivered"), item("delivering")] })),
-    "Delivering to Claude",
-    "delivering outranks all",
-  );
-  assert.equal(R.deliveryStatusLabel(delivery({ queue: [item("queued")] })), "Queued");
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ queue: [item("undelivered")] })),
-    "Ready",
-    "missed-receipt report retired 2026-07-04 — an undelivered item is silent, not a badge",
-  );
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ approvalActive: true })),
-    "Waiting for Claude approval",
-    "approval before activeRun",
-  );
-  assert.equal(
-    R.deliveryStatusLabel(
-      delivery({ activeRun: true, attachmentNotice: "3 of 6 images attached" }),
-    ),
-    "Claude is working",
-    "S6 item 5: live run status outranks the sticky notice — a text-only follow-up shows working, not the stale partial-attachment notice",
-  );
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ attachmentNotice: "3 of 6 images attached" })),
-    "3 of 6 images attached",
-    "S6 item 5: once idle, the sticky reminder resurfaces above Ready until the next full delivery clears it",
-  );
-  assert.equal(R.deliveryStatusLabel(delivery({ activeRun: true })), "Claude is working");
-  assert.equal(R.deliveryStatusLabel(delivery()), "Ready", "bootLatched idle");
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ bootLatched: false })),
-    "Starting Claude",
-    "not yet latched",
-  );
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ queue: [item("queued")], approvalActive: true })),
-    "Queued",
-    "live queue activity outranks the approval row",
-  );
-  // The Rewind panel (claude ≥2.1.216) is the one hold that outranks the queue
-  // rows: it is the REASON they are not moving, so "Queued" alone would be an
-  // unexplained stall — the invisible-hold failure S3 decision A warns about,
-  // and the price of exempting this panel from that decision (its Enter is a
-  // RESTORE, so the "visible and recoverable" premise fails). It stays BELOW
-  // "Delivering", where bytes are already in flight.
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ rewindPanelOpen: true, queue: [item("queued")] })),
-    "Rewind panel open — press Esc in the CLI",
-    "the hold explains itself instead of reading Queued",
-  );
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ rewindPanelOpen: true })),
-    "Rewind panel open — press Esc in the CLI",
-    "and it outranks the idle Ready — an empty queue could not deliver either",
-  );
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ rewindPanelOpen: true, queue: [item("delivering")] })),
-    "Delivering to Claude",
-    "delivering still outranks it",
-  );
-  assert.equal(
-    R.deliveryStatusLabel(delivery({ rewindPanelOpen: undefined })),
-    "Ready",
-    "the field is optional — recorded fixtures predate it and must read as not-open",
-  );
+  // The session status narration (never shown — composerNotice suppresses it —
+  // but written on each session:state to retire stale point-of-action text).
+  assert.equal(R.sessionStatusLabel("claude", session({ activeRun: true, activeRunId: "r" })), "Claude is working");
+  assert.equal(R.sessionStatusLabel("claude", session()), "Ready", "bootLatched idle");
+  assert.equal(R.sessionStatusLabel("codex", session({ bootLatched: false })), "Starting Codex", "not yet latched");
 }
 
 // 10) Remote Control context family.

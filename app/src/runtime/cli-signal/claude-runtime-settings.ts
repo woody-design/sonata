@@ -85,11 +85,10 @@ interface ClaudeRuntimeSettings {
    *  interference in a Sonata-driven composer, not a per-launch option.
    *  Measured (claude 2.1.220 — spikes/upstream-sync-2026-08/claude, Q6): the
    *  popup is NOT keystroke-gated — a BRACKETED PASTE whose last token is a
-   *  colon token (`…:hea`) opens it too, which is exactly Sonata's delivery
+   *  colon token (`…:hea`) opens it too, which is exactly Sonata's send
    *  path. While it is open BOTH submit encodings are swallowed — CSI-u Enter
    *  (`\x1b[13u`, the paste-path submit) and raw `\r` — so the prompt is
-   *  mutated with an emoji and never sent, stalling delivery until the receipt
-   *  timeout. `false` suppresses the popup for typed AND pasted input
+   *  mutated with an emoji and never sent. `false` suppresses the popup for typed AND pasted input
    *  (verified live). This is a correctness fix, not polish. */
   emojiCompletionEnabled: false;
   /** Native launch-time fast mode (Claude 2.1.205+). Written ONLY when the

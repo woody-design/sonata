@@ -4204,9 +4204,6 @@ h2 {
   border-color: var(--focus-ring);
 }
 
-/* The delivery-queue panel's CSS left with its renderer (S1c removed the
-   panel; S6 swept the orphaned item-list renderer + these rules). */
-
 .composer {
   flex: 0 0 auto;
   display: flex;

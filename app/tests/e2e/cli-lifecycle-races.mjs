@@ -120,6 +120,11 @@ try {
     () => readRecord(composerOwnedTaskId).runs.some((run) => run.prompt.includes(composerOwnedPrompt)),
     "Composer-owned prompt delivery",
   );
+  // The run begins at WRITE time, synchronously, while the paste itself lands on
+  // the next tick — so the report can show the run a moment before the fake CLI
+  // has logged the bytes. Wait for them too; the check below still requires the
+  // prompt EXACTLY once.
+  await waitFor(() => readStdin(composerOwnedTaskId).includes(composerOwnedPrompt), "Composer-owned prompt bytes");
   const composerOwnedRecord = readRecord(composerOwnedTaskId);
   const taskIdsAfterComposerRace = listTaskIds();
 

@@ -51,7 +51,7 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": null,
+            "sessionState": null,
             "stopRequestedRunId": null,
             "pendingAttachments": [],
             "usageSnapshot": null,
@@ -104,7 +104,7 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": null,
+            "sessionState": null,
             "stopRequestedRunId": null,
             "pendingAttachments": [],
             "usageSnapshot": null,
@@ -157,7 +157,7 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": null,
+            "sessionState": null,
             "stopRequestedRunId": null,
             "pendingAttachments": [],
             "usageSnapshot": null,
@@ -223,7 +223,7 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": null,
+            "sessionState": null,
             "stopRequestedRunId": null,
             "pendingAttachments": [],
             "usageSnapshot": null,
@@ -276,7 +276,7 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": null,
+            "sessionState": null,
             "stopRequestedRunId": null,
             "pendingAttachments": [],
             "usageSnapshot": null,
@@ -329,7 +329,7 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": null,
+            "sessionState": null,
             "stopRequestedRunId": null,
             "pendingAttachments": [],
             "usageSnapshot": null,

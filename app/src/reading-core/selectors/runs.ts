@@ -1,6 +1,6 @@
 /**
  * Run/task-state selectors for the Reading window: run-status predicates, the
- * settled-run outcome/tone labels, the task/delivery status labels, and the
+ * settled-run outcome/tone labels, the task/session status labels, and the
  * Remote Control context family.
  *
  * reading-core layer rules: plain data in, plain data out — no DOM, no
@@ -8,7 +8,7 @@
  * defaults take them as parameters (the shell passes `activeTaskView()` /
  * `state.*`).
  */
-import type { DeliveryTaskState, RuntimeProvider, Task } from "../../shared/types";
+import type { RuntimeProvider, Task, TaskSessionState } from "../../shared/types";
 import type { RuntimeRunReport } from "../../shared/schemas";
 import type { TaskViewState } from "../state";
 import { approvalKindLabel, providerLabel } from "./formatters";
@@ -30,26 +30,23 @@ export function hasActiveRun(view: TaskViewState | null): boolean {
  * Strictly an identity, deliberately not the union boolean the composer reads
  * (`composerActiveRun`). The two questions differ: the button only needs to know
  * THAT something is running, while the single-flight stop (S2 D2) needs to tell
- * one run from the next. An earlier cut of this returned a `"delivery"` sentinel
- * when only the delivery bit knew about the run — which gave ONE run TWO names
- * across the propagation boundary (S2 review round 1). That is fatal for a latch
- * keyed on it: the rename released the lock mid-run (a second bare Esc — the very
- * hazard D2 exists to prevent), and the sentinel, not being run-unique, could
- * also block a LATER run's honest stop. So this function now returns run ids or
- * nothing at all.
+ * one run from the next. An earlier cut of this returned a sentinel when only
+ * the live bit knew about the run — which gave ONE run TWO names across the
+ * propagation boundary (S2 review round 1). That is fatal for a latch keyed on
+ * it: the rename released the lock mid-run (a second bare Esc — the very hazard
+ * D2 exists to prevent), and the sentinel, not being run-unique, could also
+ * block a LATER run's honest stop. So this function returns run ids or nothing.
  *
- * Delivery is asked FIRST because it is the fresher evidence: `delivery:state` is
- * emitted on change (S1) while `report:updated` rides a 1000ms trailing debounce,
- * so at both ends of a turn the delivery bit moves up to a second earlier. Both
- * sources name the same run from the same host read, so the answer is stable
- * whichever one is currently ahead. Null (a run the delivery bit asserts but
- * cannot name) is reachable only for payloads recorded before `activeRunId`
- * existed — never in a live session, where the two are set together.
+ * The host's session state is asked FIRST because it is the fresher evidence:
+ * `session:state` is emitted on change while `report:updated` rides a 1000ms
+ * trailing debounce, so at both ends of a turn the live bit moves up to a
+ * second earlier. Both sources name the same run from the same host read, so
+ * the answer is stable whichever one is currently ahead.
  */
 export function activeRunKey(view: TaskViewState | null): string | null {
-  const delivery = view?.deliveryState;
-  if (delivery?.activeRun && delivery.activeRunId) {
-    return delivery.activeRunId;
+  const session = view?.sessionState;
+  if (session?.activeRun && session.activeRunId) {
+    return session.activeRunId;
   }
   const latestRun = view?.report?.runs.at(-1);
   if (latestRun && isActiveRunStatus(latestRun.status)) {
@@ -245,70 +242,18 @@ export function taskStatusLabel(task: Task): string {
   return "Ready";
 }
 
-// The persistent delivery-queue PANEL was removed (S1c-followup): with
-// send-is-send write-through, a queued message goes straight into the CLI's
-// native queue (shown in the co-visible terminal). The orphaned item-list
-// renderer + its Edit/Cancel/Retry actions (and their IPC backend) were swept
-// in S6 — an unreceipted item no longer blocks the queue, so the retry
-// affordance had nothing left to unblock (git log -S renderDeliveryItem).
-// The composer status line below is the sole delivery surface.
-export function deliveryStatusLabel(deliveryState: DeliveryTaskState): string {
-  const providerName = providerLabel(deliveryState.provider);
-  // Whole-queue derivation (S6): an undelivered item no longer blocks the
-  // queue, so it may sit at the head while later items flow — live activity
-  // (delivering/queued) outranks it.
-  //
-  // The "Undelivered" report itself was retired from this line (2026-07-04,
-  // overturning the S6 report-not-gate residue): "undelivered" means "no
-  // receipt observed in the transcript scrape" — an epistemic artifact, not
-  // a failure. With send-is-send the bytes are in the CLI (the co-visible
-  // terminal is the truth surface), there is no user action to offer, and an
-  // undelivered item is never evicted from the queue, so one missed receipt
-  // wore a permanent "Undelivered" badge on an otherwise healthy idle
-  // session. Genuine breakage still surfaces: a dead PTY flips the task to
-  // "Failed", and a write failure keeps its failureReason in delivery state.
-  if (deliveryState.queue.some((item) => item.status === "delivering")) {
-    return `Delivering to ${providerName}`;
-  }
-  // Ranked above "Queued" (and above the idle "Ready") because it is the REASON
-  // the queue is not moving: a recognized Rewind panel holds delivery, so
-  // "Queued" alone would be an unexplained stall — the invisible-hold failure S3
-  // decision A warns about, and the price of exempting this panel from it. Below
-  // "Delivering" only because that state means bytes are already in flight.
-  // Sonata never dismisses the panel; the copy names the key the user presses, and
-  // "CLI" is the product vocabulary for that surface (see the drawer's "Answer
-  // in CLI →") — the ui-vocabulary-corpus fence rejects "terminal" here.
-  if (deliveryState.rewindPanelOpen) {
-    return "Rewind panel open — press Esc in the CLI";
-  }
-  if (deliveryState.queue.some((item) => item.status === "queued")) {
-    return "Queued";
-  }
-  if (deliveryState.approvalActive) {
-    return `Waiting for ${providerName} approval`;
-  }
-  if (deliveryState.activeRun) {
+/** The status line's narration for a live session state — never shown (the
+ *  composer notice suppresses lifecycle narration), but written on each
+ *  `session:state` so a stale point-of-action message does not outlive the
+ *  change that made it stale. */
+export function sessionStatusLabel(provider: RuntimeProvider, sessionState: TaskSessionState): string {
+  const providerName = providerLabel(provider);
+  if (sessionState.activeRun) {
     return `${providerName} is working`;
   }
-  // The sticky partial-attachment notice ("3 of 6 images attached", S5) ranks
-  // BELOW live run status but ABOVE the idle "Ready" (S6 item 5). It is a
-  // now-sticky ACTIONABLE reminder — some images never arrived — so it must not
-  // be dropped at idle; but it must also not mask a real run: after a partial
-  // delivery, a text-only follow-up used to leave the notice masking
-  // "working"/"Ready" indefinitely (it outranked activeRun pre-S6). Placed here,
-  // an active run shows "working", and once idle the reminder resurfaces until
-  // the next full attachment delivery clears it (delivery-controller). Failure
-  // direction: prefer over-reminding to silently losing the fact that images
-  // 4-6 were dropped.
-  if (deliveryState.attachmentNotice) {
-    return deliveryState.attachmentNotice;
-  }
   // bootLatched is the honest "still starting?" bit: one-shot, opened by the
-  // delivery pump's structural poll. The old key (idleComposer — a continuous
-  // composer-ready scrape gated on the starved task-ready flag) read
-  // permanently false in the full app, so an idle session could wedge on
-  // "Starting <provider>" (the S5 residual label class; probe s6-diags).
-  if (deliveryState.bootLatched) {
+  // host the first time its CLI reaches a prompt.
+  if (sessionState.bootLatched) {
     return "Ready";
   }
   return `Starting ${providerName}`;

@@ -112,8 +112,8 @@ export function isCodexUpdatePrompt(terminalText: string): boolean {
 // and the co-occurrence then reads FALSE.
 //
 // Accepted, on the failure DIRECTION. That case yields silence: no banner, which
-// is exactly today's pre-S2 behaviour, and the readiness guard still holds
-// delivery so nothing is written into the dialog. The alternative — matching on
+// is exactly today's pre-S2 behaviour, and the readiness guard still keeps the
+// boot latch shut so no held message is written into the dialog. The alternative — matching on
 // fewer needles so a partial view still fires — trades this narrow silence for a
 // forgeable signature, and a banner that can lie is worse than one that can be
 // quiet. Reaching for scrollback is not the escape either: D-1 refinement 4 names

@@ -5,21 +5,22 @@
 //
 // Two things are fenced, because the bug had two halves:
 //
-//   (a) THE EMITTER'S CONTRACT: an emitted `delivery:state` represents a REAL
+//   (a) THE EMITTER'S CONTRACT: an emitted `session:state` represents a REAL
 //       change. The renderer honestly reads that event as a content change and
-//       full-renders, so a controller that re-announces an unchanged state turns
-//       every unrelated runtime event into a full render. (MEASURED across the
-//       recorded real-session fixtures in tests/fixtures/runtime-events: 332 of
-//       591 `delivery:state` events — 56% — were byte-identical re-announcements
-//       of the state already on the wire.) Here every `delivery:state` the
-//       renderer receives is recorded, and no two consecutive ones may carry the
-//       same payload.
+//       full-renders, so a host that re-announces an unchanged state turns every
+//       unrelated runtime event into a full render. (MEASURED on its
+//       predecessor, `delivery:state`, across the recorded real-session fixtures
+//       in tests/fixtures/runtime-events: 332 of 591 events — 56% — were
+//       byte-identical re-announcements; X2 moved the contract to the host's
+//       `session:state` unchanged.) Here every `session:state` the renderer
+//       receives is recorded, and no two consecutive ones may carry the same
+//       payload.
 //   (b) THE FIELD'S IDENTITY, across both kinds of paint: a live turn ticking its
-//       status region (2.5s of it), and then REAL full renders — a message
-//       enqueued mid-question moves the delivery state for real (queued →
-//       delivering → receipt), so the drawer IS re-rendered several times. The
-//       field must survive both; the second half is the one that fails when the
-//       emitter is quiet but the form is still rebuilt wholesale.
+//       status region (2.5s of it), and then REAL full renders — two hooks that
+//       move the task's permission mode arrive mid-question (`task:updated`), so
+//       the drawer IS re-rendered. The field must survive both; the second half
+//       is the one that fails when the emitter is quiet but the form is still
+//       rebuilt wholesale.
 //
 // The field is proven to be THE SAME NODE by a property stamped on it before the
 // window (a rebuilt element cannot carry it), plus focus, caret offset and value.
@@ -37,7 +38,7 @@
 //     is what a real turn's status line does.
 //   - the hook payloads: COMPOSED, to the shapes their parsers pin
 //     (UserPromptSubmit → runtime-controller; AskUserQuestion tool_input →
-//     parseOptionPrompt); the questions are ADAPTED from the real-Claude prompt
+//     parseOptionPrompt; `permission_mode` → applyHookPermissionMode); the questions are ADAPTED from the real-Claude prompt
 //     tests/e2e/option-prompt-surface.mjs asks for (same headers/labels), so the
 //     drawer renders the same shape it does against the live CLI.
 import fs from "node:fs";
@@ -85,25 +86,25 @@ try {
   await main.locator(".task-entry-panel").waitFor({ state: "visible" });
   await chooseProject(main);
 
-  // Birth the session. The fake CLI echoes stdin, so the send earns its
-  // pty-composer-echo receipt and starts painting the status region.
+  // Birth the session. The first message rides the boot hold; the fake CLI
+  // echoes stdin and starts painting the status region.
   await main.locator("#prompt-input").click();
   await main.locator("#prompt-input").fill("start the turn");
   await main.keyboard.press("Enter");
   const taskId = await waitForActiveTask(main);
-  await waitFor(() => readStdin(taskId).includes("start the turn"), "first delivery");
+  await waitFor(() => readStdin(taskId).includes("start the turn"), "the first message");
 
   // Count runtime events the way the renderer receives them — the same channel
-  // the reducer reads, so "no delivery:state" here means the emitter was quiet.
+  // the reducer reads, so "no session:state" here means the emitter was quiet.
   await main.evaluate(() => {
     window.__sonataEventCounts = {};
-    // Payloads, not just counts, for delivery:state — its whole contract is that
+    // Payloads, not just counts, for session:state — its whole contract is that
     // an event means something moved, which only the payloads can show.
-    window.__sonataDeliveryStates = [];
+    window.__sonataSessionStates = [];
     window.sonataRuntime.onRuntimeEvent((event) => {
       window.__sonataEventCounts[event.type] = (window.__sonataEventCounts[event.type] ?? 0) + 1;
-      if (event.type === "delivery:state") {
-        window.__sonataDeliveryStates.push(JSON.stringify(event.payload));
+      if (event.type === "session:state") {
+        window.__sonataSessionStates.push(JSON.stringify(event.payload));
       }
     });
   });
@@ -161,40 +162,48 @@ try {
   await main.waitForTimeout(2500);
   const after = await counts(main);
   const stormTicks = (after["working-status:updated"] ?? 0) - (before["working-status:updated"] ?? 0);
-  const stormDeliveryStates = (after["delivery:state"] ?? 0) - (before["delivery:state"] ?? 0);
+  const stormSessionStates = (after["session:state"] ?? 0) - (before["session:state"] ?? 0);
   const afterStorm = await readField(main);
 
-  // (b) A genuine delivery change under the open drawer — real full renders.
-  await main.evaluate((id) =>
-    window.sonataRuntime.submitPrompt({ taskId: id, text: "queued while the question stands" }),
-    taskId,
-  );
-  await waitFor(
-    () => counts(main).then((c) => (c["delivery:state"] ?? 0) - (after["delivery:state"] ?? 0) >= 2),
-    "delivery state changes under the drawer",
-  );
+  // (b) Genuine task changes under the open drawer — real full renders. The
+  // CLI's hooks carry `permission_mode`; a Terminal-side Shift+Tab lands here.
+  for (const mode of ["acceptEdits", "default"]) {
+    const seen = (await counts(main))["task:updated"] ?? 0;
+    fireHook(taskId, {
+      hook_event_name: "PostToolUse",
+      session_id: SESSION_ID,
+      tool_name: "Read",
+      tool_use_id: `toolu-read-${mode}`,
+      tool_input: { file_path: "notes.txt" },
+      permission_mode: mode,
+    });
+    await waitFor(
+      () => counts(main).then((c) => (c["task:updated"] ?? 0) > seen),
+      `the ${mode} task:updated under the drawer`,
+    );
+  }
   const settled = await counts(main);
-  const renderDeliveryStates = (settled["delivery:state"] ?? 0) - (after["delivery:state"] ?? 0);
+  const renderTaskUpdates = (settled["task:updated"] ?? 0) - (after["task:updated"] ?? 0);
   const afterRenders = await readField(main);
 
-  // (a) Every delivery:state this renderer saw, from session birth to here.
-  const deliveryStates = await main.evaluate(() => [...window.__sonataDeliveryStates]);
-  const reannounced = deliveryStates.filter(
-    (payload, index) => index > 0 && payload === deliveryStates[index - 1],
+  // (a) Every session:state this renderer saw, from session birth to here.
+  const sessionStates = await main.evaluate(() => [...window.__sonataSessionStates]);
+  const reannounced = sessionStates.filter(
+    (payload, index) => index > 0 && payload === sessionStates[index - 1],
   ).length;
 
   const checks = {
     stormIsLive: stormTicks >= 6,
-    // Nothing about delivery moved across the storm window, so nothing was said.
-    stormEmitsNoDeliveryState: stormDeliveryStates === 0,
+    // Nothing about the session moved across the storm window, so nothing was said.
+    stormEmitsNoSessionState: stormSessionStates === 0,
     // The contract itself: no event repeats the state already on the wire.
-    noReannouncedDeliveryState: reannounced === 0,
+    noReannouncedSessionState: reannounced === 0,
     fieldSurvivesStorm:
       afterStorm.stamped &&
       afterStorm.focused &&
       afterStorm.caret === CARET &&
       afterStorm.value === TYPED,
-    realRendersHappened: renderDeliveryStates >= 2,
+    realRendersHappened: renderTaskUpdates >= 2,
     fieldSurvivesRealRenders:
       afterRenders.stamped &&
       afterRenders.focused &&
@@ -209,9 +218,9 @@ try {
         success,
         checks,
         stormTicks,
-        stormDeliveryStates,
-        renderDeliveryStates,
-        deliveryStateCount: deliveryStates.length,
+        stormSessionStates,
+        renderTaskUpdates,
+        sessionStateCount: sessionStates.length,
         reannounced,
         // Everything that arrived during the storm window — so a failure names
         // what was actually driving the renders, instead of leaving the reader

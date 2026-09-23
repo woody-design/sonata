@@ -219,7 +219,8 @@ export interface OpenTaskRequest {
   resume?: boolean;
   /**
    * How to resume a large dormant Claude session. "summary" auto-runs
-   * /compact as the first delivery (the panel's option 1, made explicit);
+   * /compact as the session's first message (the panel's option 1, made
+   * explicit; written once when the CLI first reaches its prompt);
    * absent/"full" resumes as-is — the native no-decision semantic. The
    * resume interstitial itself is suppressed per-spawn either way.
    */

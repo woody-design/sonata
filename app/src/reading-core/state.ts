@@ -21,7 +21,6 @@ import type {
   CodexOfferedPermissionMode,
   CodexSettings,
   DeliveryAttachment,
-  DeliveryTaskState,
   LaunchSpeedMode,
   QuitConfirmRequest,
   ReadingSettings,
@@ -31,6 +30,7 @@ import type {
   SessionIndexResponse,
   SlashCommandEntry,
   Task,
+  TaskSessionState,
   UsageSnapshot,
 } from "../shared/types";
 import type { TagDefinition, TagGroup } from "../shared/types/tags";
@@ -232,7 +232,9 @@ export interface TaskViewState {
   transcriptBlocks: Map<string, TranscriptBlock>;
   transcriptBlockOrder: string[];
   transcriptSources: TranscriptSourceRef[];
-  deliveryState: DeliveryTaskState | null;
+  /** The host's live session facts (`session:state`): run pointer + boot
+   *  latch. Null until the first event or snapshot for a live pty; sticky. */
+  sessionState: TaskSessionState | null;
   /** Single-flight stop (S2, D2): the RUN ID a stop has already been requested
    *  for (`activeRunKey`). A second request naming the same run is dropped — a
    *  bare Esc written twice into a CLI can open Claude's rewind menu, and the
@@ -817,7 +819,7 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     // FOLLOWS the global default (so changing the default applies to it), until the
     // user toggles it. createTask sets active optimistically for a live armed spawn.
     remoteControl: { active: false, url: null, armedOverride: null },
-    deliveryState: null,
+    sessionState: null,
     stopRequestedRunId: null,
     pendingAttachments: [],
     usageSnapshot: null,

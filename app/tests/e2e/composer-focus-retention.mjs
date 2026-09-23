@@ -38,9 +38,7 @@ fs.writeFileSync(
 installFakeCli(fakeBin, "claude", {
   readyOutput: "Fake Claude ready\n❯ opus xhigh ~\n",
   records: ["spawn-count", "stdin"],
-  // The echo earns DeliveryController a pty-composer-echo receipt, which clears
-  // inFlight — otherwise every send here waits out the 45s receipt timeout and the
-  // next one cannot deliver.
+  // Echo written bytes back, as a real composer does.
   echoStdin: true,
 });
 

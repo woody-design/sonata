@@ -6,8 +6,7 @@ import { createRequire } from "node:module";
 // into the CLI's own input box (claude 2.1.212 + codex 0.144.5), and
 // submitPrompt's deferred text/Enter timers could fire AFTER a stop —
 // starting the very turn the user stopped. Fenced here:
-//   1. stopRun cancels pending deferred PROMPT writes (no post-stop paste);
-//      canceled CONTROL writes (/rc Enter) never count as a canceled prompt.
+//   1. stopRun cancels pending deferred PROMPT writes (no post-stop paste).
 //   2. stopRun arms the belt clear — a Ctrl+U flood sized from the session's
 //      high-water pasted line count (2×lines+2, floor 40) so a 1-line
 //      mid-turn steer can't undersize the flood for a multi-line turn. The
@@ -21,12 +20,9 @@ import { createRequire } from "node:module";
 //      was 800ms until the 2026-08-03 upstream sync measured claude 2.1.220's
 //      Esc-pair rewind window as (700, 800] — see the boundary case below.
 //   5. A lone human Esc in the Terminal during a run marks the line dirty.
-//   6. DeliveryController.handleStopRequested disarms the Enter-retry ladder
-//      and reports a write-canceled in-flight item undelivered immediately —
-//      unless UPS already corroborated the submission.
 // Fake pty, no real CLI.
 const require = createRequire(import.meta.url);
-const { TerminalHost, DeliveryController, KILL_LINE, ESC, CSI_U_ENTER } = require("../../dist/runtime");
+const { TerminalHost, KILL_LINE, ESC, CSI_U_ENTER } = require("../../dist/runtime");
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const failures = [];
@@ -67,8 +63,7 @@ await check("stopRun cancels the deferred text/Enter writes of a just-sent promp
     host.ptyProcess = fakePty(writes);
     host.submitPrompt("stop me before I start");
     // Deferred text (0ms) / Enter (120ms) timers are pending — stop NOW.
-    const { canceledPendingPromptWrite } = await host.stopRun({ inspectDelayMs: 500 });
-    assert.equal(canceledPendingPromptWrite, true, "stop should report canceled prompt writes");
+    await host.stopRun({ inspectDelayMs: 500 });
     await delay(300);
     assert.ok(!hasPaste(writes), "the canceled paste must never reach the pty");
     assert.ok(!hasEnter(writes), "the canceled Enter must never reach the pty");
@@ -86,8 +81,7 @@ await check("belt clear: a floored kill flood lands after the settle delay; the 
     host.submitPrompt("line one\nline two\nline three");
     await delay(250); // let the paste + Enter fire so nothing is canceled
     assert.ok(hasPaste(writes), "precondition: the prompt pasted");
-    const { canceledPendingPromptWrite } = await host.stopRun({ inspectDelayMs: 500 });
-    assert.equal(canceledPendingPromptWrite, false, "nothing pending → nothing canceled");
+    await host.stopRun({ inspectDelayMs: 500 });
     await delay(1_200); // CLI_INPUT_CLEAR_DELAY_MS = 900
     const floods = writes.filter(isKillFlood);
     assert.equal(floods.length, 1, "exactly one belt flood");
@@ -123,25 +117,6 @@ await check("flood sizing rides the session high-water, not the last (steering) 
       floods[0].length,
       30 * 2 + 2,
       "the flood covers the interrupted 30-line turn, not the 1-line steer (review F2)",
-    );
-  } finally {
-    host.dispose();
-  }
-});
-
-await check("a canceled CONTROL write never claims the prompt was canceled", async () => {
-  const writes = [];
-  const host = makeHost();
-  try {
-    host.ptyProcess = fakePty(writes);
-    host.submitPrompt("a prompt whose bytes fully land");
-    await delay(250); // prompt paste + Enter are out
-    host.injectRemoteControl(); // defers a CONTROL-owned Enter (120ms)
-    const { canceledPendingPromptWrite } = await host.stopRun({ inspectDelayMs: 500 });
-    assert.equal(
-      canceledPendingPromptWrite,
-      false,
-      "the /rc Enter cancel must not count as a canceled prompt write (review F3)",
     );
   } finally {
     host.dispose();
@@ -312,266 +287,6 @@ await check("codex /stop inspection still runs when nothing new started", async 
     );
   } finally {
     host.dispose();
-  }
-});
-
-// `run:stopped.slashStopSent` must report what HAPPENED, not what was intended.
-// submitPrompt has screen-owner throws and inspectSlashStop swallows them, so a
-// flag PREDICTED from the guards claimed a `/stop` that was never written — a
-// durable-report lie (review M4). No production screen owner can refuse a codex
-// `/stop` today (the pending control switch that once could was removed with the
-// mid-session drives; the Rewind panel is claude's, and claude sends no `/stop`),
-// so the refusal is FORCED here by standing a screen owner up on the instance
-// between the stop and its inspection. What is pinned is the outcome-derived
-// flag, which must not depend on which guard refused.
-await check("slashStopSent reports the OUTCOME when the /stop write is refused", async () => {
-  const writes = [];
-  const events = [];
-  const host = new TerminalHost({
-    taskId: "stop-interrupt-hygiene-smoke",
-    provider: "codex",
-    defaultWorkspace: process.cwd(),
-    eventSink: (event) => events.push(event),
-  });
-  try {
-    host.ptyProcess = fakePty(writes);
-    host.submitPrompt("codex turn to stop");
-    await delay(250);
-    await host.stopRun({ inspectDelayMs: 300, forceSlashStop: true });
-    // A screen owner stands up between the stop and the inspection — submitPrompt
-    // will throw its guard error.
-    host.isRewindPanelOpen = () => true;
-    await delay(700);
-
-    // stopRun emits the immediate "<key> sent, inspection running" report — here
-    // `Ctrl+C`, since `submitPrompt` above opened a live run on a CODEX host
-    // (SL-15: the key follows the run pointer). The one under test is the
-    // INSPECTION's report, which lands last; neither its `slashStopSent` nor its
-    // reason depends on which key the interrupt used.
-    const stopped = events.filter((event) => event.type === "run:stopped");
-    assert.equal(stopped.length, 2, "the immediate report plus the inspection's");
-    assert.equal(
-      writes.filter((write) => write.includes("/stop")).length,
-      0,
-      "precondition: the screen owner really did block the /stop write",
-    );
-    assert.equal(
-      stopped.at(-1).payload.slashStopSent,
-      false,
-      "the report must not claim a /stop that was refused",
-    );
-    assert.match(stopped.at(-1).payload.slashStopReason, /screen-owner guard/);
-  } finally {
-    host.dispose();
-  }
-});
-
-await check("handleStopRequested reports a write-canceled in-flight item undelivered", async () => {
-  const states = [];
-  const host = {
-    hasActiveRun: () => false,
-    activeRunId: () => null,
-    isApprovalActive: () => false,
-    isRewindPanelOpen: () => false,
-    acceptsPromptInput: () => true,
-    // `acceptsFirstPrompt` is the BOOT-LATCH question (SL-6) — stricter than
-    // `acceptsPromptInput` for codex, identical for claude and for any host whose
-    // readiness is what the test is varying. Mirroring it here keeps this stub a
-    // faithful stand-in instead of a host that latches on rules the real one
-    // dropped.
-    acceptsFirstPrompt: () => true,
-    isHumanActivelyTyping: () => false,
-    nudges: 0,
-    submitPrompt: (text) => ({
-      taskId: "t",
-      runId: "r1",
-      kind: "prompt",
-      submittedAt: new Date().toISOString(),
-    }),
-    nudgePromptSubmit() {
-      this.nudges += 1;
-      return true;
-    },
-  };
-  const controller = new DeliveryController({
-    taskId: "stop-interrupt-hygiene-smoke",
-    provider: "claude",
-    terminalHost: host,
-    eventSink: (event) => {
-      if (event.type === "delivery:state") {
-        states.push(event.payload);
-      }
-    },
-    hasLiveTranscriptSource: () => true,
-    bootDeliveryGraceMs: 0,
-    enterRetryDelaysMs: [80],
-    // Mechanics fixture: tiny ladder, no attachments → margin assert N/A.
-    attachmentWorstCaseMs: 0,
-  });
-  try {
-    controller.enqueue("stopped before delivery finished");
-    await delay(30);
-    controller.handleStopRequested({ promptWriteCanceled: true });
-    const last = states.at(-1);
-    const item = last?.queue.find(() => true);
-    assert.ok(item, "the item is still reported");
-    assert.equal(item.status, "undelivered", "canceled write → undelivered now, not after 45s");
-    assert.match(item.failureReason ?? "", /Stop/, "the reason names the stop");
-    await delay(200);
-    assert.equal(host.nudges, 0, "the Enter-retry ladder is disarmed by the stop");
-  } finally {
-    controller.dispose(); // the receipt timer is non-unref'd — don't hold the process
-  }
-});
-
-await check("handleStopRequested is honest about how far the aborted sequence got", async () => {
-  const makeStopController = () =>
-    new DeliveryController({
-      taskId: "stop-honesty-smoke",
-      provider: "claude",
-      terminalHost: {
-        hasActiveRun: () => false,
-        activeRunId: () => null,
-    activeRunId: () => null,
-        isApprovalActive: () => false,
-        isRewindPanelOpen: () => false,
-        acceptsPromptInput: () => true,
-        acceptsFirstPrompt: () => true,
-        isHumanActivelyTyping: () => false,
-        nudgePromptSubmit: () => true,
-        submitPrompt: () => ({
-          taskId: "t",
-          runId: "r1",
-          kind: "prompt",
-          submittedAt: new Date().toISOString(),
-        }),
-      },
-      eventSink: () => {},
-      hasLiveTranscriptSource: () => true,
-      bootDeliveryGraceMs: 0,
-      enterRetryDelaysMs: [],
-    });
-
-  // Bytes already in the composer (an attachment paste landed, Enter pending):
-  const reached = makeStopController();
-  const reachedItem = reached.enqueue("attachment paste got in");
-  reached.handleStopRequested({ promptWriteCanceled: true, promptReachedComposer: true });
-  const reachedReason =
-    reached.state().queue.find((entry) => entry.id === reachedItem.id)?.failureReason ?? "";
-  assert.match(reachedReason, /composer/, "reports the prompt reached the composer");
-  assert.doesNotMatch(
-    reachedReason,
-    /before it reached the CLI/,
-    "does NOT claim nothing reached the CLI when the paste already landed",
-  );
-  reached.dispose();
-
-  // Nothing left the automation yet (both writes were still pending):
-  const untouched = makeStopController();
-  const untouchedItem = untouched.enqueue("nothing pasted yet");
-  untouched.handleStopRequested({ promptWriteCanceled: true, promptReachedComposer: false });
-  const untouchedReason =
-    untouched.state().queue.find((entry) => entry.id === untouchedItem.id)?.failureReason ?? "";
-  assert.match(untouchedReason, /before it reached the CLI/, "reports nothing reached the CLI");
-  untouched.dispose();
-});
-
-await check("a UPS-corroborated in-flight item survives handleStopRequested intact", async () => {
-  const states = [];
-  const host = {
-    hasActiveRun: () => false,
-    activeRunId: () => null,
-    isApprovalActive: () => false,
-    isRewindPanelOpen: () => false,
-    acceptsPromptInput: () => true,
-    acceptsFirstPrompt: () => true,
-    isHumanActivelyTyping: () => false,
-    submitPrompt: (text) => ({
-      taskId: "t",
-      runId: "r1",
-      kind: "prompt",
-      submittedAt: new Date().toISOString(),
-    }),
-    nudgePromptSubmit: () => true,
-  };
-  const controller = new DeliveryController({
-    taskId: "stop-interrupt-hygiene-smoke",
-    provider: "claude",
-    terminalHost: host,
-    eventSink: (event) => {
-      if (event.type === "delivery:state") {
-        states.push(event.payload);
-      }
-    },
-    hasLiveTranscriptSource: () => true,
-    bootDeliveryGraceMs: 0,
-    enterRetryDelaysMs: [],
-  });
-  try {
-    controller.enqueue("proven submitted before the stop");
-    await delay(30);
-    controller.notePromptSubmittedByCli("proven submitted before the stop");
-    controller.handleStopRequested({ promptWriteCanceled: true });
-    const last = states.at(-1);
-    const item = last?.queue.find(() => true);
-    assert.equal(
-      item?.status,
-      "delivering",
-      "UPS proof outranks the cancel signal — no false undelivered (review F3)",
-    );
-  } finally {
-    controller.dispose();
-  }
-});
-
-await check("handleStopRequested without canceled writes only disarms the ladder", async () => {
-  const states = [];
-  const host = {
-    hasActiveRun: () => false,
-    activeRunId: () => null,
-    isApprovalActive: () => false,
-    isRewindPanelOpen: () => false,
-    acceptsPromptInput: () => true,
-    acceptsFirstPrompt: () => true,
-    isHumanActivelyTyping: () => false,
-    nudges: 0,
-    submitPrompt: () => ({
-      taskId: "t",
-      runId: "r1",
-      kind: "prompt",
-      submittedAt: new Date().toISOString(),
-    }),
-    nudgePromptSubmit() {
-      this.nudges += 1;
-      return true;
-    },
-  };
-  const controller = new DeliveryController({
-    taskId: "stop-interrupt-hygiene-smoke",
-    provider: "claude",
-    terminalHost: host,
-    eventSink: (event) => {
-      if (event.type === "delivery:state") {
-        states.push(event.payload);
-      }
-    },
-    hasLiveTranscriptSource: () => true,
-    bootDeliveryGraceMs: 0,
-    enterRetryDelaysMs: [80],
-    // Mechanics fixture: tiny ladder, no attachments → margin assert N/A.
-    attachmentWorstCaseMs: 0,
-  });
-  try {
-    controller.enqueue("delivered before the stop");
-    await delay(30);
-    controller.handleStopRequested({ promptWriteCanceled: false });
-    const last = states.at(-1);
-    const item = last?.queue.find(() => true);
-    assert.equal(item?.status, "delivering", "a delivered-in-flight item keeps its receipt watch");
-    await delay(200);
-    assert.equal(host.nudges, 0, "but its Enter-retry ladder is still disarmed");
-  } finally {
-    controller.dispose();
   }
 });
 

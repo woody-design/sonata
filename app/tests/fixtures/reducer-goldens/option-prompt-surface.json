@@ -1,12 +1,12 @@
 {
   "01.jsonl": {
     "active": {
-      "events": 145,
+      "events": 133,
       "directiveCounts": {
         "none": 13,
         "report-refresh": 6,
         "session-index-debounced": 6,
-        "full": 23,
+        "full": 11,
         "sidebar": 3,
         "transcript-debounced": 76,
         "strip-in-place": 15,
@@ -209,14 +209,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114277111-1",
-              "provider": "claude",
-              "deliverable": false,
               "activeRun": true,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": []
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -273,12 +270,12 @@
       }
     },
     "background": {
-      "events": 145,
+      "events": 133,
       "directiveCounts": {
         "none": 31,
         "report-refresh": 6,
         "session-index-debounced": 6,
-        "unread-only": 99,
+        "unread-only": 87,
         "sidebar": 3
       },
       "state": {
@@ -478,14 +475,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114277111-1",
-              "provider": "claude",
-              "deliverable": false,
               "activeRun": true,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": []
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],

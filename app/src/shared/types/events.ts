@@ -10,10 +10,6 @@ import type {
   CompletionConfidence,
   CompletionHint,
   CompletionSource,
-  DeliveryItemId,
-  DeliveryQueueItem,
-  DeliveryReceipt,
-  DeliveryTaskState,
   LaunchSpeedMode,
   PendingWake,
   ReasoningEffort,
@@ -24,6 +20,7 @@ import type {
   StopInterruptEncoding,
   TaskId,
   Task,
+  TaskSessionState,
   RuntimeProvider,
 } from "./domain";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
@@ -365,17 +362,7 @@ export type PromptSubmittedEvent = BaseRuntimeEvent<
   }
 >;
 
-export type DeliveryStateEvent = BaseRuntimeEvent<"delivery:state", DeliveryTaskState>;
-
-export type DeliveryReceiptEvent = BaseRuntimeEvent<
-  "delivery:receipt",
-  {
-    taskId: TaskId;
-    itemId: DeliveryItemId;
-    item: DeliveryQueueItem;
-    receipt: DeliveryReceipt;
-  }
->;
+export type SessionStateEvent = BaseRuntimeEvent<"session:state", TaskSessionState>;
 
 export type RunStartedEvent = BaseRuntimeEvent<
   "run:started",
@@ -750,8 +737,7 @@ export type ProductRuntimeEvent =
   | CliStateChangedEvent
   | TaskUpdatedEvent
   | PromptSubmittedEvent
-  | DeliveryStateEvent
-  | DeliveryReceiptEvent
+  | SessionStateEvent
   | RunStartedEvent
   | RunUpdatedEvent
   | RunStopRequestedEvent
@@ -807,8 +793,7 @@ export type RunIndexEvent = Exclude<
   | ClaudeFullscreenOfferClearedEvent
   | CodexSessionResumableExitEvent
   | CliSessionStartBlockedEvent
-  | DeliveryStateEvent
-  | DeliveryReceiptEvent
+  | SessionStateEvent
   | TaskUpdatedEvent
   | RemoteControlStateEvent
   | OptionPromptDetectedEvent

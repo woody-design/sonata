@@ -50,7 +50,7 @@ export function composerActionMode(
 
 /**
  * Is a run under way for this view, by EITHER evidence — the run report's latest
- * entry or the delivery controller's own bit. The union is what the composer has
+ * entry or the host's live session bit. The union is what the composer has
  * always read (it was written inline in the painter until S2).
  *
  * Deliberately NOT derived from `activeRunKey` (review round 1): that function
@@ -59,7 +59,7 @@ export function composerActionMode(
  * and the boolean is total where the identity is not.
  */
 export function composerActiveRun(view: TaskViewState | null): boolean {
-  return hasActiveRun(view) || Boolean(view?.deliveryState?.activeRun);
+  return hasActiveRun(view) || Boolean(view?.sessionState?.activeRun);
 }
 
 /** Is anything staged to send: typed text, or attachments. Attachments come
@@ -223,30 +223,29 @@ export function sessionPermissionSwitchHint(provider: RuntimeProvider): string {
  *
  * Two strings below promise a boot: the send title's "sends as soon as it accepts
  * input" and the placeholder's "will send when it's ready". Both are true of a CLI
- * that is merely slow, and both become the eternal pin this program exists to
- * remove once the CLI is parked on a first-run screen nobody in Reading can see —
- * because `bootLatched` never opens and neither string ever changes.
+ * that is merely slow — a message sent before the CLI first reaches its prompt is
+ * held and written once when it does (the boot hold) — and both become the
+ * eternal pin this program exists to remove once the CLI is parked on a first-run
+ * screen nobody in Reading can see, because `bootLatched` never opens and neither
+ * string ever changes.
  *
  * `sessionStartBlocked` is the S4 diagnosis for this task: the probe has confirmed
  * the CLI cannot start. When it is set these two functions must stop predicting a
- * boot. The send title yields by SUBTRACTION — skipping the optimistic arm drops
- * it onto the truthful "Queued — delivers when X is ready", which is exactly what
- * happens (the queue holds, and finishing the CLI's setup releases it). The
- * placeholder gets the one new sentence, because the arm it would otherwise fall
- * through to ("Continue, correct, or redirect this Task") reads oblivious directly
- * beneath a banner saying the CLI is not there.
+ * boot. The send title yields onto the plain statement of what the press does —
+ * "Queued — delivers when X is ready.": the message is held by the boot hold, and
+ * finishing the CLI's setup in its own window releases it. The placeholder gets
+ * the one new sentence, because the arm it would otherwise fall through to
+ * ("Continue, correct, or redirect this Task") reads oblivious directly beneath a
+ * banner saying the CLI is not there.
  *
  * The second argument is the MODE, not the run (S2): a title must say what THIS
- * press will do. A run with a staged message is send-mode and falls through to
- * the ladder below, which already tells the two providers' mid-turn semantics
- * apart without being taught them — Claude writes through to the CLI's native
- * queue (`deliverable` stays true → "Send to Claude"), Codex holds until the
- * turn ends (`deliverable` false → "Queued — delivers when Codex is ready.").
+ * press will do. A run with a staged message is send-mode, and a send writes to
+ * the CLI at once whatever it is doing (subtraction X2) — the CLI decides what a
+ * mid-turn message means, exactly as for a terminal Enter.
  */
 export function sendPromptTitle(
   view: TaskViewState | null,
   stopMode: boolean,
-  pendingApproval: boolean,
   hasContent: boolean,
   sessionStartBlocked = false,
 ): string {
@@ -260,14 +259,10 @@ export function sendPromptTitle(
   if (!hasContent) {
     return "Type a message before sending.";
   }
-  if (pendingApproval) {
-    return `Queued — delivers after ${providerName} approval is resolved.`;
-  }
-  if (view.live && !view.deliveryState?.bootLatched && !sessionStartBlocked) {
-    return `${providerName} is starting — your message sends as soon as it accepts input.`;
-  }
-  if (view.deliveryState && !view.deliveryState.deliverable) {
-    return `Queued — delivers when ${providerName} is ready.`;
+  if (view.live && !view.sessionState?.bootLatched) {
+    return sessionStartBlocked
+      ? `Queued — delivers when ${providerName} is ready.`
+      : `${providerName} is starting — your message sends as soon as it accepts input.`;
   }
   return `Send to ${providerName}`;
 }
@@ -278,15 +273,14 @@ export function sendPromptTitle(
  *  point-of-action hint. The hint arm has no live user: its one caller, the
  *  slash submit guard, retired on 2026-07-27 when submit became verbatim and
  *  stopped having anything to caution about. The policy is unchanged — a
- *  future hint belongs here. Lifecycle narration ("Starting Claude", "Queued",
+ *  future hint belongs here. Lifecycle narration ("Starting Claude", "Ready",
  *  "Selected proj", …) never renders: liveness already lives in the status
  *  strip, outcomes on the turn cards. Returns "" for suppressed messages. */
 export function composerNotice(status: string): string {
   const narration: RegExp[] = [
-    /^(Idle|Ready|Running|Queued|Stopping|Stopped|Failed)$/,
+    /^(Idle|Ready|Running|Stopping|Stopped|Failed)$/,
     /^\S+ (is working|is starting)$/,
     /^Starting /,
-    /^Delivering to /,
     /^Waiting for /,
     // The spawn receipt ("Claude PTY 12345") is boot plumbing, not a message.
     /^\S+ PTY \d+$/,
@@ -303,6 +297,11 @@ export function composerNotice(status: string): string {
     /^Waiting in the CLI$/,
     /^Questions dismissed$/,
     /^Answered$/,
+    // An approval's outcome is on the turn card and the drawer retires itself.
+    // Until X2 they rarely outlived a frame: the delivery state's own change
+    // (the approval gate opening) overwrote them at once.
+    /^Approval (sent|denied)$/,
+    /^Answered in CLI$/,
     // Dead affordance: send is disabled while the composer is empty.
     /^Type a message before sending$/,
   ];
@@ -346,7 +345,7 @@ export function composerPlaceholder(
   if (!view.live) {
     return `Message ${providerName} — resumes this session`;
   }
-  if (!view.deliveryState?.bootLatched) {
+  if (!view.sessionState?.bootLatched) {
     return `${providerName} is starting — your message will send when it's ready`;
   }
   if ((view.report?.runs.length ?? 0) === 0) {

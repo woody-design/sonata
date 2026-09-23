@@ -872,24 +872,17 @@ await check("the Rewind guard is claude-only, and outranks the SessionStart hook
   }
 });
 
-// The submitPrompt backstop (the TOCTOU leg of the same guard). It must throw a
-// DELIVERY-GUARD error — matched by isDeliveryGuardError on the "rewind panel is
-// open" phrase — so the item is re-queued rather than marked undelivered.
-await check("submitPrompt refuses to write into an open Rewind panel", async () => {
+// Native semantics (subtraction X2, orchestrator ruling): the Rewind panel is a
+// READINESS fact only. A Send while it is open is written, exactly as an Enter
+// typed in the CLI would be — the panel's own Enter restores the highlighted
+// row. INVERTED from the pre-X2 backstop, which threw a delivery-guard error.
+await check("submitPrompt writes into an open Rewind panel (no send gate)", async () => {
   const host = makeHost([], { provider: "claude" });
   try {
     host.ptyProcess = fakePty();
     host.screenModel = stubScreenModel(REWIND_SCREEN_ARROWED);
-    assert.throws(
-      () => host.submitPrompt("do the thing"),
-      /rewind panel is open/i,
-      "the phrase is load-bearing: isDeliveryGuardError matches on it",
-    );
-    assert.equal(host.nudgePromptSubmit(), false, "and the bare Enter retry refuses too");
-
-    // Same host, panel dismissed: the hold is a state, not a latch.
-    host.screenModel = stubScreenModel(CLAUDE_IDLE_SCREEN);
-    assert.ok(host.submitPrompt("do the thing"), "delivery resumes once the panel closes");
+    assert.equal(host.isRewindPanelOpen(), true, "precondition: the panel is recognized");
+    assert.ok(host.submitPrompt("do the thing"), "the send is written, not refused");
   } finally {
     host.dispose();
   }

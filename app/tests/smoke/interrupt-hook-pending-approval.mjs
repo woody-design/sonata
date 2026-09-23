@@ -22,15 +22,15 @@
 // production broker holding a real ask, Ctrl+C fires `Interrupt` at +131ms, NO
 // `Stop` follows, and the `ask-<id>.json` is still on disk 25s later with no
 // reply and no expiry marker. Nothing will ever resolve it. Routed down the
-// hook-stop path its id sits in `pendingBrokerApprovals` forever,
-// `DeliveryController.pendingApprovalKeys` keeps the gate shut, and every later
-// send wedges until the pty dies — invisibly, because the reducer has already
-// retracted the card. Before SL-9 the ~+2s `terminal-idle-heuristic` closer
-// (which IS a pending turn end) released it; the hook preempts that.
+// hook-stop path its id sits in `pendingBrokerApprovals` forever — an ask no one
+// can answer and an unbalanced report row (before X2 it also held every later
+// send through the since-deleted delivery gate). Before SL-9 the ~+2s
+// `terminal-idle-heuristic` closer (which IS a pending turn end) released it;
+// the hook preempts that.
 //
 // WHY THE RUN IS STARTED BY HOOKS, not by `submitPrompt`. The assertion is about
 // the turn-terminal release path, not about composer readiness. `SessionStart`
-// opens the delivery boot latch structurally for both providers and
+// opens the boot latch structurally for both providers and
 // `UserPromptSubmit` starts the run via `beginRunFromHook` — the same two edges
 // production uses — so this test needs no idle-composer needle from the fake CLI
 // and cannot rot when a TUI repaints differently.
@@ -90,9 +90,7 @@ if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
 process.stdin.resume();
 const COMPOSER = "\\u001b[2J\\u001b[H\\u203a Ask Codex to do anything\\n";
 process.stdout.write(COMPOSER);
-// Echo what was pasted, as a real composer does — without the
-// pty-composer-echo receipt a delivered item stays in flight forever and the
-// queue-flow proof at the end would be measuring the fake, not the gate.
+// Echo what was pasted, as a real composer does.
 process.stdin.on("data", (data) => {
   const echoed = data.replace(/\\u001b\\[[0-9;]*[A-Za-z~]/g, "").replace(/[\\u0000-\\u001f]/g, " ").trim();
   if (echoed) { process.stdout.write(echoed + "\\n" + COMPOSER); }
@@ -147,7 +145,6 @@ const check = (label, condition, detail) => {
 };
 const of = (type) => events.filter((event) => event.type === type);
 const lastCliActivity = () => of("cli-state:changed").at(-1)?.payload.activity ?? null;
-const lastDelivery = () => of("delivery:state").at(-1)?.payload ?? null;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function waitFor(predicate, timeoutMs, what) {
@@ -195,11 +192,6 @@ try {
     `activity=${lastCliActivity()}`,
   );
   check("the held ask has not been decided", of("approval:decision").length === 0);
-  // Deliberately NOT asserting `canDeliver() === false` here. It is false, but a
-  // live run makes it false too, so the boolean cannot isolate the approval key
-  // at this moment and an assertion on it would pass for the wrong reason. The
-  // key's release is proved operationally at the end instead, once the run is
-  // closed and the approval key is the only thing that could still hold the gate.
 
   // --- the Interrupt hook, through the real watcher ------------------------
   // No `Stop` is fired, deliberately: codex does not send one for an interrupted
@@ -276,37 +268,11 @@ try {
     of("approval:decision").length === 1,
     `count=${of("approval:decision").length}`,
   );
-
-  // --- the operational half: the gate really did reopen ---------------------
-  // Taken LAST, and by sending rather than by reading a boolean. With an empty
-  // queue the DeliveryController emits no fresh `delivery:state`, so
-  // `lastDelivery()` is a stale pre-interrupt reading — an assertion on it would
-  // be measuring nothing. A real send is unambiguous: the run is closed and the
-  // CLI is idle, so a still-held approval key is the ONLY thing that could keep
-  // this item queued. Pre-fix it stays queued forever; post-fix it flows.
-  controller.submitPrompt(taskId, "This send must flow once the Interrupt releases the orphan.");
-  await waitFor(
-    () => (lastDelivery()?.queue ?? []).every((item) => item.status !== "queued"),
-    15_000,
-    "the held item leaving the queue (a still-held approval key would pin it)",
-  );
-  // The DEPARTURE is the proof, not `deliverable` — which reads false again the
-  // moment an item is in flight (the gate is busy with that send). Asserting it
-  // true here would be asserting the wrong thing and would fail for a healthy
-  // reason; asserting the item left `queued` is precisely "no approval key pins
-  // it any more".
-  const finalQueue = (lastDelivery()?.queue ?? []).map((item) => item.status);
-  check(
-    "the send is in flight or done, never still queued",
-    finalQueue.every((status) => status !== "queued"),
-    `queue=${JSON.stringify(finalQueue)}`,
-  );
 } catch (error) {
   // A timeout here is a real failure, but an opaque one — dump the evidence a
   // reader would otherwise have to re-derive by hand.
   failures.push(String(error?.message ?? error));
   failures.push(`decisions=${JSON.stringify(of("approval:decision").map((e) => e.payload))}`);
-  failures.push(`deliveryTrail=${JSON.stringify(of("delivery:state").map((e) => ({ deliverable: e.payload.deliverable, reason: e.payload.reason ?? null, queue: (e.payload.queue ?? []).map((i) => i.status) })))}`);
   failures.push(`runTrail=${JSON.stringify(of("run:updated").map((e) => `${e.payload.status}/${e.payload.completionSource ?? "-"}`))}`);
   failures.push(`cliStateTrail=${JSON.stringify(of("cli-state:changed").map((e) => e.payload.activity))}`);
 } finally {

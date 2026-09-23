@@ -1,12 +1,12 @@
 {
   "01.jsonl": {
     "active": {
-      "events": 120,
+      "events": 109,
       "directiveCounts": {
         "none": 11,
         "report-refresh": 6,
         "session-index-debounced": 6,
-        "full": 21,
+        "full": 10,
         "sidebar": 3,
         "transcript-debounced": 57,
         "usage-in-place": 2,
@@ -218,14 +218,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114269578-1",
-              "provider": "claude",
-              "deliverable": false,
               "activeRun": true,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": []
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -270,7 +267,7 @@
             "resumeChoice": null,
             "slashAttention": null,
             "approvalExpired": false,
-            "status": "Claude is working",
+            "status": "Claude is asking",
             "unread": false,
             "completedUnseen": false
           }
@@ -278,12 +275,12 @@
       }
     },
     "background": {
-      "events": 120,
+      "events": 109,
       "directiveCounts": {
         "none": 27,
         "report-refresh": 6,
         "session-index-debounced": 6,
-        "unread-only": 78,
+        "unread-only": 67,
         "sidebar": 3
       },
       "state": {
@@ -492,14 +489,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114269578-1",
-              "provider": "claude",
-              "deliverable": false,
               "activeRun": true,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": []
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -544,7 +538,7 @@
             "resumeChoice": null,
             "slashAttention": null,
             "approvalExpired": false,
-            "status": "Claude is working",
+            "status": "Claude is asking",
             "unread": true,
             "completedUnseen": false
           }

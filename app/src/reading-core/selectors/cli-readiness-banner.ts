@@ -70,14 +70,13 @@ export interface CliReadinessBannerModel {
    *    outcome available: the machine facts go green, this banner retires on them,
    *    and the task's own PTY stays parked forever — so the composer falls back to
    *    "…is starting, your message will send when it's ready" over a session that
-   *    never will, with the prompt still held in the queue. The eternal pin, rebuilt
+   *    never will, with the prompt still held by the boot hold. The eternal pin, rebuilt
    *    by its own cure.
    *
    * The pointer is the right degradation rather than a coincidence of the factory:
    * the copy says the CLI is not logged in, the login screen IS already up in the
    * window the pointer opens, and finishing it there genuinely heals (the CLI paints its
-   * composer, `acceptsPromptInput()` turns true, the delivery pump latches and the
-   * queued prompt goes out).
+   * composer, the boot latch opens and the held prompt goes out).
    *
    * A DEAD pty keeps the "Log in" button: there is nothing to point at, so a fresh
    * spawn is the only door. `view.live` is the discriminator, and it is now exact in
@@ -102,7 +101,7 @@ export interface CliReadinessBannerModel {
  * into a conversation that already exists, and both shapes of failure leave it
  * honest: with the CLI absent the pty is gone, so the session is dormant and the
  * send is a RESUME the user may well want to retry — blocking it would take away
- * the retry; with the CLI signed out the pty is alive and the delivery queue holds
+ * the retry; with the CLI signed out the pty is alive and the boot hold keeps
  * the prompt until the boot latch opens, which is what finishing the login **in
  * this task's own PTY** does. (It is NOT what finishing a login in a second,
  * independent copy of the CLI does — that leaves this session's pty parked and its

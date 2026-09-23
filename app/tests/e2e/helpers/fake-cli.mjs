@@ -121,9 +121,8 @@ ${authArm}`;
  * }} [options]
  *   `readyOutput` — the banner + idle prompt this session paints (defaults to the
  *   provider's shape above). `records` — which observation files to leave in
- *   `SONATA_RUNTIME_DIR`. `echoStdin` — echo written bytes back to stdout, which is
- *   how a test earns DeliveryController's pty-composer-echo receipt instead of
- *   waiting out its 45s timeout on every send.
+ *   `SONATA_RUNTIME_DIR`. `echoStdin` — echo written bytes back to stdout, as a
+ *   real composer does.
  */
 export function fakeCliSource(provider, options = {}) {
   const {

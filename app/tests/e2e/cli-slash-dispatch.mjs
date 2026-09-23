@@ -1,11 +1,12 @@
 // CLI Slice 4 — Problem 2 regression lock (live claude). The keystone bug: the
 // FIRST /architect <multiline> in a new task hung (no turn). This drives the
-// PRODUCTION TerminalHost + DeliveryController exactly as RuntimeController does,
-// on a fresh untrusted cwd, enqueues `/architect <multiline>` before the
-// composer is ready, and asserts a real model turn DISPATCHES.
+// PRODUCTION TerminalHost send exactly as RuntimeController does
+// (`submitPromptWhenReady`), on a fresh untrusted cwd, sends `/architect
+// <multiline>` before the composer is ready — so it rides the boot hold — and
+// asserts a real model turn DISPATCHES.
 //
 // Runtime-level (not the GUI) so it is deterministic — no drawer/floor PTY
-// repaint timing. The renderer→IPC→delivery handoff is covered by the GUI e2e
+// repaint timing. The renderer→IPC→host handoff is covered by the GUI e2e
 // (cli-slash-semantic). Together they cover prepend → compose → submit →
 // dispatch end to end.
 //
@@ -19,7 +20,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { TerminalHost, DeliveryController, cleanTerminal } = require("../../dist/runtime");
+const { TerminalHost, cleanTerminal } = require("../../dist/runtime");
 
 const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-slash-dispatch-"));
 const hooksDir = path.join(cwd, ".sonata", "hooks");
@@ -66,26 +67,13 @@ const host = new TerminalHost({
     if (event.type === "pty:data") {
       raw = `${raw}${event.payload.data}`.slice(-1024 * 1024);
     }
-    delivery.handleRuntimeEvent(event); // faithful to RuntimeController
   },
-});
-const delivery = new DeliveryController({
-  taskId: "slash-dispatch",
-  provider: "claude",
-  terminalHost: host,
-  eventSink: () => {},
-  hasLiveTranscriptSource: () => false,
-  // Keep this real-spawn dispatch e2e in its pre-fix behavior: no 500ms boot
-  // grace, no auto Enter re-sends into the live CLI (the boot-race mechanisms
-  // have their own fences).
-  bootDeliveryGraceMs: 0,
-  enterRetryDelaysMs: [],
 });
 
 try {
   host.startTask({ cwd, rows: 40, cols: 120 }); // production buildArgs → hooks injected
-  const item = delivery.enqueue(MULTILINE);
-  checks.enqueued = item.status === "queued";
+  host.submitPromptWhenReady(MULTILINE);
+  checks.heldAtBoot = host.bootLatched() === false;
 
   let trustHandled = false;
   let dispatchedAtMs = null;
@@ -120,7 +108,7 @@ try {
   checks.dispatchedAtMs = dispatchedAtMs;
   checks.userPromptSubmitFired = hookEvents().filter((e) => e === "UserPromptSubmit").length;
 
-  const success = checks.enqueued && checks.dispatched;
+  const success = checks.heldAtBoot && checks.dispatched;
   if (!success) {
     fs.writeFileSync(path.join(cwd, "screen.txt"), cleanTerminal(raw).slice(-16000), "utf8");
     checks.screen = path.join(cwd, "screen.txt");
@@ -131,7 +119,6 @@ try {
   console.error(JSON.stringify({ success: false, checks, error: String(error) }, null, 2));
   process.exitCode = 1;
 } finally {
-  delivery.dispose();
   host.dispose();
   await delay(500);
   if (process.exitCode === 0) {

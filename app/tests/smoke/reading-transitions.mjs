@@ -354,7 +354,9 @@ function task(id, title = `Task ${id}`) {
   retains("slash 'in the terminal' pointer", (v) => {
     v.slashAttention = { runId: "r", command: "/compact" };
   });
-  retains("queued delivery", (v) => { v.deliveryState = { items: [] }; });
+  retains("a session that reached a prompt", (v) => {
+    v.sessionState = { taskId: v.task.id, activeRun: false, activeRunId: null, bootLatched: true };
+  });
   retains("per-dormant Remote Control desire", (v) => { v.remoteControl.armedOverride = true; });
 
   // A whitespace-only draft with NO attachments is still evictable (trim()).

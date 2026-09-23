@@ -35,7 +35,8 @@
 //
 // Fixture bytes: the approval panel frame is ADAPTED from
 // tests/smoke/stop-hook-orphan-approval.mjs (itself ADAPTED from
-// submit-approval-guard.mjs — claude file-edit panel, legacy hint grammar, so
+// the since-deleted submit-approval-guard.mjs — claude file-edit panel, legacy
+// hint grammar, so
 // the shared detector takes the hint-fallback path and sets approvalActive). The
 // idle-composer and activity frames are COMPOSED — the minimum bytes satisfying
 // detectIdlePrompt's ordering rule and the claude activityHints vocabulary.
@@ -120,9 +121,7 @@ process.stdin.on("data", (data) => {
     process.stdout.write(COMPOSER);
     return;
   }
-  // Echo what was pasted, as a real composer does — that is what earns the
-  // pty-composer-echo receipt, without which the delivered prompt stays in
-  // flight and the queue never settles.
+  // Echo what was pasted, as a real composer does.
   const echoed = data.replace(/\\u001b\\[[0-9;]*[A-Za-z~]/g, "").replace(/[\\u0000-\\u001f]/g, " ").trim();
   if (echoed) {
     process.stdout.write(echoed + "\\n");
@@ -218,20 +217,11 @@ try {
   controller.submitPrompt(taskId, promptText);
   await waitFor(() => of("run:started").length > 0, 20_000, "the prompt starting a run");
   const runId = of("run:started")[0].payload.id;
-  // The echo receipt settles the queue, so nothing is mid-delivery when the
-  // byte log is read as a baseline below.
-  await waitFor(
-    () => (of("delivery:state").at(-1)?.payload.queue ?? []).length === 0,
-    15_000,
-    "the prompt's echo receipt",
-  );
-  // …and the send's own Enter-retry heal ladder must be spent too: a rung writes
-  // a CSI-u Enter, the very byte the approve fallback would write, so a rung
-  // landing inside the measurement window would read as a refusal breach
-  // (MEASURED: rung 0 fires 2.5s after the delivery — 250ms past a 2s quiet
-  // window). The quiet window is therefore wider than the ladder's own largest
-  // gap (rungs at 2.5s and 6s ⇒ 3.5s), so it cannot resolve between two rungs.
-  await waitForWireQuiet(4_000, 30_000);
+  // The send's own paste + CSI-u Enter (the very byte the approve fallback would
+  // write) must be on the wire before the byte log is read as a baseline below.
+  // A send is written once, at once (X2: no Enter-retry ladder), so a quiet
+  // window well past its ~120ms Enter settles it.
+  await waitForWireQuiet(2_000, 30_000);
 
   // === PHASE 1: no panel anywhere — both shapes of a missing broker entry ====
   check("no approval has been detected yet", of("approval:detected").length === 0);

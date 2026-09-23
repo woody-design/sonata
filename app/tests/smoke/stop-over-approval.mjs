@@ -7,31 +7,27 @@ import { createRequire } from "node:module";
 //
 // `stopRun()` writes ESC, which the CLI reads as a DENY while a native panel
 // owns the screen — but the path used to clear nothing: `approvalActive` stayed
-// true with no clearer reachable from a stop, and the scrape's
-// SCRAPE_APPROVAL_KEY in DeliveryController.pendingApprovalKeys is released ONLY
-// by an `approval:decision`. Two independent gates then read closed forever and
-// every later send sat "Queued" until the user typed in the Terminal.
+// true with no clearer reachable from a stop, and the scraped ask never earned
+// its `approval:decision` (before X2 that also held every later send "Queued"
+// behind the since-deleted delivery gate until the user typed in the Terminal).
 //
-// Driven through the REAL scrape path (real PTY, real grid, real delivery
-// controller) so the assertions are about the shipped detector, not a stub. Two
-// phases, because a stop over a panel has two materially different shapes:
+// Driven through the REAL scrape path (real PTY, real grid) so the assertions
+// are about the shipped detector, not a stub. Two phases, because a stop over a
+// panel has two materially different shapes:
 //
-//   PHASE 1 — a stop that RELEASES a queued item (the original bug report).
-//     The item is stuck "Queued" behind the panel; the settle decision releases
-//     it synchronously from inside stopRun (eventSink → controller → delivery
-//     pump → deliver → submitPrompt, one stack). So this phase also pins the
-//     WRITE ORDERING that the settle call's position buys (review 1): the stop's
-//     `cliInputMaybeDirty` must already be set when that submit runs, or the
-//     pre-submit kill-line flood is skipped and the paste concatenates onto the
-//     prompt Esc restored into the composer. And the released send legitimately
+//   PHASE 1 — a stop followed at once by a send (the original bug report's
+//     shape). The send must find the stop's `cliInputMaybeDirty` already set,
+//     or the pre-submit kill-line flood is skipped and the paste concatenates
+//     onto the prompt Esc restored into the composer. And the send legitimately
 //     disarms the stop's one-shot Esc retry — asserted behaviourally.
 //
-//   PHASE 2 — a stop with an EMPTY queue, which leaves that Esc retry armed.
-//     A fresh panel then surfaces and `noteToolActivityAfterStop` resends the
-//     Esc into it — the second site the same settlement is wired at.
+//   PHASE 2 — a stop with nothing sent after it, which leaves that Esc retry
+//     armed. A fresh panel then surfaces and `noteToolActivityAfterStop`
+//     resends the Esc into it — the second site the same settlement is wired at.
 //
 // Fixture bytes:
-//  - the approval panel frames are ADAPTED from tests/smoke/submit-approval-guard.mjs
+//  - the approval panel frames are ADAPTED from the since-deleted
+//    tests/smoke/submit-approval-guard.mjs
 //    (claude file-edit panel, legacy hint grammar — "Allow this edit?" avoids the
 //    v2 "do you want to" anchor, so the shared detector takes the hint-fallback
 //    path and sets approvalActive). One distinct filename per panel so each
@@ -41,7 +37,7 @@ import { createRequire } from "node:module";
 //    text, "? for shortcuts" as the idle footer) and the claude activityHints
 //    vocabulary. They are not a captured layout.
 const require = createRequire(import.meta.url);
-const { DeliveryController, TerminalHost } = require("../../dist/runtime");
+const { TerminalHost } = require("../../dist/runtime");
 
 // Mirrors of terminal-host constants the byte-ordering assertion reads. Built
 // from char codes so no control byte is a literal in this source file.
@@ -54,12 +50,12 @@ const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-stop-over-approv
 const scriptPath = path.join(workspace, "fake-approval-cli.mjs");
 const inputLogPath = path.join(workspace, "stdin.log");
 const promptText = "Please edit stop-over-approval.txt";
-const heldText = "This send sat Queued behind the panel.";
+const heldText = "A send right after the stop.";
 // Typed into the Terminal (writeUserInput) to make the fake ask again without
 // starting a run — `noteToolActivityAfterStop` refuses while one is active.
 const panelBTrigger = "ASK-B";
 const panelCTrigger = "ASK-C";
-const finalText = "And the queue keeps flowing afterwards.";
+const finalText = "And sends keep reaching the CLI afterwards.";
 
 fs.writeFileSync(
   scriptPath,
@@ -107,8 +103,7 @@ process.stdin.on("data", (data) => {
   if (asked === 0 && seen.includes(promptNeedle)) {
     asked = 1;
     panelUp = true;
-    // Echo the prompt into the composer (earns the pty-composer-echo receipt),
-    // then work, then ask. Painted in one turn so the run's raw never reads as
+    // Echo the prompt into the composer, then work, then ask. Painted in one turn so the run's raw never reads as
     // an idle composer in between.
     process.stdout.write(promptNeedle + "\\n");
     paintPanel("stop-over-approval.txt");
@@ -135,22 +130,7 @@ const host = new TerminalHost({
     if (event.type !== "pty:data" && event.type !== "report:updated") {
       events.push(event);
     }
-    // Everything the controller sees in production, pty:data included (its
-    // echo-receipt feed): the gate must open on the real event stream.
-    delivery.handleRuntimeEvent(event);
   },
-});
-const delivery = new DeliveryController({
-  taskId,
-  provider: "claude",
-  terminalHost: host,
-  eventSink: () => {},
-  hasLiveTranscriptSource: () => false,
-  pumpRetryIntervalMs: 50,
-  // This fence asserts the gate, not the boot Enter-swallow grace or the heal
-  // ladder — both have their own fences (delivery-enter-retry.mjs).
-  bootDeliveryGraceMs: 0,
-  enterRetryDelaysMs: [],
 });
 
 const failures = [];
@@ -176,10 +156,7 @@ try {
 
   // === PHASE 0: boot, one run, one panel ===================================
   await waitUntil(() => host.acceptsPromptInput(), 5000, "idle composer");
-  // Enqueued rather than submitted on the host: the boot latch only opens
-  // inside pump(), and an unlatched controller would read canDeliver() false
-  // for a reason that has nothing to do with the approval.
-  delivery.enqueue(promptText);
+  host.submitPrompt(promptText);
   await waitUntil(
     () => events.some((event) => event.type === "run:started"),
     5000,
@@ -188,15 +165,6 @@ try {
   const runId = events.find((event) => event.type === "run:started")?.payload.id ?? null;
   await waitUntil(() => detectionsSoFar().length === 1, 5000, "approval detection");
   const detected = detectionsSoFar()[0];
-  // The fake's echo earns the pty-composer-echo receipt, so `inFlight` clears
-  // and the approval becomes the ONLY thing canDeliver() can be blocked on.
-  await waitUntil(
-    () => delivery.state().queue.length === 0,
-    5000,
-    "the first prompt's echo receipt (clears inFlight)",
-  );
-
-  const gateClosed = delivery.state().deliverable;
   check("panel sets approvalActive", host.isApprovalActive() === true);
   check(
     "panel is attributed to the run",
@@ -204,15 +172,10 @@ try {
     `runId=${detected.payload.runId} run=${runId}`,
   );
   check("panel kind is file-edit", detected.payload.kind === "file-edit", `kind=${detected.payload.kind}`);
-  check("canDeliver() is false under a live panel", gateClosed === false);
 
-  // === PHASE 1: a stop that RELEASES a queued item =========================
-  const heldItem = delivery.enqueue(heldText);
+  // === PHASE 1: a stop, then a send at once =================================
   await delay(250);
-  const heldStatus = delivery.state().queue.find((item) => item.id === heldItem.id)?.status ?? null;
   const logBeforeStop = readLog();
-  check("an item queued under the panel stays queued", heldStatus === "queued", `status=${heldStatus}`);
-  check("and none of its bytes reached the CLI", !logBeforeStop.includes(heldText));
 
   // The /stop inspection is codex-only (claude has supportsSlashStop false); the
   // long delay keeps its timer out of this fence's window regardless.
@@ -249,39 +212,34 @@ try {
     `decision=${decisionIndex} stopped=${stoppedIndex}`,
   );
   check("isApprovalActive() is false after the stop", host.isApprovalActive() === false);
-  const gateOpen = delivery.state().deliverable;
-  check("canDeliver() is true after the stop", gateOpen === true);
 
-  // The held item goes out — and its bytes are ORDERED behind the stop's own
-  // composer hygiene. A missing flood means the submit ran from inside stopRun
-  // before `cliInputMaybeDirty` was set: the Esc-restored prompt would then be
-  // concatenated with this paste (review 1).
-  await waitUntil(() => readLog().includes(heldText), 5000, "the held item reaching the CLI");
+  // A send right after the stop — its bytes are ORDERED behind the stop's own
+  // composer hygiene. A missing flood means the send did not see
+  // `cliInputMaybeDirty`: the Esc-restored prompt would then be concatenated
+  // with this paste (review 1).
+  host.submitPrompt(heldText);
+  await waitUntil(() => readLog().includes(heldText), 5000, "the send reaching the CLI");
   const logAfterStop = readLog();
   const heldPasteAt = logAfterStop.indexOf(heldText);
   const preSubmitWindow = logAfterStop.slice(logBeforeStop.length, heldPasteAt);
   const floodBeforePaste = new RegExp(`${KILL_LINE}{${CLI_INPUT_CLEAR_MIN_KILLS},}`).test(preSubmitWindow);
   check(
-    "the held item left the queue",
-    delivery.state().queue.find((item) => item.id === heldItem.id) === undefined,
-  );
-  check(
-    "the pre-submit kill-line flood precedes the held item's paste",
+    "the pre-submit kill-line flood precedes the send's paste",
     floodBeforePaste,
     `window=${JSON.stringify(preSubmitWindow.slice(0, 120))}`,
   );
 
-  // The released send legitimately disarms the stop's one-shot Esc retry — an
-  // Esc now would kill the turn that send is starting. Asserted behaviourally:
-  // the retry must be a no-op here. (This is also why PHASE 2 needs its own
-  // stop with an empty queue to exercise the retry at all.)
+  // The send legitimately disarms the stop's one-shot Esc retry — an Esc now
+  // would kill the turn that send is starting. Asserted behaviourally: the retry
+  // must be a no-op here. (This is also why PHASE 2 needs its own stop with no
+  // send after it to exercise the retry at all.)
   const escsAfterPhase1 = bareEscCount();
   check("exactly one bare Esc after phase 1", escsAfterPhase1 === 1, `count=${escsAfterPhase1}`);
   await delay(1500); // clear STOP_ESC_RETRY_MIN_MS so only the disarm can explain a no-op
   host.noteToolActivityAfterStop();
   await delay(100);
   check(
-    "the released send disarmed the stop's Esc retry (no resend)",
+    "the send disarmed the stop's Esc retry (no resend)",
     bareEscCount() === 1 && decisionsSoFar().length === 1,
     `escs=${bareEscCount()} decisions=${decisionsSoFar().length}`,
   );
@@ -292,11 +250,10 @@ try {
   );
   check("still not approvalActive past the settle window", host.isApprovalActive() === false);
 
-  // === PHASE 2: a stop with an EMPTY queue leaves the retry armed ==========
-  await waitUntil(() => delivery.state().queue.length === 0, 5000, "the held item's receipt");
+  // === PHASE 2: a stop with nothing sent after it leaves the retry armed ====
   host.writeUserInput(panelBTrigger);
   await waitUntil(() => detectionsSoFar().length === 2, 5000, "the second approval panel");
-  check("the fresh panel re-closes the gate", delivery.state().deliverable === false);
+  check("the fresh panel sets approvalActive", host.isApprovalActive() === true);
 
   await host.stopRun({ inspectDelayMs: 60_000 });
   check("the second stop settles its panel too", decisionsSoFar().length === 2, `count=${decisionsSoFar().length}`);
@@ -308,7 +265,7 @@ try {
   await delay(1500);
   host.writeUserInput(panelCTrigger);
   await waitUntil(() => detectionsSoFar().length === 3, 5000, "the third approval panel");
-  check("the third panel re-closes the gate", delivery.state().deliverable === false);
+  check("the third panel sets approvalActive", host.isApprovalActive() === true);
   host.noteToolActivityAfterStop();
   const retryDecision = decisionsSoFar()[2];
   check("the Esc retry emits its own decision", retryDecision !== undefined);
@@ -323,20 +280,10 @@ try {
     `previousKind=${retryDecision?.payload.previousKind}`,
   );
   check("the retry clears approvalActive", host.isApprovalActive() === false);
-  const gateOpenAfterRetry = delivery.state().deliverable;
-  check("canDeliver() is true after the retry", gateOpenAfterRetry === true);
 
-  // === PHASE 3: submitPrompt stops refusing, and the queue keeps flowing ===
-  let submitThrew = "";
-  try {
-    host.submitPrompt("A send the approval guard used to refuse.");
-  } catch (error) {
-    submitThrew = error instanceof Error ? error.message : String(error);
-  }
-  check("submitPrompt no longer throws the approval guard", submitThrew === "", submitThrew);
-
-  delivery.enqueue(finalText);
-  await waitUntil(() => readLog().includes(finalText), 5000, "the final queued send reaching the CLI");
+  // === PHASE 3: sends keep reaching the CLI ===============================
+  host.submitPrompt(finalText);
+  await waitUntil(() => readLog().includes(finalText), 5000, "the final send reaching the CLI");
 
   // Three bare Escs total: two stops and one retry, each accounted for. The fix
   // adds none — an Esc PAIR ≤700ms apart is the documented Rewind-panel opener.
@@ -349,9 +296,7 @@ try {
     runId,
     detectedRunId: detected.payload.runId,
     detectedKind: detected.payload.kind,
-    deliverableUnderPanel: gateClosed,
-    heldItemStatusUnderPanel: heldStatus,
-    preSubmitFloodBeforeHeldPaste: floodBeforePaste,
+    preSubmitFloodBeforeSendPaste: floodBeforePaste,
     decisions: decisionsSoFar().map((event) => ({
       decision: event.payload.decision,
       encodedAs: event.payload.encodedAs,
@@ -359,9 +304,6 @@ try {
       runId: event.payload.runId,
     })),
     approvalActiveAtEnd: host.isApprovalActive(),
-    deliverableAfterStop: gateOpen,
-    deliverableAfterRetry: gateOpenAfterRetry,
-    submitThrew,
     bareEscCount: totalEscs,
     eventTypes: events.map((event) => event.type),
   };
@@ -371,7 +313,6 @@ try {
   const success = failures.length === 0;
   console.log(JSON.stringify({ workspace, ...observed, failures, success }, null, 2));
   process.exitCode = success ? 0 : 1;
-  delivery.dispose();
   host.dispose();
   await delay(250);
   fs.rmSync(workspace, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });

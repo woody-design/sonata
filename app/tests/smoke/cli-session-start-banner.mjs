@@ -78,17 +78,7 @@ function sessionState({
   state.cliReadiness = { claude, codex };
   state.cliSetupRun = run;
   const view = createTaskView({ id: taskId, title: "A session", provider }, "Ready", live);
-  view.deliveryState = {
-    taskId,
-    provider,
-    deliverable: bootLatched,
-    activeRun: false,
-    approvalActive: false,
-    rewindPanelOpen: false,
-    bootLatched,
-    attachmentNotice: null,
-    queue: [],
-  };
+  view.sessionState = { taskId, activeRun: false, activeRunId: null, bootLatched };
   state.taskViews = [view];
   state.activeTaskId = taskId;
   if (blocked) {
@@ -358,7 +348,7 @@ function sessionState({
 
   // An existing chat: the conversation already exists, and both failure shapes stay
   // honest — a dormant session's send is a RESUME the user may want to retry, and a
-  // live-but-signed-out session's send is held in the delivery queue until the
+  // live-but-signed-out session's send is held by the boot hold until the
   // login finishes. So nothing is taken away.
   const { state, view } = sessionState({ provider: "claude", claude: ABSENT, blocked: "absent", live: false });
   assert.ok(cliReadinessBanner(state, view), "the banner is up");
@@ -384,7 +374,7 @@ function sessionState({
   assert.ok(cliReadinessBanner(state, view), "the banner is up");
 
   const pinnedPlaceholder = composerPlaceholder(view, false, false, false);
-  const pinnedTitle = sendPromptTitle(view, false, false, true, false);
+  const pinnedTitle = sendPromptTitle(view, false, true, false);
   assert.equal(
     pinnedPlaceholder,
     "Codex is starting — your message will send when it's ready",
@@ -397,12 +387,12 @@ function sessionState({
   );
 
   const yieldedPlaceholder = composerPlaceholder(view, false, false, true);
-  const yieldedTitle = sendPromptTitle(view, false, false, true, true);
+  const yieldedTitle = sendPromptTitle(view, false, true, true);
   assert.equal(yieldedPlaceholder, "Codex can't start yet", "the placeholder states the fact");
   assert.equal(
     yieldedTitle,
     "Queued — delivers when Codex is ready.",
-    "the send title yields by SUBTRACTION onto the truthful queue statement",
+    "the send title yields onto the truthful hold statement (the boot hold keeps it)",
   );
 
   // The absent shape: the pty is dead, so the view is dormant and the placeholder
@@ -432,12 +422,12 @@ function sessionState({
     "an active run still outranks the diagnosis (the CLI is plainly working)",
   );
   assert.equal(
-    sendPromptTitle(view, true, false, true, true),
+    sendPromptTitle(view, true, true, true),
     "Stop Codex",
     "the stop affordance is untouched",
   );
   assert.equal(
-    sendPromptTitle(view, false, false, false, true),
+    sendPromptTitle(view, false, false, true),
     "Type a message before sending.",
     "an empty composer is untouched",
   );

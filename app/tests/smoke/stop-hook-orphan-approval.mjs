@@ -1,12 +1,12 @@
-// A Stop hook that clears a STALE approval flag must still release the gate
-// (ask-flows S1 review 3) — on the REAL RuntimeController.
+// A Stop hook that clears a STALE approval flag must still RESOLVE the scraped
+// ask (ask-flows S1 review 3) — on the REAL RuntimeController.
 //
 // `TerminalHost.completeRunFromTurnEnd` treats an approval still flagged at
 // turn-end as a scrape artifact and clears it — correctly, but SILENTLY. The
 // `approval:detected` the scrape emitted for that panel therefore never earns a
-// decision, its SCRAPE_APPROVAL_KEY sits in DeliveryController.pendingApprovalKeys
-// forever, and `canDeliver()` reads false while `isApprovalActive()` reads clean:
-// a wedge invisible from the host flag alone. Every later send sits "Queued".
+// decision: the card and the report's open ask outlive the panel while
+// `isApprovalActive()` reads clean. (Before X2 its sentinel also held every later
+// send in the since-deleted delivery queue.)
 //
 // The whole path is production wire, because none of it can be faked honestly:
 //   - claude runs BROKER-ON under the controller (unconditional), so the grid
@@ -20,11 +20,10 @@
 //     is WHY the surviving flag is stale), while `approvalActive` is still true.
 //
 // What it pins:
-//   1. the scraped panel sets the sentinel (the gate closes, an item is held);
+//   1. the scraped panel flags the host (`isApprovalActive()`);
 //   2. the Stop hook completes the run through the stale-approval branch;
-//   3. the released decision reaches all THREE consumers the controller
-//      dispatches to explicitly — the delivery controller (gate reopens, the
-//      held item flows), the renderer transport (the event is sent), and the
+//   3. the released decision reaches both consumers the controller dispatches
+//      to explicitly — the renderer transport (the event is sent) and the
 //      run-index (a decision row lands in the durable report);
 //   4. cli-state does NOT regress from `turn-ended`.
 //
@@ -36,7 +35,7 @@
 // completion fires. Asserting the activity here is what stops a future
 // "simplification" from moving the emit back into the host.
 //
-// Fixture bytes: the approval panel frame is ADAPTED from
+// Fixture bytes: the approval panel frame is ADAPTED from the since-deleted
 // tests/smoke/submit-approval-guard.mjs (claude file-edit panel, legacy hint
 // grammar). The idle-composer and activity frames are COMPOSED — the minimum
 // bytes satisfying detectIdlePrompt's ordering rule and the claude activityHints
@@ -79,7 +78,6 @@ const { projectRecordRoot, runtimeDir } = require("../../dist/main/sonata-paths"
 const { approvalsDirectory } = require("../../dist/runtime/cli-signal/approval-protocol");
 
 const promptText = "Please edit orphan-approval.txt";
-const queuedText = "This send must flow once the Stop hook releases the orphan.";
 // The fake stops painting the panel when this appears — the CLI repainting past
 // an answered panel, which is what makes the surviving flag STALE.
 const repaintMarker = path.join(workspace, "repaint-past-panel");
@@ -104,9 +102,7 @@ let asked = false;
 let timer = null;
 process.stdin.on("data", (data) => {
   seen += data;
-  // Echo what was pasted, as a real composer does — that is what earns the
-  // pty-composer-echo receipt, without which a delivered item stays in flight
-  // and canDeliver() is false for a reason that has nothing to do with approvals.
+  // Echo what was pasted, as a real composer does.
   const echoed = data.replace(/\\u001b\\[[0-9;]*[A-Za-z~]/g, "").replace(/[\\u0000-\\u001f]/g, " ").trim();
   if (echoed) {
     process.stdout.write(echoed + "\\n");
@@ -154,8 +150,8 @@ const fireAsk = (taskId, id, payload) =>
 /** Give up on an ask exactly as the real broker does: drop `expired-<id>.json`
  *  AND remove its own `ask-<id>.json` (approval-broker.ts rmSync(askPath) on the
  *  timeout path). Leaving the ask file behind makes the watcher re-surface it on
- *  the next poll — `consumeExpired` clears its seen-set entry — which would flip
- *  the delivery gate's key back from "expired" to "asked". */
+ *  the next poll — `consumeExpired` clears its seen-set entry — which would
+ *  surface a second broker card for the same ask. */
 const fireExpiry = (taskId, id) => {
   const dir = approvalsDirectory(runtimeDir(taskId));
   dropFile(dir, `expired-${id}.json`, { id });
@@ -193,8 +189,6 @@ const of = (type) => events.filter((event) => event.type === type);
 const scrapeDetections = () =>
   of("approval:detected").filter((event) => event.payload.approvalId === undefined);
 const lastCliActivity = () => of("cli-state:changed").at(-1)?.payload.activity ?? null;
-const lastDelivery = () => of("delivery:state").at(-1)?.payload ?? null;
-const heldItems = () => (lastDelivery()?.queue ?? []).filter((item) => item.status === "queued");
 
 let observed = {};
 
@@ -202,8 +196,8 @@ try {
   const created = await controller.createTask({ provider: "claude", cwd: workspace });
   const taskId = created.task.id;
 
-  // The queue itself opens the boot latch (pump polls every 500ms while an item
-  // is held), so the prompt goes in as soon as the task exists.
+  // Sent as soon as the task exists: the boot hold writes it once the fake CLI's
+  // composer is up.
   controller.submitPrompt(taskId, promptText);
   await waitFor(() => of("run:started").length > 0, 20_000, "the prompt starting a run");
   const runId = of("run:started")[0].payload.id;
@@ -226,19 +220,15 @@ try {
   await waitFor(() => scrapeDetections().length > 0, 20_000, "the scrape resurfacing the panel");
   const detected = scrapeDetections()[0];
 
-  // --- 1. the scraped panel holds the gate ---------------------------------
-  // Read as the BOOLEAN rather than by parking an item in the queue: an item
-  // released by the decision would submit immediately, and that send drives
-  // cli-state busy on its own — masking the very regression assertion 4 exists
-  // to catch. The queue is therefore left empty across the Stop, and the
-  // operational proof (an item actually flowing) is taken afterwards, in 5.
-  const gateClosed = lastDelivery()?.deliverable ?? null;
+  // --- 1. the scraped panel flags the host ---------------------------------
+  const host = () => controller.taskRuntimes.get(taskId).terminalHost;
+  const flaggedUnderPanel = host().isApprovalActive();
   check(
     "the scraped panel is a file-edit ask",
     detected.payload.kind === "file-edit",
     `kind=${detected.payload.kind}`,
   );
-  check("canDeliver() is false under the panel", gateClosed === false);
+  check("the host flags the scraped panel", flaggedUnderPanel === true);
   check(
     "cli-state is waiting-approval before the Stop",
     lastCliActivity() === "waiting-approval",
@@ -281,15 +271,11 @@ try {
     `runId=${decision.payload.runId} run=${runId}`,
   );
 
-  // consumer A — the delivery controller: the gate reads open again. With the
-  // queue empty nothing races the read, so this is the literal canDeliver().
-  await waitFor(() => (lastDelivery()?.deliverable ?? null) === true, 15_000, "the gate reading open");
-  const gateOpen = lastDelivery()?.deliverable ?? null;
-  check("canDeliver() is true after the release", gateOpen === true);
+  check("the stale flag is cleared by the Stop", host().isApprovalActive() === false);
 
-  // consumer B — the renderer transport: the decision is in `events`, i.e. it
+  // consumer A — the renderer transport: the decision is in `events`, i.e. it
   // was handed to sendEvent (asserted above; this line names the consumer).
-  // consumer C — the run-index: a decision row lands in the durable report.
+  // consumer B — the run-index: a decision row lands in the durable report.
   await waitFor(() => reportDecisionRows(taskId).length > 0, 15_000, "the run-index decision row");
   const reportDecisions = reportDecisionRows(taskId);
   check(
@@ -311,9 +297,7 @@ try {
   // `approval:decision` → `busy` rule overwrites the `turn-ended` the Stop hook
   // just set — and busy STICKS (cli-state's only other turn-enders are hooks and
   // `task:ready`, neither of which a hook-stop completion fires).
-  //
-  // Readable only because the queue was left EMPTY across the Stop: a released
-  // send would drive cli-state busy legitimately and mask exactly this.
+
   await delay(800);
   const activityTrail = of("cli-state:changed").map((event) => event.payload.activity);
   check("cli-state settled at turn-ended", lastCliActivity() === "turn-ended", `activity=${lastCliActivity()}`);
@@ -323,21 +307,11 @@ try {
     JSON.stringify(activityTrail),
   );
 
-  // --- 5. and the queue flows again -----------------------------------------
-  // The operational half of consumer A, taken after the cli-state read so it
-  // cannot contaminate it.
-  controller.submitPrompt(taskId, queuedText);
-  await waitFor(
-    () => of("delivery:receipt").length >= 2,
-    15_000,
-    "a fresh send flowing through the reopened gate",
-  );
-
   observed = {
     taskId,
     runId,
     detectedKind: detected.payload.kind,
-    deliverableUnderPanel: gateClosed,
+    flaggedUnderPanel,
     decision: {
       decision: decision.payload.decision,
       encodedAs: decision.payload.encodedAs,
@@ -345,7 +319,6 @@ try {
       runId: decision.payload.runId,
       approvalId: decision.payload.approvalId ?? null,
     },
-    deliverableAfterRelease: gateOpen,
     runIndexDecisions: reportDecisions.map((row) => ({
       action: row.action,
       decision: row.decision,
@@ -359,7 +332,7 @@ try {
   const success = failures.length === 0;
   console.log(
     JSON.stringify(
-      { ...observed, ...(success ? {} : { eventTypes: events.map((e) => e.type), lastDelivery: lastDelivery() }), failures, success },
+      { ...observed, ...(success ? {} : { eventTypes: events.map((e) => e.type) }), failures, success },
       null,
       2,
     ),

@@ -129,10 +129,13 @@ await check("stop cancels the attachment skill compensation Enter", async () => 
   const { host, writes } = await startAttachmentSequence("codex", "$review");
   try {
     await waitForEnterCount(writes, 1);
-    const stopped = await host.stopRun({ inspectDelayMs: 500 });
-    assert.equal(stopped.canceledPendingPromptWrite, true, "the compensation remains sequence-owned");
+    await host.stopRun({ inspectDelayMs: 500 });
     await delay(380);
-    assert.equal(enterCount(writes), 1, "no second Enter lands after cancellation");
+    assert.equal(
+      enterCount(writes),
+      1,
+      "no second Enter lands after cancellation (the compensation remains sequence-owned)",
+    );
   } finally {
     host.dispose();
   }

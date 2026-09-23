@@ -11,7 +11,7 @@
  * delivery receipt matcher but NOT in the run↔turn attribution or the three
  * hook back-stamp guards — so an image prompt matched in one place and fell
  * through in the others, leaving an un-attributed run that rendered as a second
- * (husk) card. Five call sites answer this one question; they now share this
+ * (husk) card. Every call site that answers this one question shares this
  * module so they cannot drift again.
  *
  * Two transforms, ONE marker definition:
@@ -59,9 +59,9 @@ export function unwrapPastedContent(value: string): string {
  * Canonical form for a "same prompt?" equality test: newline-normalize, drop
  * image markers, collapse horizontal whitespace, trim. Idempotent, and a no-op
  * on marker-free single-line text (so a plain prompt still equals itself). This
- * reproduces the delivery receipt matcher's original `normalizeReceiptText`
- * (shipped in 59c6ee7) verbatim — now shared so all five reconciliation sites
- * agree. Aggressive by design; never use it for display.
+ * reproduces the (since-deleted, X2) delivery receipt matcher's original
+ * `normalizeReceiptText` (shipped in 59c6ee7) verbatim — shared so every
+ * reconciliation site agrees. Aggressive by design; never use it for display.
  */
 export function normalizePromptForMatch(value: string): string {
   return stripImageMarkers(unwrapPastedContent(value.replace(/\r\n?/g, "\n")).trim())

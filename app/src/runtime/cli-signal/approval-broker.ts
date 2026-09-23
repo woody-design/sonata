@@ -73,8 +73,8 @@ process.stdin.on("end", () => {
   // AskUserQuestion is NOT an approval — since ~2.1.2xx the CLI fires
   // PermissionRequest for it alongside PreToolUse (probed 2.1.212,
   // spikes/drawer-option-prompt-probe P5). Holding it here surfaced a phantom
-  // approval card next to the option-prompt card, locked the keyed delivery
-  // gate, and expired into a false "waiting in the CLI" banner. Exit undecided
+  // approval card next to the option-prompt card, locked the (since-deleted)
+  // delivery gate, and expired into a false "waiting in the CLI" banner. Exit undecided
   // immediately (no ask file, no stdout): P1 proved the option form renders
   // and answers normally after an undecided hook exit.
   const toolName =

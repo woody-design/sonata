@@ -81,8 +81,7 @@ const VIEW_CHANGED_TYPES = new Set([
   "option-prompt:detected",
   "option-prompt:resolved",
   "remote-control:state",
-  "delivery:state",
-  "delivery:receipt",
+  "session:state",
   "task:updated",
   "run:stopped",
   "transcript:located",
@@ -1045,7 +1044,7 @@ function workingStatus(liveness) {
   // conversation, and the composer's own copy is what turns honest.
   {
     const { state, view } = seedView({
-      deliveryState: { taskId: "task-A", bootLatched: true, deliverable: true, queued: [] },
+      sessionState: { taskId: "task-A", activeRun: false, activeRunId: null, bootLatched: true },
       report: { runs: [{ id: "run-1" }] },
     });
     assert.equal(view.live, true, "…the view starts live");
@@ -1088,7 +1087,7 @@ function workingStatus(liveness) {
   // the composer offer are exactly what a close already produced, just sooner.
   {
     const { state, view } = seedView({
-      deliveryState: { taskId: "task-A", bootLatched: true, deliverable: true, queued: [] },
+      sessionState: { taskId: "task-A", activeRun: false, activeRunId: null, bootLatched: true },
     });
     R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
     assert.deepEqual(
@@ -1097,7 +1096,7 @@ function workingStatus(liveness) {
       "Remote Control arms the next spawn instead of injecting into a dead pty",
     );
     assert.equal(
-      C.sendPromptTitle(view, false, false, true),
+      C.sendPromptTitle(view, false, true),
       "Send to Claude",
       "the send button stops narrating a boot that already ended",
     );
@@ -1245,7 +1244,7 @@ function workingStatus(liveness) {
   // The question form has the IDENTICAL shape (S5 addendum), and the division is
   // settled: resolving a form on a LIVE session is main's — its
   // `resolveOptionPrompt(…, null)` on the turn-terminal funnel (S3), which owns
-  // the keys and the delivery gate — while retiring one WITH its session is the
+  // the slot — while retiring one WITH its session is the
   // reducer's, here.
   // The funnel is skipped by the same `eventRuntime` guard that skips the
   // approval releases, and on a Sonata-initiated exit the form is then reachable

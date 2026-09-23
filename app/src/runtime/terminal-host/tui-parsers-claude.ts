@@ -2,7 +2,7 @@ import { cleanTerminal } from "./tui-parsers-common";
 
 // ── Pure Claude TUI parsers (consolidation S4) ───────────────────────────────
 // Moved verbatim from terminal-host.ts: Remote Control detection, the screen
-// owners that gate readiness/delivery (Rewind panel, fullscreen boot offer,
+// owners that gate readiness (Rewind panel, fullscreen boot offer,
 // workspace-trust rows), and the permission mode-line footer needle. All pure
 // (take a RAW tail or a rendered viewport, return a verdict); unit-pinned by
 // tests/smoke/remote-control-detect-units.mjs and the readiness smokes.
@@ -175,8 +175,8 @@ const CLAUDE_REWIND_EMPTY_FOOTER_RE = /Esctocancel/;
  *  (`TaskScreenModel.viewportText()`), never a pty tail. Requires a variant's
  *  body AND its footer, both visible in the same frame.
  *
- *  Callers treat this as a screen owner: readiness, delivery and the
- *  Enter-retry ladder all hold while it is true.
+ *  Callers treat this as a screen owner for readiness (it is not a composer).
+ *  A Send while it is open lands in it, as a terminal Enter would (X2).
  *  Sonata NEVER dismisses it — one Esc would close it, but the user may have
  *  opened it deliberately in the co-visible CLI, and answering a screen the user
  *  may be using is the standing red line. Recognition + hold + surface only.
@@ -226,9 +226,8 @@ export function claudeRewindPanelOpen(screenText: string): boolean {
 // fact is why a readiness guard can work at all: `acceptsPromptInput()`'s
 // hook short-circuit is not yet armed, so a screen-owner gate is reachable.
 //
-// WHY IT IS A RED LINE. MEASURED (F8a) — writing exactly what
-// DeliveryController writes at an open boot latch, a bracketed paste followed by
-// the submit CR:
+// WHY IT IS A RED LINE. MEASURED (F8a) — writing exactly what a send writes
+// at an open boot latch, a bracketed paste followed by the submit CR:
 //   - the paste is DISCARDED (screen byte-identical; the payload never appears);
 //   - the CR answers the FOCUSED row, `1. Yes, try it`;
 //   - the CLI switches renderer and RE-EXECS IN PLACE (same pid, argv rewritten
@@ -262,11 +261,11 @@ export function claudeRewindPanelOpen(screenText: string): boolean {
 // ── RECOGNITION, and why a co-occurrence of two substrings is NOT enough here ──
 //
 // This predicate outranks the SessionStart short-circuit, and the boot latch it
-// gates is ONE-WAY (`DeliveryController.bootLatched` never re-closes, and
+// gates is ONE-WAY (`TerminalHost.bootLatched()` never re-closes, and
 // nothing re-reads the scrape afterwards). So a FALSE POSITIVE is not the mild
 // failure it is for the Rewind panel, whose own hold self-clears on the next
 // repaint: here it wedges the latch shut for the life of the session, with the
-// queue sitting at "Queued" over a static screen and no override left. The
+// first message held over a static screen and no override left. The
 // forgery that reaches it is real and specific — claude ≥2.1.186 REPAINTS
 // TRANSCRIPT HISTORY on a resumed session (the documented reason the hook
 // short-circuit exists at all), so a session that once discussed this screen
@@ -312,14 +311,14 @@ export function claudeRewindPanelOpen(screenText: string): boolean {
 //      absence. (a) The guard's only effect is a readiness HOLD; recognition
 //      writes nothing to the pty (RED LINE), so a false hold costs latency,
 //      never an action. (b) It is not a latch: `acceptsPromptInput()`
-//      re-evaluates on every call and the delivery pump re-polls it about every
-//      500ms, so the hold lifts on the first poll after the hint clears —
+//      re-evaluates on every call and the boot-latch poll re-checks it about
+//      every 500ms, so the hold lifts on the first poll after the hint clears —
 //      bounded by the hint's own ~1–2s lifetime, not by the session's. The
 //      one-way boot latch is what would have made a false hold permanent, and
 //      this hold expires before it can be the thing that keeps the latch shut.
 //      (c) POST-latch it costs nothing at all: this guard feeds readiness ONLY
-//      (see `isFullscreenOfferOpen`), and readiness stops gating delivery once
-//      the latch opens.
+//      (see `isFullscreenOfferOpen`), and nothing gates a send once the latch
+//      opens.
 //
 //      Narrowing it further would mean a second composer-presence signal, which
 //      is a readiness question, not this one.
@@ -344,7 +343,7 @@ const CLAUDE_FULLSCREEN_OFFER_AFFIRM_LINE_RE = /^❯?\d*\.?yes,tryit$/i;
  *  viewport (`TaskScreenModel.viewportText()`), never a pty tail.
  *
  *  Treated as a screen owner by readiness: the boot latch must not open on it,
- *  because the Enter that opens delivery answers the offer and destroys the
+ *  because a held first message's Enter would answer the offer and destroy the
  *  prompt (see above). Recognition + hold only; Sonata writes nothing here. */
 export function claudeFullscreenOfferOpen(screenText: string): boolean {
   const cleaned = cleanTerminal(screenText);

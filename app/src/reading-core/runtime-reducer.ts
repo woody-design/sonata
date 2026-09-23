@@ -20,7 +20,7 @@ import {
   ensureRunTranscript,
   taskViewForId,
 } from "./state";
-import { deliveryStatusLabel, isActiveRunStatus, taskStatusLabel } from "./selectors/runs";
+import { isActiveRunStatus, sessionStatusLabel, taskStatusLabel } from "./selectors/runs";
 import { providerLabel } from "./selectors/formatters";
 import {
   optionPromptQuestionMeta,
@@ -271,19 +271,11 @@ export function reduceRuntimeEvent(
     return [viewChangedDirective(state, view, taskId)];
   }
 
-  if (event.type === "delivery:state") {
-    view.deliveryState = event.payload;
-    view.status = deliveryStatusLabel(event.payload);
-    return [viewChangedDirective(state, view, taskId)];
-  }
-
-  if (event.type === "delivery:receipt") {
-    view.status =
-      event.payload.item.status === "delivered-partial"
-        ? (event.payload.item.failureReason ?? "Some images were not attached")
-        : event.payload.receipt.backfilled
-          ? "Receipt backfilled"
-          : "Delivered";
+  if (event.type === "session:state") {
+    view.sessionState = event.payload;
+    if (view.task) {
+      view.status = sessionStatusLabel(view.task.provider, event.payload);
+    }
     return [viewChangedDirective(state, view, taskId)];
   }
 
@@ -364,10 +356,9 @@ export function reduceRuntimeEvent(
   }
 
   // task:ready needs no renderer handler: the "Ready" copy keys on the
-  // delivery state's bootLatched — the latch opening IS a delivery-state change,
-  // so it arrives on its own `delivery:state` (the controller emits on change,
-  // not per runtime event) — and cli-state consumes task:ready in the main
-  // process.
+  // session state's bootLatched — the latch opening IS a session-state change,
+  // so it arrives on its own `session:state` (the host emits on change, not per
+  // runtime event) — and cli-state consumes task:ready in the main process.
 
   if (event.type === "task:updated") {
     view.task = event.payload.task;
@@ -502,10 +493,10 @@ export function reduceRuntimeEvent(
     //
     // One background READER does exist, and it is inert here: `evictDormantTaskView`
     // consults `view.live`, so a just-died background view now clears that guard at
-    // once instead of one index refresh later. It is still not evictable — a view
-    // that was ever live carries a non-null `deliveryState` (the delivery pump emits
-    // on every real state change, of which a live task has at least the boot latch,
-    // and the field is sticky once set), and that guard holds it. Same reasoning
+    // once instead of one index refresh later. It is still not evictable once its
+    // CLI reached a prompt or ran a turn — each is a `session:state` change the
+    // view received, the field is sticky once set, and `evictDormantTaskView`'s
+    // non-null guard holds it. Same reasoning
     // `view/banners.ts` already leans on to keep the codex resumable-exit banner
     // alive across a switch-away; noted here so the next reader does not have to
     // re-derive it.

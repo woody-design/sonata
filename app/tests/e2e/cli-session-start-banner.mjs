@@ -111,7 +111,7 @@ try {
     "the composer stops promising a boot that is not coming",
   );
   // The asymmetry with the New Chat card, on purpose: this conversation already
-  // exists, and the message is held in the delivery queue until the login finishes.
+  // exists, and the message is held by the boot hold until the login finishes.
   // (Typed text first — send is disabled on an EMPTY composer for every session,
   // which would make an untyped assertion pass for the wrong reason.)
   await main.locator("#prompt-input").fill("queued until the login finishes");
@@ -326,8 +326,8 @@ try {
   // Last on purpose (see block C): the delivered prompt below opens a run the stub
   // never closes, and an active run outranks the composer copy every later block
   // asserts. Everything here is the product's own machinery once the CLI paints its
-  // composer — `acceptsPromptInput()` turns true, the delivery pump latches, the
-  // queued message goes out — and the banner and the honest copy retire on the
+  // composer — `acceptsPromptInput()` turns true, the host's boot latch opens, the
+  // held message goes out — and the banner and the honest copy retire on the
   // SESSION's own progress, with no probe involved.
   fixture.installCli("claude", { signedIn: false });
   await selectSession(main, taskId);

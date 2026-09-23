@@ -1,12 +1,12 @@
 {
   "01.jsonl": {
     "active": {
-      "events": 93,
+      "events": 81,
       "directiveCounts": {
         "none": 16,
         "report-refresh": 6,
         "session-index-debounced": 5,
-        "full": 22,
+        "full": 10,
         "usage-in-place": 1,
         "sidebar": 2,
         "transcript-debounced": 32,
@@ -124,14 +124,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114345311-1",
-              "provider": "claude",
-              "deliverable": true,
               "activeRun": false,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": []
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -167,12 +164,12 @@
       }
     },
     "background": {
-      "events": 93,
+      "events": 81,
       "directiveCounts": {
         "none": 26,
         "report-refresh": 6,
         "session-index-debounced": 5,
-        "unread-only": 54,
+        "unread-only": 42,
         "sidebar": 2
       },
       "state": {
@@ -287,14 +284,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114345311-1",
-              "provider": "claude",
-              "deliverable": true,
               "activeRun": false,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": []
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -332,11 +326,11 @@
   },
   "02.jsonl": {
     "active": {
-      "events": 53,
+      "events": 42,
       "directiveCounts": {
         "none": 14,
         "report-refresh": 6,
-        "full": 19,
+        "full": 8,
         "usage-in-place": 2,
         "session-index-debounced": 2,
         "transcript-debounced": 8,
@@ -453,14 +447,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114345311-1",
-              "provider": "claude",
-              "deliverable": true,
               "activeRun": true,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": []
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -509,7 +500,7 @@
             "resumeChoice": null,
             "slashAttention": null,
             "approvalExpired": false,
-            "status": "Claude is working",
+            "status": "Running",
             "unread": false,
             "completedUnseen": false
           }
@@ -517,11 +508,11 @@
       }
     },
     "background": {
-      "events": 53,
+      "events": 42,
       "directiveCounts": {
         "none": 17,
         "report-refresh": 6,
-        "unread-only": 27,
+        "unread-only": 16,
         "session-index-debounced": 2,
         "sidebar": 1
       },
@@ -635,14 +626,11 @@
               "url": null,
               "armedOverride": null
             },
-            "deliveryState": {
+            "sessionState": {
               "taskId": "task-1783114345311-1",
-              "provider": "claude",
-              "deliverable": true,
               "activeRun": true,
-              "approvalActive": false,
-              "bootLatched": true,
-              "queue": []
+              "activeRunId": null,
+              "bootLatched": true
             },
             "stopRequestedRunId": null,
             "pendingAttachments": [],
@@ -691,7 +679,7 @@
             "resumeChoice": null,
             "slashAttention": null,
             "approvalExpired": false,
-            "status": "Claude is working",
+            "status": "Running",
             "unread": true,
             "completedUnseen": false
           }
