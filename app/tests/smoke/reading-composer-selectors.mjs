@@ -637,7 +637,7 @@ const run = (status, extra = {}) => ({
   );
   assert.equal(
     C.sessionPermissionSwitchHint("claude"),
-    "Switch with Shift+Tab in the CLI.",
+    "Switch with Shift+Tab in the CLI. Updates on Claude's next hook event.",
     "claude permission hint names only Shift+Tab (claude's /permissions edits rules)",
   );
   assert.equal(

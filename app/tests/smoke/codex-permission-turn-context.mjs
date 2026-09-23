@@ -25,6 +25,11 @@ const require = createRequire(import.meta.url);
 const { CodexRolloutNormalizer } = require("../../dist/runtime/provider-transcript/index");
 const { codexPermissionModeFromTurnContext } = require("../../dist/shared/types/codex-settings");
 const { TaskMirror } = require("../../dist/main/task-mirror");
+// The REAL controller reconcile (runtime-controller `reconcileCodexTurnContext`).
+// Loaded under ELECTRON_RUN_AS_NODE (the module imports `electron`); called on a
+// minimal receiver carrying only the TaskMirror it writes through, so dropping
+// the reviewer pass-through at the call site fails here.
+const { RuntimeController } = require("../../dist/main/runtime-controller");
 
 const line = (payload) =>
   JSON.stringify({ timestamp: "2026-09-23T14:50:00.000Z", type: "turn_context", payload });
@@ -115,6 +120,44 @@ assert.equal(modeOf(observe(R5_FULL_ACCESS)), "full-access", "R5 full access (0.
   assert.deepEqual(persisted, ["ask-for-approval", "approve-for-me"], "Ask → Approve persists too");
   reconcile(Q42_APPROVE_FOR_ME);
   assert.equal(persisted.length, 2, "an unchanged observation writes nothing");
+}
+
+// 4) The controller's own reconcile, fed an observation exactly as the
+// `codex-turn-context:observed` dispatch hands it over.
+{
+  const persisted = [];
+  const receiver = {
+    taskMirror: new TaskMirror(
+      (task) => persisted.push(task.codexPermissionMode),
+      () => {},
+    ),
+  };
+  const active = {
+    task: {
+      id: "task-1",
+      provider: "codex",
+      model: "gpt-6-astra",
+      reasoningEffort: "high",
+      codexPermissionMode: "ask-for-approval",
+    },
+    storageRoot: "/tmp/unused",
+  };
+  const reconcile = (observation) =>
+    RuntimeController.prototype.reconcileCodexTurnContext.call(receiver, active, observation);
+  reconcile(q42);
+  assert.equal(
+    active.task.codexPermissionMode,
+    "approve-for-me",
+    "the controller reconcile reads the reviewer (Q42 → approve-for-me)",
+  );
+  assert.deepEqual(persisted, ["approve-for-me"], "…and persists it for the next reopen");
+  reconcile({ ...q42, approvalsReviewer: null });
+  assert.equal(
+    active.task.codexPermissionMode,
+    "approve-for-me",
+    "a missing reviewer keeps the current value (unmeasured shape, never a guess)",
+  );
+  assert.equal(persisted.length, 1, "…and writes nothing");
 }
 
 console.log("codex-permission-turn-context: all checks passed");

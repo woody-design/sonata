@@ -1,0 +1,44 @@
+{
+  "probe": "q42",
+  "version": "codex-cli 0.156.1",
+  "readyAtMs": 395,
+  "beforeSwitch": [],
+  "cursorBeforeEnter": "› 2. Approve for me              Only ask for actions detected as potentially unsafe.                                   ",
+  "afterSwitchScreenTail": [
+    "  takes you.",
+    "• Permission selection requested: Approve for me",
+    "› Ask Codex to do anything",
+    "  GPT-6-Luna low · /private/tmp/sonata-codex-0156-perm-rollout/cwd                             ⚠ 1 warning · f2 to view"
+  ],
+  "afterSwitchRecords": [],
+  "afterTurnRecords": [
+    {
+      "type": "turn_context",
+      "payloadType": null,
+      "approval_policy": "on-request",
+      "approvals_reviewer": "auto_review",
+      "sandbox": "workspace-write",
+      "keys": [
+        "turn_id",
+        "root_turn_id",
+        "disabled_plugin_ids",
+        "cwd",
+        "workspace_roots",
+        "current_date",
+        "timezone",
+        "approval_policy",
+        "approvals_reviewer",
+        "sandbox_policy",
+        "permission_profile",
+        "active_permission_profile"
+      ]
+    }
+  ],
+  "afterTurnScreenTail": [
+    "› Reply with exactly: ok",
+    "• ok",
+    "  2:50 PM",
+    "› Ask Codex to do anything",
+    "  GPT-6-Luna low · /private/tmp/sonata-codex-0156-perm-rollout/cwd · ⠸                         ⚠ 1 warning · f2 to view"
+  ]
+}

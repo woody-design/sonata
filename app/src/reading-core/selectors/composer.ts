@@ -209,11 +209,13 @@ export function sessionModelSwitchHint(provider: RuntimeProvider): string {
 
 /** The live permission chip's tooltip. Claude's MODE cycle is Shift+Tab (its
  *  /permissions manages allow/deny rules, not the mode); Codex's switch is
- *  /permissions. Display-only, like the model chip. */
+ *  /permissions. Display-only, like the model chip. Each names its own lag:
+ *  claude's mode arrives on the next hook payload (a Shift+Tab fires none),
+ *  codex's with the next turn_context. */
 export function sessionPermissionSwitchHint(provider: RuntimeProvider): string {
   return provider === "codex"
     ? `Switch with /permissions in the CLI. ${CODEX_AS_OF_LAST_TURN}`
-    : "Switch with Shift+Tab in the CLI.";
+    : "Switch with Shift+Tab in the CLI. Updates on Claude's next hook event.";
 }
 
 /**

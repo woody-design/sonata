@@ -133,7 +133,7 @@ const CLAUDE_BUILTINS: BuiltinSpec[] = [
   },
   {
     name: "permissions",
-    description: "Permission mode — opens the picker in the CLI",
+    description: "Permission rules — opens the manager in the CLI",
     listed: true,
   },
   {

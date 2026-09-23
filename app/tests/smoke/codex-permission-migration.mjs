@@ -104,8 +104,8 @@ assert(
   "(workspace-write, on-request, user) → ask-for-approval",
 );
 assert(
-  codexPermissionModeFromTurnContext("workspace-write", "on-request", null) === "ask-for-approval",
-  "…and an ABSENT reviewer reads as ask-for-approval (the prompting mode)",
+  codexPermissionModeFromTurnContext("workspace-write", "on-request", null) === null,
+  "…and an ABSENT reviewer is an unmeasured shape → null (keep current, never guess)",
 );
 // The three formerly ACCEPTED residuals (2026-09-02, superseded) now reconcile.
 assert(

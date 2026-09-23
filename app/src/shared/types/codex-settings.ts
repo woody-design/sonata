@@ -237,7 +237,7 @@ export function migrateCodexPermissionMode(record: {
  *   full-access      → (danger-full-access, never)
  *   read-only        → (read-only, *)
  *   approve-for-me   → (workspace-write, on-request, reviewer=auto_review)
- *   ask-for-approval → (workspace-write, on-request, reviewer=user | absent)
+ *   ask-for-approval → (workspace-write, on-request, reviewer=user)
  *
  * THE REVIEWER AXIS IS LIVE. The earlier reading — "it persists to config.toml
  * at spawn and reflects the spawn value, not the live-switched mode" — is
@@ -247,8 +247,12 @@ export function migrateCodexPermissionMode(record: {
  * switch made in the Terminal), and `"user"` under Ask for approval (q35 turn 1).
  * Nothing is written at switch time — the new mode surfaces with the next turn,
  * which is the accepted latency (the chip says "as of the last turn").
- * An ABSENT reviewer reads as ask-for-approval: the prompting mode, and the
- * shape a rollout from before the field existed carries.
+ * An ABSENT reviewer on (workspace-write, on-request) is an UNMEASURED shape and
+ * keeps the current value (orchestrator ruling, X1 fix round 2): on a live read
+ * the field can only be missing if codex changed its format, and reading an
+ * Approve-for-me session as Ask would be the unsafe mislabel. (Pre-field
+ * rollouts never reach this on a reopen — the initial drain does not reconcile;
+ * see provider-transcript `replayingDrain`.)
  *
  * READ ONLY reconciles on the SANDBOX ALONE: no offered mode produces a
  * `read-only` sandbox, and codex's own cycle labels that preset "Read Only"
@@ -284,7 +288,7 @@ export function codexPermissionModeFromTurnContext(
     if (approvalsReviewer === "auto_review") {
       return "approve-for-me";
     }
-    if (approvalsReviewer === "user" || approvalsReviewer === null) {
+    if (approvalsReviewer === "user") {
       return "ask-for-approval";
     }
   }
