@@ -627,24 +627,29 @@ const run = (status, extra = {}) => ({
 {
   assert.equal(
     C.sessionModelSwitchHint("claude"),
-    "Switch models in the CLI — /model",
-    "claude model hint names /model",
+    "Switch with /model and /effort in the CLI.",
+    "claude model hint names both /model and /effort (the chip shows both)",
   );
   assert.equal(
     C.sessionModelSwitchHint("codex"),
-    "Switch model and effort in the CLI — /model",
-    "codex model hint names /model and calls out effort",
+    "Switch with /model in the CLI. Shown as of the last turn.",
+    "codex model hint names /model and the turn_context latency",
   );
   assert.equal(
     C.sessionPermissionSwitchHint("claude"),
-    "Switch modes in the CLI — Shift+Tab or /permissions",
-    "claude permission hint keeps Shift+Tab",
+    "Switch with Shift+Tab in the CLI.",
+    "claude permission hint names only Shift+Tab (claude's /permissions edits rules)",
   );
   assert.equal(
     C.sessionPermissionSwitchHint("codex"),
-    "Switch permissions in the CLI — /permissions",
-    "codex permission hint names /permissions",
+    "Switch with /permissions in the CLI. Shown as of the last turn.",
+    "codex permission hint names /permissions and the turn_context latency",
   );
+  for (const provider of ["claude", "codex"]) {
+    for (const hint of [C.sessionModelSwitchHint(provider), C.sessionPermissionSwitchHint(provider)]) {
+      assert.ok(!hint.includes("\u2014"), `house style: no em dash in ${JSON.stringify(hint)}`);
+    }
+  }
 }
 
 // 6) Option-prompt receipt builders.

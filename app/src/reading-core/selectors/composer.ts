@@ -188,24 +188,32 @@ export function sessionModelSummaryLabel(view: TaskViewState | null): string | n
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
+/** Codex's chips read the rollout's `turn_context`, which is written per turn,
+ *  so a switch made in the Terminal shows up with the next turn — said once, in
+ *  the tooltip, rather than hidden (Subtraction X1 fix round F1). Claude's
+ *  model/effort ride the statusline, which follows a switch at once. */
+const CODEX_AS_OF_LAST_TURN = "Shown as of the last turn.";
+
 /** The live model chip's tooltip. The chip is display-only (contract §2):
- *  switching is a Terminal action, and each CLI names it its own way — Claude's
- *  /model swaps the model (effort has its own /effort); Codex's /model ("Select
- *  Model and Effort") covers both. The copy points at the native command rather
- *  than implying an in-composer switch. */
+ *  switching is a Terminal action, and each CLI names it its own way — Claude
+ *  switches the model with /model and effort with /effort; Codex's /model
+ *  ("Select Model and Effort") covers both. The copy points at the native
+ *  command rather than implying an in-composer switch. House style: no em
+ *  dashes in UI copy, and "the CLI" (the window's own name) rather than
+ *  "Terminal", which the ui-vocabulary-corpus fence rejects as legacy copy. */
 export function sessionModelSwitchHint(provider: RuntimeProvider): string {
   return provider === "codex"
-    ? "Switch model and effort in the CLI — /model"
-    : "Switch models in the CLI — /model";
+    ? `Switch with /model in the CLI. ${CODEX_AS_OF_LAST_TURN}`
+    : "Switch with /model and /effort in the CLI.";
 }
 
-/** The live permission chip's tooltip. Claude cycles modes with Shift+Tab or
- *  /permissions; Codex's own switch is /permissions. Display-only, like the
- *  model chip. */
+/** The live permission chip's tooltip. Claude's MODE cycle is Shift+Tab (its
+ *  /permissions manages allow/deny rules, not the mode); Codex's switch is
+ *  /permissions. Display-only, like the model chip. */
 export function sessionPermissionSwitchHint(provider: RuntimeProvider): string {
   return provider === "codex"
-    ? "Switch permissions in the CLI — /permissions"
-    : "Switch modes in the CLI — Shift+Tab or /permissions";
+    ? `Switch with /permissions in the CLI. ${CODEX_AS_OF_LAST_TURN}`
+    : "Switch with Shift+Tab in the CLI.";
 }
 
 /**

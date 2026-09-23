@@ -22,16 +22,20 @@ import {
 
 /**
  * A codex rollout `turn_context` record's session-state fields (item E). Raw
- * strings — the controller validates them (effort → ReasoningEffort; approval +
- * sandbox → CodexPermissionMode via migrateCodexPermissionMode). Emitted per
- * turn so a NATIVE `/model` / `/permissions` switch (which never touches Sonata's
- * mirrors) can be reconciled from the rollout, the lazy SSOT.
+ * strings — the controller validates them (effort → ReasoningEffort; sandbox +
+ * approval + reviewer → CodexPermissionMode via
+ * codexPermissionModeFromTurnContext). Emitted per turn so a `/model` /
+ * `/permissions` switch made in the Terminal reaches Sonata's mirrors from the
+ * rollout, the SSOT.
  */
 export interface CodexTurnContextObservation {
   model: string | null;
   effort: string | null;
   approvalPolicy: string | null;
   sandboxPolicy: string | null;
+  /** `turn_context.payload.approvals_reviewer` (`user` / `auto_review`) — the
+   *  axis that separates ask-for-approval from approve-for-me. */
+  approvalsReviewer: string | null;
 }
 
 /**
@@ -238,8 +242,8 @@ export class CodexRolloutNormalizer {
   /** Extract the turn's session-state fields from a `turn_context` payload and
    *  hand them to the reconcile callback. Every field is optional/defensive —
    *  a shape drift silently yields null (the controller then keeps the mirror),
-   *  never a throw. `model`/`effort` are top-level; `sandbox_policy` nests its
-   *  kind under `.type`. */
+   *  never a throw. `model`/`effort`/`approval_policy`/`approvals_reviewer` are
+   *  top-level; `sandbox_policy` nests its kind under `.type`. */
   private emitTurnContext(payload: Record<string, unknown>): void {
     if (!this.onTurnContext) {
       return;
@@ -254,6 +258,8 @@ export class CodexRolloutNormalizer {
       effort: typeof payload.effort === "string" ? payload.effort : null,
       approvalPolicy: typeof payload.approval_policy === "string" ? payload.approval_policy : null,
       sandboxPolicy,
+      approvalsReviewer:
+        typeof payload.approvals_reviewer === "string" ? payload.approvals_reviewer : null,
     });
   }
 

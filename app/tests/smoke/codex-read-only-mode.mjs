@@ -42,10 +42,9 @@ const check = (condition, label) => {
 // ── §A. The mirror learns Read Only from a live turn ────────────────────────
 //
 // MEASURED: the three consecutive `turn_context` records q35's session wrote,
-// trimmed to the axes the normalizer projects (`emitTurnContext` reads
-// `sandbox_policy.type` and `approval_policy` and nothing else). The reviewer and
-// profile fields are carried here as evidence, NOT as inputs — the reconcile is
-// deliberately blind to both.
+// trimmed to the axes the normalizer projects (`sandbox_policy.type`,
+// `approval_policy`, `approvals_reviewer`). The profile field is carried as
+// evidence only — the reconcile does not read it.
 const MEASURED_TURNS = [
   {
     turn: 1,
@@ -54,7 +53,7 @@ const MEASURED_TURNS = [
     approval: "on-request",
     reviewer: "user",
     profile: "managed",
-    expect: null,
+    expect: "ask-for-approval",
   },
   {
     turn: 2,
@@ -72,58 +71,40 @@ const MEASURED_TURNS = [
     approval: "on-request",
     reviewer: "auto_review",
     profile: "managed",
-    expect: null,
+    expect: "approve-for-me",
   },
 ];
 
 for (const row of MEASURED_TURNS) {
   check(
-    codexPermissionModeFromTurnContext(row.sandbox, row.approval) === row.expect,
+    codexPermissionModeFromTurnContext(row.sandbox, row.approval, row.reviewer) === row.expect,
     `turn ${row.turn} (${row.what}) reconciles to ${JSON.stringify(row.expect)}`,
   );
 }
 
-// The whole point of turn 2 sitting between turns 1 and 3: `read-only` is unique
-// BECAUSE the offered modes are not on that sandbox. If a future spawn table put
-// an offered mode on a read-only sandbox, this reconcile would start guessing —
-// so assert the premise rather than trusting it. (full-access's own projection is
-// checked in codex-permission-migration.mjs; here the claim is about the sandbox
-// axis being decisive.)
+// `read-only` is unique BECAUSE the offered modes are not on that sandbox. If a
+// future spawn table put an offered mode on a read-only sandbox, this reconcile
+// would start guessing — so assert the premise rather than trusting it.
 check(
   MEASURED_TURNS.filter((row) => row.sandbox === "read-only").length === 1 &&
     MEASURED_TURNS.every((row) => (row.sandbox === "read-only") === (row.expect === "read-only")),
-  "read-only is the ONLY sandbox in the measured set that reconciles — the axis is decisive",
+  "only the read-only sandbox reads as Read Only — the sandbox axis is decisive for it",
 );
 
 // The controller's actual write is `reconciled ?? current` (reconcileCodexTurnContext),
-// so a Read Only turn must MOVE the mirror, and the turns around it must LEAVE it
-// alone rather than silently reasserting themselves.
+// and the latest turn_context wins: the mirror moves INTO Read Only and back OUT.
 const applyTurn = (current, row) =>
-  codexPermissionModeFromTurnContext(row.sandbox, row.approval) ?? current;
+  codexPermissionModeFromTurnContext(row.sandbox, row.approval, row.reviewer) ?? current;
 let mirror = "ask-for-approval";
 mirror = applyTurn(mirror, MEASURED_TURNS[0]);
-check(mirror === "ask-for-approval", "the control turn leaves the spawn mirror untouched");
+check(mirror === "ask-for-approval", "the control turn confirms the spawn mode");
 mirror = applyTurn(mirror, MEASURED_TURNS[1]);
 check(mirror === "read-only", "the Read Only turn MOVES the mirror — the badge stops lying");
 mirror = applyTurn(mirror, MEASURED_TURNS[2]);
-// The turn after the switch BACK out lands on the ambiguous (workspace-write,
-// on-request) pair, so the rollout cannot retire the read-only mirror on its own.
-// Since the Subtraction program (2026-09-23) removed Sonata's `/permissions`
-// drive and its picker-receipt write, EVERY switch out of Read Only is a Terminal
-// switch, so this residual covers all of them (it used to cover only a native
-// cycle).
-//
-// ORCHESTRATOR-ACCEPTED, 2026-09-02 (reviewed independently of the slice that
-// introduced it). The stale badge claims LESS access than the session has — this
-// codebase's safe direction — it is the same trade already accepted for a native
-// downgrade out of full-access. The honest fix is the registered permission-
-// mirror redesign on `thread_settings_applied`, not a guess on the one axis that
-// mislabels access. This pin exists so the residual stays a DECISION with a date
-// on it rather than becoming a bug someone "fixes" by widening the reconcile.
-check(
-  mirror === "read-only",
-  "a native cycle OUT lands on the ambiguous pair → the rollout alone cannot retire the mirror",
-);
+// The turn after the switch back out carries reviewer `auto_review`, so the
+// rollout alone retires the Read Only mirror. The 2026-09-02 acceptance of this
+// case as a residual is SUPERSEDED — see codexPermissionModeFromTurnContext.
+check(mirror === "approve-for-me", "the switch OUT of Read Only reconciles from the file alone");
 
 // ── §B. The badge says it, in codex's own word ──────────────────────────────
 check(codexPermissionModeLabel("read-only") === "Read Only", "read-only labels as Read Only");

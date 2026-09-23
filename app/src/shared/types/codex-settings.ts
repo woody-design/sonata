@@ -21,12 +21,12 @@ export const CODEX_PERMISSION_MODE_OPTIONS = [
 ] as const satisfies readonly CodexPermissionMode[];
 
 /**
- * The modes Sonata OFFERS — and therefore the only modes it launches into or
- * drives to. Deliberately narrower than `CodexPermissionMode`, which also names
- * `read-only` (codex's cycle-only fourth mode, SL-17): Read Only has no picker
- * row to walk to and no spawn projection in `CODEX_PERMISSION_MODE_FLAGS`, so
- * every launch/spawn/drive signature takes THIS type and the omission is a
- * compile error rather than a convention. The claude twin is
+ * The modes Sonata OFFERS — and therefore the only modes it launches into.
+ * Deliberately narrower than `CodexPermissionMode`, which also names
+ * `read-only` (codex's cycle-only fourth mode, SL-17): Read Only has no spawn
+ * projection in `CODEX_PERMISSION_MODE_FLAGS`, so every launch/spawn signature
+ * takes THIS type and the omission is a compile error rather than a
+ * convention. The claude twin is
  * `ClaudeDefaultPermissionMode`.
  */
 export type CodexOfferedPermissionMode = (typeof CODEX_PERMISSION_MODE_OPTIONS)[number];
@@ -96,9 +96,9 @@ type _CodexPermissionModesCoverUnion = _AssertExhaustive<
 
 /**
  * True for one of the three modes Sonata OFFERS. This is the guard every
- * launch/spawn/persist seam wants: a standing default, a create/open request's
- * override, and the value a settled picker switch confirms are all things Sonata
- * chose, so `read-only` reaching one of them is a caller bug, not a state.
+ * launch/spawn seam wants: a standing default and a create/open request's
+ * override are things Sonata chose, so `read-only` reaching one of them is a
+ * caller bug, not a state.
  */
 export function isCodexOfferedPermissionMode(
   value: unknown,
@@ -222,76 +222,71 @@ export function migrateCodexPermissionMode(record: {
 }
 
 /**
- * Reconcile a CodexPermissionMode from a live rollout `turn_context`'s
- * (`sandbox_policy.type`, `approval_policy`) pair — the only permission axes the
- * rollout exposes per turn (item E — mid-session switch S5). Deliberately NARROW:
- * returns a mode ONLY when the pair UNIQUELY identifies one triad member, else
- * null (caller keeps the current mirror). This is NOT `migrateCodexPermissionMode`
- * — that reverse-maps a legacy MANIFEST's (sandbox, approval) and treats
- * `approval === "never"` as approve-for-me, which is WRONG for a live turn_context.
+ * Map a live rollout `turn_context`'s permission axes — (`sandbox_policy.type`,
+ * `approval_policy`, `approvals_reviewer`) — to the CodexPermissionMode the turn
+ * ran under (item E). This is the SSOT for a codex session's permission mode
+ * after spawn: the badge AND the persisted task value (the one a reopen spawns
+ * from) follow the latest live observation; the stored launch setting only
+ * stands until the first turn_context arrives. This is NOT
+ * `migrateCodexPermissionMode` — that reverse-maps a legacy MANIFEST's (sandbox,
+ * approval) and treats `approval === "never"` as approve-for-me, which is WRONG
+ * for a live turn_context.
  *
- * Why it must be narrow — the reviewer-axis blind spot (measured, see the spawn
- * projection table `CODEX_PERMISSION_MODE_FLAGS` in terminal-host.ts):
- *   ask-for-approval → (workspace-write, on-request, reviewer=user)
+ * The four measured projections (spawn table `CODEX_PERMISSION_MODE_FLAGS` in
+ * terminal-host.ts for the offered three):
+ *   full-access      → (danger-full-access, never)
+ *   read-only        → (read-only, *)
  *   approve-for-me   → (workspace-write, on-request, reviewer=auto_review)
- *   full-access      → (danger-full-access, never,   reviewer=user)
- * ask and approve share the SAME (sandbox, approval) projection — they diverge
- * ONLY on `approvals_reviewer`. That axis persists to config.toml at spawn; even
- * where it appears in a turn_context it reflects the spawn/config value, not the
- * live-switched mode, so it cannot be trusted to tell a native ask↔approve switch
- * apart. Guessing would MISLABEL access, so the shared pair NEVER overwrites; only
- * full-access's unique `(danger-full-access, never)` projection reconciles.
+ *   ask-for-approval → (workspace-write, on-request, reviewer=user | absent)
  *
- * READ ONLY reconciles on the SANDBOX ALONE, and that is not a weakening of the
- * never-guess rule — it is the rule applied to an axis that happens to be
- * decisive. Every mode Sonata offers rides one of two sandboxes
- * (`workspace-write` for ask/approve, `danger-full-access` for full access), so
- * NO offered mode can produce a `read-only` sandbox; codex's own cycle labels
- * that preset "Read Only" (`chatwidget/permission_shortcuts.rs`: the two labels
- * Sonata can name both ride the `auto` preset, and "Read Only" is the
- * `read-only` preset). MEASURED at 0.152.1 through one live session driven into
- * the mode via #39873 (SL-17 q35): the Read Only turn wrote
- * `(read-only, on-request)` with `approvals_reviewer: user`, between a control
- * turn at `(workspace-write, on-request)` and a post-switch turn that stayed on
- * `workspace-write`. The approval axis is deliberately NOT part of the test:
- * SL-8/r4's corpus carries `read-only` against BOTH `never` (×186) and
- * `on-request` (×61), which is the ask-frequency knob, not the access level —
- * a session that cannot write is Read Only either way, and pinning the pair
- * would decline the half of the shape that was never measured here.
+ * THE REVIEWER AXIS IS LIVE. The earlier reading — "it persists to config.toml
+ * at spawn and reflects the spawn value, not the live-switched mode" — is
+ * FALSIFIED by measurement: after a `/permissions` switch to Approve for me the
+ * NEXT turn's turn_context carries `approvals_reviewer: "auto_review"`
+ * (0.152.1 SL-17 q35 turn 3, after a drive-made switch; 0.156.1 q42, after a
+ * switch made in the Terminal), and `"user"` under Ask for approval (q35 turn 1).
+ * Nothing is written at switch time — the new mode surfaces with the next turn,
+ * which is the accepted latency (the chip says "as of the last turn").
+ * An ABSENT reviewer reads as ask-for-approval: the prompting mode, and the
+ * shape a rollout from before the field existed carries.
  *
- * ACCEPTED RESIDUAL STALENESS — three cases, one shape, one adjudication.
- * (a) a NATIVE ask↔approve switch is not reconciled; (b) a native DOWNGRADE out
- * of full-access keeps the stale full-access mirror; (c) since SL-17, a native
- * cycle OUT of Read Only keeps the stale read-only mirror. All three land on the
- * ambiguous `(workspace-write, on-request)` pair, so all three decline rather
- * than guess, and all three stay on S3's picker-receipt fast path — Sonata-driven
- * switches are always correct; only pure-native mid-session toggles carry this.
+ * READ ONLY reconciles on the SANDBOX ALONE: no offered mode produces a
+ * `read-only` sandbox, and codex's own cycle labels that preset "Read Only"
+ * (MEASURED 0.152.1, SL-17 q35: `(read-only, on-request)` with reviewer `user`).
+ * The approval axis is the ask-frequency knob, not the access level — SL-8/r4's
+ * corpus carries `read-only` against both `never` (×186) and `on-request` (×61).
  *
- * Case (c) was reviewed and **ACCEPTED BY THE ORCHESTRATOR on 2026-09-02**, not
- * merely by the slice that introduced it. Three reasons, in order of weight:
- *   1. DIRECTION. The stale badge claims LESS access than the session has, which
- *      is this codebase's safe direction everywhere it appears — the same reason
- *      the label table replaced an if-chain whose fallthrough erred the other way.
- *   2. SYMMETRY. It is the same trade already accepted for (b): a native move out
- *      of a distinctly-projected mode cannot be seen, because the mode it moves
- *      TO is the one the rollout cannot name. Refusing (c) while keeping (b) would
- *      be inconsistent, and closing it would mean guessing on exactly the axis
- *      that mislabels access.
- *   3. REMEDY. Any menu switch corrects it immediately (the drive works from Read
- *      Only — MEASURED end-to-end, SL-17 q35), so the user is never stuck.
- * The honest fix is not a better heuristic here: it is the registered permission-
- * mirror redesign on `thread_settings_applied` (SL-8 r4/r5), which carries live
- * permission state directly instead of being inferred from a projection.
+ * Anything else (an unmeasured sandbox/approval pairing, an unknown reviewer
+ * value, missing axes) returns null and the caller keeps the current value —
+ * never a guess.
+ *
+ * SUPERSEDED ADJUDICATION. On 2026-09-02 the orchestrator ACCEPTED residual
+ * staleness for three cases the old two-axis map could not see — (a) ask↔approve,
+ * (b) a downgrade out of full-access, (c) a cycle out of Read Only — resting on
+ * direction, symmetry, and a remedy ("any menu switch corrects it") that the
+ * Subtraction program removed with the mid-session drives (2026-09-23). The
+ * acceptance is superseded, not re-argued: with the reviewer axis all three
+ * cases now reconcile from the file, so none of them is a residual any more
+ * (orchestrator ruling, Subtraction X1 fix round F1, 2026-09-23).
  */
 export function codexPermissionModeFromTurnContext(
   sandboxPolicy: string | null,
   approvalPolicy: string | null,
+  approvalsReviewer: string | null,
 ): CodexPermissionMode | null {
   if (sandboxPolicy === "danger-full-access" && approvalPolicy === "never") {
     return "full-access";
   }
   if (sandboxPolicy === "read-only") {
     return "read-only";
+  }
+  if (sandboxPolicy === "workspace-write" && approvalPolicy === "on-request") {
+    if (approvalsReviewer === "auto_review") {
+      return "approve-for-me";
+    }
+    if (approvalsReviewer === "user" || approvalsReviewer === null) {
+      return "ask-for-approval";
+    }
   }
   return null;
 }

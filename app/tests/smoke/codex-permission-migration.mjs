@@ -82,94 +82,69 @@ assert(
 );
 
 // ---- A2. Unit: codexPermissionModeFromTurnContext (item E reconcile map) --
-// The rollout turn_context reconcile (mid-session switch S5) must NOT reuse the
-// manifest reverse-map above: turn_context carries (sandbox_policy.type,
-// approval_policy) but NOT the reviewer axis that separates ask-for-approval from
-// approve-for-me — they SHARE the (workspace-write, on-request) projection. So the
-// reconcile map returns a mode ONLY on a UNIQUE projection (full-access), else
-// null → the caller keeps the current mirror. Round-trip the whole triad + the
-// review's staleness cases. `reconcile` mimics the controller's `mapped ?? current`
-// so the "survives" assertions read as the real reconcile behavior.
-const reconcile = (current, sandbox, approval) =>
-  codexPermissionModeFromTurnContext(sandbox, approval) ?? current;
+// The rollout turn_context reconcile must NOT reuse the manifest reverse-map
+// above. It maps (sandbox_policy.type, approval_policy, approvals_reviewer) to
+// the mode the turn ran under; the latest observation wins (Subtraction X1 fix
+// round F1). `reconcile` mimics the controller's `mapped ?? current`. The
+// measured payload shapes themselves are pinned in codex-permission-turn-context.
+const reconcile = (current, sandbox, approval, reviewer = null) =>
+  codexPermissionModeFromTurnContext(sandbox, approval, reviewer) ?? current;
 
-// full-access has a UNIQUE projection → reconciles (native upgrade lands it).
 assert(
-  codexPermissionModeFromTurnContext("danger-full-access", "never") === "full-access",
-  "turn_context (danger-full-access, never) → full-access (the one unique projection)",
+  codexPermissionModeFromTurnContext("danger-full-access", "never", "user") === "full-access",
+  "(danger-full-access, never) → full-access",
 );
 assert(
-  reconcile("ask-for-approval", "danger-full-access", "never") === "full-access",
-  "native UPGRADE to full-access reconciles the mirror",
-);
-
-// The shared ask/approve projection NEVER overwrites — the receipt-set mirror
-// survives either way (this is the F1 corruption the fix closes).
-assert(
-  codexPermissionModeFromTurnContext("workspace-write", "on-request") === null,
-  "turn_context (workspace-write, on-request) → null (ambiguous: ask|approve)",
+  codexPermissionModeFromTurnContext("workspace-write", "on-request", "auto_review") ===
+    "approve-for-me",
+  "(workspace-write, on-request, auto_review) → approve-for-me",
 );
 assert(
-  reconcile("approve-for-me", "workspace-write", "on-request") === "approve-for-me",
-  "approve-for-me mirror SURVIVES an observed (workspace-write, on-request) — no corruption",
+  codexPermissionModeFromTurnContext("workspace-write", "on-request", "user") === "ask-for-approval",
+  "(workspace-write, on-request, user) → ask-for-approval",
 );
 assert(
-  reconcile("ask-for-approval", "workspace-write", "on-request") === "ask-for-approval",
-  "ask-for-approval mirror SURVIVES the same shared projection",
+  codexPermissionModeFromTurnContext("workspace-write", "on-request", null) === "ask-for-approval",
+  "…and an ABSENT reviewer reads as ask-for-approval (the prompting mode)",
 );
-
-// Native DOWNGRADE out of full-access lands on the ambiguous pair → mirror keeps
-// full-access (accepted residual staleness — the rollout can't say ask vs approve,
-// so we decline rather than guess; documented in plan S5(ii) + coupling inventory).
+// The three formerly ACCEPTED residuals (2026-09-02, superseded) now reconcile.
 assert(
-  reconcile("full-access", "workspace-write", "on-request") === "full-access",
-  "native downgrade from full-access keeps the stale full-access mirror (residual staleness)",
-);
-
-// A `read-only` SANDBOX is codex's cycle-only fourth mode, and it reconciles on
-// that axis ALONE (SL-17). This is the one pin in this block that INVERTED: it
-// used to assert null on the grounds that the pair was "non-representable", which
-// was true only while `CodexPermissionMode` could not name the mode. It can now,
-// and the projection is unique for the same reason full-access's is — no offered
-// mode produces a read-only sandbox (ask/approve are workspace-write, full access
-// is danger-full-access). MEASURED at codex 0.152.1 through one live session
-// driven into the mode via the #39873 cycle (SL-17 q35): the Read Only turn wrote
-// (read-only, on-request) between a control turn and a post-switch turn that both
-// stayed on workspace-write.
-assert(
-  codexPermissionModeFromTurnContext("read-only", "on-request") === "read-only",
-  "turn_context (read-only, on-request) → read-only (MEASURED 0.152.1, q35)",
-);
-// The approval axis is deliberately NOT part of the test — it is the ask-frequency
-// knob, not the access level, and SL-8/r4's corpus carries read-only against BOTH
-// values (never ×186, on-request ×61). A session that cannot write is Read Only
-// either way.
-assert(
-  codexPermissionModeFromTurnContext("read-only", "never") === "read-only",
-  "…and (read-only, never) too — the sandbox decides, the approval axis does not",
+  reconcile("ask-for-approval", "workspace-write", "on-request", "auto_review") === "approve-for-me" &&
+    reconcile("approve-for-me", "workspace-write", "on-request", "user") === "ask-for-approval",
+  "(a) ask ↔ approve switched in the Terminal reconciles both ways",
 );
 assert(
-  codexPermissionModeFromTurnContext("read-only", null) === "read-only",
-  "…and a read-only sandbox with no readable approval policy still reconciles",
+  reconcile("full-access", "workspace-write", "on-request", "user") === "ask-for-approval",
+  "(b) a downgrade out of Full Access reconciles — a reopen can no longer re-grant it",
 );
 assert(
-  reconcile("approve-for-me", "read-only", "on-request") === "read-only",
-  "a NATIVE cycle into Read Only moves the mirror off approve-for-me",
+  reconcile("read-only", "workspace-write", "on-request", "auto_review") === "approve-for-me",
+  "(c) a cycle out of Read Only reconciles",
 );
-// …and back out again on the next turn, with no receipt involved: the cycle's
-// other stops land on workspace-write, which is the ambiguous pair, so the mirror
-// keeps whatever the drive last confirmed rather than guessing. That asymmetry is
-// deliberate and is the same residual staleness the ask↔approve case has.
+// Read Only on the SANDBOX alone (MEASURED 0.152.1, SL-17 q35); the approval
+// axis is the ask-frequency knob (SL-8/r4 corpus: never ×186, on-request ×61).
 assert(
-  reconcile("read-only", "workspace-write", "on-request") === "read-only",
-  "a native cycle OUT of Read Only lands on the ambiguous pair → mirror stays (residual staleness)",
-);
-assert(
-  reconcile("read-only", "danger-full-access", "never") === "full-access",
-  "…but a native move to full-access still reconciles out of read-only (unique projection)",
+  codexPermissionModeFromTurnContext("read-only", "on-request", "user") === "read-only" &&
+    codexPermissionModeFromTurnContext("read-only", "never", null) === "read-only" &&
+    codexPermissionModeFromTurnContext("read-only", null, null) === "read-only",
+  "a read-only sandbox reads as Read Only whatever the approval axis says",
 );
 assert(
-  codexPermissionModeFromTurnContext(null, null) === null,
+  reconcile("approve-for-me", "read-only", "on-request", "user") === "read-only",
+  "a cycle into Read Only moves the mirror",
+);
+// Unmeasured shapes and an unknown reviewer keep the current value — never a guess.
+assert(
+  codexPermissionModeFromTurnContext("workspace-write", "on-request", "some_future_reviewer") === null,
+  "an unknown reviewer value → null (keep current)",
+);
+assert(
+  codexPermissionModeFromTurnContext("workspace-write", "never", "user") === null &&
+    codexPermissionModeFromTurnContext("danger-full-access", "on-request", "user") === null,
+  "unmeasured sandbox/approval pairings → null (keep current)",
+);
+assert(
+  codexPermissionModeFromTurnContext(null, null, null) === null,
   "turn_context with no axes → null (keep current)",
 );
 // The OFFERED/NAMEABLE split: `read-only` is a mode Sonata can mirror, never one

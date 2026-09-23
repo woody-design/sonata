@@ -122,12 +122,12 @@ export class ProviderTranscript {
    *  initial `drain()`), false during live forward-tailing. Gates the codex
    *  `turn_context` reconcile (item E) to LIVE observations — see
    *  emitCodexTurnContext. A `turn_context` records the state of the turn that
-   *  WROTE it (the last turn before any post-turn switch), so replaying it on a
-   *  reopen/resume — where attachExistingSource re-reads the whole appended-to
-   *  rollout — would reconcile the session's mirrors back to that stale turn and
-   *  clobber a more recent Sonata-driven switch the manifest already holds. That
-   *  is the S6 field bug: a mid-session model/effort/permission switch reverts on
-   *  the chip after the session is reopened. Usage snapshots deliberately do NOT
+   *  WROTE it, so replaying it on a reopen/resume — where attachExistingSource
+   *  re-reads the whole appended-to rollout — would reconcile the session's
+   *  mirrors back to a PAST turn over the values the session was just re-spawned
+   *  with (the manifest's, or a reopen request's override), making the chip
+   *  contradict the spawn flags. That was the S6 field bug (a mid-session switch
+   *  reverting on the chip after a reopen). Usage snapshots deliberately do NOT
    *  gate on this: they are latest-wins and the last token_count IS the current
    *  usage, so a drain re-emit is correct for them. */
   private replayingDrain = false;
@@ -791,9 +791,9 @@ export class ProviderTranscript {
    *
    *  LIVE-only (replayingDrain — the S6 resume-clobber fix): a turn_context read
    *  by the initial drain replays a PAST turn's state, which must not reconcile
-   *  the mirrors backward over a more recent switch the manifest already holds.
-   *  Only a turn_context observed while live forward-tailing — a real native
-   *  switch as it happens — reaches the reconcile. A native switch made while
+   *  the mirrors backward over the values the session was just spawned with.
+   *  Only a turn_context observed while live forward-tailing — the current
+   *  turn's state as it happens — reaches the reconcile. A native switch made while
    *  Sonata was closed self-heals on that session's next live turn. */
   private emitCodexTurnContext(context: CodexTurnContextObservation): void {
     if (this.replayingDrain) {
@@ -807,6 +807,7 @@ export class ProviderTranscript {
         effort: context.effort,
         approvalPolicy: context.approvalPolicy,
         sandboxPolicy: context.sandboxPolicy,
+        approvalsReviewer: context.approvalsReviewer,
       },
       ts: new Date().toISOString(),
     });

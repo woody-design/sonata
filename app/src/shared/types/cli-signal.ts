@@ -156,7 +156,8 @@ import type { RuntimeProvider, TaskId, TurnEndWake } from "./domain";
  * on `requested_model`. The Subtraction program (2026-09-23) removed the drive —
  * Sonata no longer operates the CLI's pickers — so the event is no longer
  * injected; a model switch the user makes in the Terminal reaches Sonata through
- * the statusline payload (`model.id` / `model.display_name`), which needs no hook.
+ * the statusline payload's `model.display_name` (read by usage-adapters), which
+ * needs no hook.
  * `PreModelSwitch` was never injected — measured to fire on every switch ATTEMPT
  * including cancelled ones, so it confirms nothing by itself.
  *

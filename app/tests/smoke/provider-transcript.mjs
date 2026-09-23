@@ -1618,8 +1618,14 @@ check("codex: turn_context fires onTurnContext (native-switch reconcile wiring)"
   assert.equal(contexts.length, 1, "onTurnContext fired exactly once");
   assert.deepEqual(
     contexts[0],
-    { model: "gpt-5.6-sol", effort: "low", approvalPolicy: "on-request", sandboxPolicy: "read-only" },
-    "top-level model/effort + nested sandbox_policy.type + approval_policy extracted",
+    {
+      model: "gpt-5.6-sol",
+      effort: "low",
+      approvalPolicy: "on-request",
+      sandboxPolicy: "read-only",
+      approvalsReviewer: null,
+    },
+    "top-level model/effort + nested sandbox_policy.type + approval_policy extracted (no reviewer in this record)",
   );
 });
 
@@ -1641,7 +1647,7 @@ check("codex: turn_context with missing fields degrades to nulls", () => {
   );
   assert.deepEqual(
     contexts[0],
-    { model: null, effort: null, approvalPolicy: null, sandboxPolicy: null },
+    { model: null, effort: null, approvalPolicy: null, sandboxPolicy: null, approvalsReviewer: null },
     "absent fields (and a sandbox_policy with no .type) become null",
   );
 });
@@ -1931,7 +1937,7 @@ check("codex vintage parity: the same conversation reads identically in both rol
 // never read). All four CONSUMED fields kept their names, positions and types:
 // MEASURED across 1,966 turn_context records, zero carried an unreadable one at
 // 0.152.0. This pin is the anchor for that claim.
-check("codex 0.152.0: the enlarged turn_context still yields exactly the four consumed fields", () => {
+check("codex 0.152.0: the enlarged turn_context still yields exactly the five consumed fields", () => {
   const contexts = [];
   const normalizer = new CodexRolloutNormalizer({
     taskId: "task-1",
@@ -1980,20 +1986,25 @@ check("codex 0.152.0: the enlarged turn_context still yields exactly the four co
   assert.equal(blocks.length, 0, "turn_context is still not a transcript block");
   assert.deepEqual(
     contexts[0],
-    { model: "gpt-5.6-sol", effort: "high", approvalPolicy: "on-request", sandboxPolicy: "workspace-write" },
+    {
+      model: "gpt-5.6-sol",
+      effort: "high",
+      approvalPolicy: "on-request",
+      sandboxPolicy: "workspace-write",
+      approvalsReviewer: "user",
+    },
     "the twelve new sibling fields change nothing the reconcile reads",
   );
 });
 
-check("codex 0.152.0: a full-access turn_context still projects the unique reconcile pair", () => {
+check("codex 0.152.0: a full-access turn_context still projects the full-access pair", () => {
   // MEASURED live at 0.152.0 (SL-8 r5, spawned with the verbatim
-  // CODEX_PERMISSION_MODE_FLAGS full-access triple). This is the ONE pair
-  // codexPermissionModeFromTurnContext acts on, so its survival across the
-  // 0.152.0 shape change is what keeps the permission mirror reconcilable.
+  // CODEX_PERMISSION_MODE_FLAGS full-access triple). Its survival across the
+  // 0.152.0 shape change is what keeps Full Access reconcilable.
   // NOTE `permission_profile.type` reads "disabled" here and "managed" for the
   // other two modes — a candidate second signal, deliberately NOT consumed:
-  // it does not separate ask-for-approval from approve-for-me either, so it
-  // buys no new resolution on the axis that actually needs it.
+  // `approvals_reviewer` already separates ask-for-approval from approve-for-me
+  // (MEASURED q35/q42), so it buys no new resolution.
   const contexts = [];
   const normalizer = new CodexRolloutNormalizer({
     taskId: "task-1",
@@ -2081,7 +2092,11 @@ check("codex 0.152.1: a Read Only turn_context reaches the reader as a read-only
   assert.equal(contexts[0].sandboxPolicy, "read-only");
   assert.equal(contexts[0].approvalPolicy, "on-request");
   assert.equal(
-    codexPermissionModeFromTurnContext(contexts[0].sandboxPolicy, contexts[0].approvalPolicy),
+    codexPermissionModeFromTurnContext(
+      contexts[0].sandboxPolicy,
+      contexts[0].approvalPolicy,
+      contexts[0].approvalsReviewer,
+    ),
     "read-only",
     "the extracted axes reconcile to the fourth mode",
   );

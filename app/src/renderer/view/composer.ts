@@ -337,7 +337,7 @@ function renderSessionChip(element: HTMLButtonElement, label: string | null, hin
   if (element.textContent !== label || element.childElementCount > 0) {
     element.textContent = label;
   }
-  element.title = `${label} — ${hint}`;
+  element.title = `${label} · ${hint}`;
 }
 
 /** A New Chat launch chip: interactive, carets down, toggles its draft menu

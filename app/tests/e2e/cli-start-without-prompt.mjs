@@ -66,6 +66,7 @@ try {
 
   await cli.locator("#terminal-empty-action", { hasText: "Start CLI" }).click();
   const claudeTaskId = await waitForActiveTask(main);
+  const claudeChipsDisplayOnly = await liveChipsAreDisplayOnly(main);
   const claudeRecord = await waitForRecord(claudeTaskId);
   const claudeProjection = readProjection(claudeTaskId);
   const claudeOwnership = await readActiveOwnership(main);
@@ -101,6 +102,7 @@ try {
     ]),
   );
   const codexTaskId = await waitForActiveTask(main, claudeTaskId);
+  const codexChipsDisplayOnly = await liveChipsAreDisplayOnly(main);
   const codexRecord = await waitForRecord(codexTaskId);
   const codexProjection = readProjection(codexTaskId);
   const codexOwnership = await readActiveOwnership(main);
@@ -190,6 +192,10 @@ try {
       codexProjection.stdin.length === 0 &&
       codexRecord.report.runs.length === 0 &&
       attachmentBlobCount(codexTaskId) === 0,
+    // Subtraction X1: a live session's model·effort and permission chips are
+    // display-only for both providers — Sonata never switches them.
+    claudeChipsDisplayOnly,
+    codexChipsDisplayOnly,
     freshDraftIsEmpty,
     ownershipRestoresPerTask:
       claudeOwnershipRestored.text === claudeDraft &&
@@ -281,6 +287,26 @@ async function waitForCliActionReady(page, text) {
   await page.locator("#terminal-empty-action:not(:disabled)", { hasText: text }).waitFor({
     state: "visible",
   });
+}
+
+/** A live session's chips: disabled, no popup affordance, and a (forced) click
+ *  opens nothing in the composer popover root. */
+async function liveChipsAreDisplayOnly(page) {
+  await page.locator("#model-chip:disabled").waitFor({ state: "visible" });
+  await page.locator("#permission-chip:disabled").waitFor({ state: "visible" });
+  for (const id of ["#model-chip", "#permission-chip"]) {
+    await page.locator(id).click({ force: true }).catch(() => {});
+  }
+  return page.evaluate(() =>
+    ["model-chip", "permission-chip"].every((id) => {
+      const chip = document.getElementById(id);
+      return (
+        chip.disabled &&
+        chip.getAttribute("aria-haspopup") === null &&
+        !chip.classList.contains("interactive")
+      );
+    }) && document.getElementById("composer-popover-root").childElementCount === 0,
+  );
 }
 
 async function waitForActiveTask(page, previousTaskId = null) {

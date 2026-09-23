@@ -47,17 +47,16 @@ export type CodexApprovalMode = "untrusted" | "on-request" | "on-failure" | "nev
  * NAMEABLE ≠ OFFERED — the same split `ClaudePermissionMode` has against
  * `CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS`. The first three are Codex 0.144's
  * own `/permissions` picker rows ("Update Model Permissions"), and they are
- * everything Sonata launches into and drives to: that set is
- * `CodexOfferedPermissionMode` (codex-settings.ts), which every launch/spawn/
- * drive signature takes, so "Sonata never spawns or drives into Read Only" is a
- * compile error rather than a comment.
+ * everything Sonata launches into: that set is `CodexOfferedPermissionMode`
+ * (codex-settings.ts), which every launch/spawn signature takes, so "Sonata
+ * never spawns into Read Only" is a compile error rather than a comment.
  *
  * `read-only` is codex's FOURTH mode (#39873, MEASURED at 0.152.1 — SL-7 q29
  * arm B, SL-17 q35). It has no picker row and no default keybinding: it is
  * reachable only through the permission-CYCLE shortcut, whose set is the
  * `read-only` and `auto` presets × reviewer rather than the picker's rows
  * (`chatwidget/permission_shortcuts.rs`). Sonata models it so a session sitting
- * in it DISPLAYS honestly; it is never a launch or drive target, so it stays out
+ * in it DISPLAYS honestly; it is never a launch target, so it stays out
  * of the offered set.
  */
 export type CodexPermissionMode =

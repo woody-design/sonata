@@ -114,12 +114,16 @@ a separate profile for Codex) and never edits your own config. Hooks
 are how Sonata knows busy from idle, where a turn ends, and when the
 agent is asking for permission.
 
-- **Where the screen is still read.** Three narrow places. The working
-strip mirrors the CLI's own status line. When you switch model or
-permissions from Sonata's UI, Sonata types the CLI's own slash command
-into the terminal and reads the printed receipt to confirm it landed.
-And one fallback marks a failed Codex turn as done (Codex has no
-"turn failed" event).
+- **Model, effort and permission mode come from the CLI's own files.**
+Sonata shows the session's current values from what the CLI writes
+for programs (Claude's status line payload and hooks, Codex's session
+log) and never switches them itself. Switching happens in the
+terminal, with the CLI's own commands: `/model`, `/effort` and
+Shift+Tab in Claude Code, `/model` and `/permissions` in Codex.
+
+- **Where the screen is still read.** Two narrow places. The working
+strip mirrors the CLI's own status line, and one fallback marks a
+failed Codex turn as done (Codex has no "turn failed" event).
 
 The rule behind all of it: observe, never replace.
 

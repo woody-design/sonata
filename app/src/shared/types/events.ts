@@ -715,6 +715,11 @@ export type CodexTurnContextObservedEvent = BaseRuntimeEvent<
      *  input to `codexPermissionModeFromTurnContext`, and on its own decisive for
      *  `read-only` (no offered mode projects that sandbox). */
     sandboxPolicy: string | null;
+    /** The turn's approvals reviewer (`turn_context.payload.approvals_reviewer`,
+     *  `user` / `auto_review`) — the third input, and the one that separates
+     *  ask-for-approval from approve-for-me on the shared (workspace-write,
+     *  on-request) pair (MEASURED 0.152.1 q35 turn 3, 0.156.1 q42). */
+    approvalsReviewer: string | null;
   }
 >;
 

@@ -2957,16 +2957,18 @@ export class RuntimeController {
    * persist, and emit ONE task:updated only when something actually changed.
    * Every field is validated/mapped before it lands: effort against
    * REASONING_EFFORTS; the permission mode through
-   * codexPermissionModeFromTurnContext, which reconciles ONLY an unambiguous
-   * projection — the rollout can't tell ask-for-approval from approve-for-me (they
-   * share a projection; the reviewer axis that splits them isn't a trustworthy
-   * per-turn signal), so those pairs preserve the current mirror rather than
-   * guess. Model/effort round-trip cleanly. Codex-only by construction (turn_context is a
-   * codex rollout record), but guarded regardless.
+   * codexPermissionModeFromTurnContext, which maps all four measured
+   * projections (sandbox × approval × reviewer) and returns null — keep the
+   * current value — only for a shape it has not measured. Codex-only by
+   * construction (turn_context is a codex rollout record), but guarded
+   * regardless.
    *
-   * SINCE SL-17 this is also the channel that carries `read-only` — codex's
-   * cycle-only fourth mode, which arrives on the same terms as every other codex
-   * switch.
+   * The PERSISTED task value follows too (TaskMirror persists the manifest), and
+   * that is load-bearing: a reopen spawns from `task.codexPermissionMode`, so a
+   * session downgraded in the Terminal out of Full Access must not re-spawn with
+   * `danger-full-access` (orchestrator ruling, Subtraction X1 fix round F1). A
+   * persisted `read-only` re-spawns as ask-for-approval (normalizePermissionSettings
+   * — Sonata cannot launch into Read Only).
    */
   private reconcileCodexTurnContext(
     active: ActiveTaskRuntime,
@@ -2975,6 +2977,7 @@ export class RuntimeController {
       effort: string | null;
       approvalPolicy: string | null;
       sandboxPolicy: string | null;
+      approvalsReviewer: string | null;
     },
   ): void {
     if (active.task.provider !== "codex") {
@@ -2986,19 +2989,14 @@ export class RuntimeController {
       context.effort && REASONING_EFFORTS.has(context.effort as ReasoningEffort)
         ? (context.effort as ReasoningEffort)
         : active.task.reasoningEffort;
-    // The rollout carries (sandbox, approval) but NOT the reviewer axis that
-    // separates ask-for-approval from approve-for-me (they share the same
-    // (workspace-write, on-request) projection). So reconcile the permission mode
-    // ONLY when the projection uniquely identifies a mode: full-access's
-    // (danger-full-access, never), and — since SL-17 — a `read-only` SANDBOX,
-    // which no offered mode can produce and which codex itself calls "Read Only".
-    // An ambiguous pair returns null and keeps the current mirror (fail-safe —
-    // never guess a mode from indistinguishable state; a mislabelled access level
-    // is worse than a stale one). See codexPermissionModeFromTurnContext for the
-    // full boundary.
+    // The latest turn_context decides the permission mode (all four modes are
+    // derivable from sandbox × approval × reviewer). An unmeasured shape maps to
+    // null and keeps the current value — never a guess. See
+    // codexPermissionModeFromTurnContext for the measured table.
     const reconciledMode = codexPermissionModeFromTurnContext(
       context.sandboxPolicy,
       context.approvalPolicy,
+      context.approvalsReviewer,
     );
     const nextMode = reconciledMode ?? active.task.codexPermissionMode;
     // Metadata-write discipline: TaskMirror mirrors in place with a frozen
