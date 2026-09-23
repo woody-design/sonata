@@ -2120,7 +2120,12 @@ window.sonataRuntime.onRuntimeEvent((event) => {
     return;
   }
   if (event.type === "prompt:unsent") {
-    restoreUnsentPrompt(event.payload.taskId, event.payload.text, event.payload.reason);
+    restoreUnsentPrompt(
+      event.payload.taskId,
+      event.payload.text,
+      event.payload.attachments,
+      event.payload.reason,
+    );
     return;
   }
   if (event.type === "pty:exit") {

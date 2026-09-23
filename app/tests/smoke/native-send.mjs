@@ -214,6 +214,7 @@ await check("a send after boot writes paste then CSI-u Enter, at once, with no g
     assert(fx.of("prompt:submitted").length === 1, "prompt:submitted is emitted synchronously");
     assert(!fx.host.hasActiveRun(), "the write begins no run (ruling 1)");
     assert(fx.of("prompt:submitted")[0].payload.runId === null, "prompt:submitted names no run");
+    assert(fx.of("prompt:submitted")[0].payload.slashCommand === null, "a prompt carries no slash command");
     await waitUntil(() => fx.log().includes(CSI_U_ENTER), 2_000, "the Enter");
     const log = fx.log();
     assert(log === `${paste(text)}${CSI_U_ENTER}`, `stdin=${JSON.stringify(log)}`);
@@ -253,6 +254,15 @@ await check("a send after boot writes paste then CSI-u Enter, at once, with no g
     fx.host.submitPromptWhenReady("typed over the rewind panel");
     await waitUntil(() => fx.log().slice(beforeRewind).endsWith(CSI_U_ENTER), 2_000, "the send over the rewind panel");
     assert(fx.log().slice(beforeRewind) === `${paste("typed over the rewind panel")}${CSI_U_ENTER}`, "rewind send as-is");
+
+    // Fix round 2: a user's `/…` write names its command (the pointer's source,
+    // since a built-in fires no UserPromptSubmit); Sonata's control /stop does not.
+    fx.host.submitPromptWhenReady("/config");
+    assert(fx.of("prompt:submitted").at(-1).payload.slashCommand === "/config", "the user's slash write names it");
+    await delay(200);
+    fx.host.submitPrompt("/stop", { control: true });
+    assert(fx.of("prompt:submitted").at(-1).payload.slashCommand === null, "a control /stop names nothing");
+    await delay(200);
 
     const types = new Set(fx.events.map((event) => event.type));
     assert(![...types].some((type) => type.startsWith("delivery:")), `no delivery events (${[...types].join(",")})`);
@@ -331,7 +341,7 @@ await check("the boot hold dies with the pty — a relaunch sends nothing on its
   const fx = startFakeHost({ bootMs: 60_000, exitAtMs: 300 });
   try {
     fx.host.submitPromptWhenReady("/compact", { fromUser: false });
-    fx.host.submitPromptWhenReady("held for a CLI that never booted");
+    fx.host.submitPromptWhenReady("held for a CLI that never booted", { attachments: [{ path: "/tmp/held-shot.png" }] });
     await waitUntil(() => fx.of("pty:exit").length === 1, 5_000, "the pty exit");
     assert(fx.host.bootLatched() === false, "the dead pty never latched");
     // F6: the user's held words come back once; Sonata's own /compact does not.
@@ -339,6 +349,7 @@ await check("the boot hold dies with the pty — a relaunch sends nothing on its
     assert(
       unsent.length === 1 &&
         unsent[0].payload.text === "held for a CLI that never booted" &&
+        JSON.stringify(unsent[0].payload.attachments) === JSON.stringify(["/tmp/held-shot.png"]) &&
         unsent[0].payload.reason === "pty-exit",
       `one prompt:unsent with the user's text: ${JSON.stringify(unsent.map((event) => event.payload))}`,
     );

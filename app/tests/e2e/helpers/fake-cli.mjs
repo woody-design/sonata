@@ -120,6 +120,12 @@ ${authArm}`;
  * payload fields the controller reads (`hook_event_name`, `prompt`,
  * `prompt_id`); no `session_id`/`transcript_path`, so no transcript adoption is
  * attempted. Expects `fs`, `path` and `runtimeDir` in scope.
+ *
+ * It fires NOTHING for a single-line `/…` paste: claude fires no
+ * UserPromptSubmit for its built-in local commands (`/config`, `/model`,
+ * `/clear` — MEASURED by the X2 re-review via e2e cli-slash-semantic at 2.1.281).
+ * A skill does fire one, so this under-states skills rather than over-stating
+ * built-ins: the fake-CLI tests then see what a built-in really leaves behind.
  */
 export function fakePromptHookSource() {
   return `let promptHookBuffer = "";
@@ -136,6 +142,7 @@ function firePromptHooks(chunk) {
     const end = before.lastIndexOf("\\u001b[201~");
     if (start === -1 || end < start) { continue; }
     const prompt = before.slice(start + 6, end);
+    if (prompt.startsWith("/") && !prompt.includes("\\n")) { continue; }
     const hooksDir = path.join(runtimeDir, "hooks");
     fs.mkdirSync(hooksDir, { recursive: true });
     const file = path.join(hooksDir, "hook-" + Date.now().toString(36) + "-" + process.hrtime.bigint().toString(36) + ".json");

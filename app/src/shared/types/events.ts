@@ -359,6 +359,12 @@ export type PromptSubmittedEvent = BaseRuntimeEvent<
     kind: RunKind;
     chars: number;
     attachments: number;
+    /** The single-line `/…` command the USER sent (null/absent for prompts and
+     *  for Sonata's own control sends). A fact of Sonata's own write — claude
+     *  fires no UserPromptSubmit for its built-in local commands, so this is
+     *  what raises the "ran in the CLI" pointer (X2 fix round 2). Optional:
+     *  recorded fixtures predate it. */
+    slashCommand?: string | null;
   }
 >;
 
@@ -372,7 +378,14 @@ export type SessionStateEvent = BaseRuntimeEvent<"session:state", TaskSessionSta
  */
 export type PromptUnsentEvent = BaseRuntimeEvent<
   "prompt:unsent",
-  { taskId: TaskId; text: string; reason: "pty-exit" | "stop" }
+  {
+    taskId: TaskId;
+    text: string;
+    /** Paths of the held send's image attachments (referenced originals or
+     *  Sonata's own copies), handed back as chips. */
+    attachments: string[];
+    reason: "pty-exit" | "stop";
+  }
 >;
 
 export type RunStartedEvent = BaseRuntimeEvent<

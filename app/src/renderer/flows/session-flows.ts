@@ -48,7 +48,7 @@ import * as renameTransitions from "../../reading-core/transitions/rename";
 import type { ViewMode } from "../actions";
 import { elements } from "../dom";
 import { render } from "../render";
-import { clearComposerAttachments, materializeAttachments } from "./attachments";
+import { clearComposerAttachments, materializeAttachments, restoreUnsentAttachments } from "./attachments";
 
 interface SessionFlowDeps {
   /** Sidebar menu close (view/sidebar) — session ops start by dismissing it. */
@@ -1109,18 +1109,27 @@ export async function stopRun(): Promise<void> {
  * anything typed since (the D2 restore rule), and say so once. No retry and no
  * persistence — the user decides whether to send again.
  */
-export function restoreUnsentPrompt(taskId: string, text: string, reason: "pty-exit" | "stop"): void {
+export function restoreUnsentPrompt(
+  taskId: string,
+  text: string,
+  attachmentPaths: string[],
+  reason: "pty-exit" | "stop",
+): void {
   const view = taskViewForId(state, taskId);
   if (!view) {
     return;
   }
-  const active = state.activeTaskId === taskId;
-  const current = active ? elements.promptInput.value : view.composerDraft;
-  const restored = current.trim() ? `${text}\n${current}` : text;
-  view.composerDraft = restored;
-  if (active) {
-    elements.promptInput.value = restored;
+  if (text) {
+    const active = state.activeTaskId === taskId;
+    const current = active ? elements.promptInput.value : view.composerDraft;
+    const restored = current.trim() ? `${text}\n${current}` : text;
+    view.composerDraft = restored;
+    if (active) {
+      elements.promptInput.value = restored;
+    }
   }
+  // Held image attachments come back as chips, so nothing of the message is lost.
+  void restoreUnsentAttachments(taskId, attachmentPaths);
   view.status =
     reason === "stop"
       ? "Not sent — stopped before it reached the CLI. Your message is back in the composer."

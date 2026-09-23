@@ -171,6 +171,18 @@ async function addReferences(paths: string[], owner: ComposerOwner): Promise<voi
   }
 }
 
+/** Hand a session's unsent image attachments back as chips (`prompt:unsent`,
+ *  X2 fix round 2). Each path — a referenced original or Sonata's own copy — is
+ *  re-referenced (no copy, never deleted), so a re-send carries it again. */
+export async function restoreUnsentAttachments(taskId: string, paths: string[]): Promise<void> {
+  const view = taskViewForId(state, taskId);
+  if (!view || paths.length === 0) {
+    return;
+  }
+  await addReferences(paths, { taskId, attachments: view.pendingAttachments });
+  render();
+}
+
 function setComposerOwnerStatus(owner: ComposerOwner, message: string): void {
   if (owner.taskId) {
     const view = taskViewForId(state, owner.taskId);

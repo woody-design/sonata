@@ -158,6 +158,13 @@ function expectedDirectives(state, event) {
   if (event.type === "transcript:blocks") {
     return [active ? { kind: "transcript-debounced", taskId } : { kind: "unread-only", taskId }];
   }
+  if (event.type === "prompt:submitted") {
+    // Paints only when it carries the user's `/…` line (X2 fix round 2); the
+    // recorded corpus predates the field, so it replays as none.
+    return event.payload.slashCommand
+      ? [active ? { kind: "full", taskId } : { kind: "unread-only", taskId }]
+      : [{ kind: "none" }];
+  }
   if (event.type === "report:updated") {
     // OBS S3: the refetch is narrowed to updates that touched runs/approvals/
     // lifecycle. A file:changed-only flush carries runsChanged=false → no
@@ -594,6 +601,28 @@ function runUpdated(overrides = {}) {
     { runId: "run-1", command: "/compact" },
     "slash-completed → slashAttention pointer with the command's first line",
   );
+}
+{
+  // X2 fix round 2: a built-in `/…` sent from Sonata begins no run (claude fires
+  // no UserPromptSubmit for it), so the pointer is raised from Sonata's OWN
+  // write — prompt:submitted's slashCommand — and a later run:started retires it.
+  const { state, view } = seedView();
+  const submitted = (slashCommand) => ({
+    type: "prompt:submitted",
+    payload: { taskId: "task-A", runId: null, kind: slashCommand ? "slash" : "prompt", chars: 7, attachments: 0, slashCommand },
+    ts: "2026-07-03T11:00:00.000Z",
+  });
+  assert.deepEqual(R.reduceRuntimeEvent(state, submitted(null), NOW_MS), [{ kind: "none" }], "a prompt write paints nothing");
+  assert.equal(view.slashAttention, null, "…and raises no pointer");
+  const d = R.reduceRuntimeEvent(state, submitted("/config"), NOW_MS);
+  assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "a slash write paints the pointer");
+  assert.deepEqual(view.slashAttention, { runId: null, command: "/config" }, "the write raises the pointer, run-less");
+  R.reduceRuntimeEvent(
+    state,
+    { type: "run:started", payload: { taskId: "task-A", id: "run-9", kind: "prompt", title: "next", prompt: "next", promptId: null, startedAt: "2026-07-03T11:01:00.000Z" }, ts: "2026-07-03T11:01:00.000Z" },
+    NOW_MS,
+  );
+  assert.equal(view.slashAttention, null, "the next run:started retires it");
 }
 
 // 5) Recommended — option-prompt resolved-with-null (cancel).

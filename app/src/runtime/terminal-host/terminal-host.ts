@@ -1323,17 +1323,19 @@ export class TerminalHost extends EventEmitter {
    *  silently: one `prompt:unsent` hands their text back to the composer
    *  (fix round, F6). Nothing is persisted and nothing is retried. */
   private dropHeldSends(reason: "pty-exit" | "stop"): void {
-    const unsent = this.heldSends
-      .filter((send) => send.fromUser)
+    const userSends = this.heldSends.filter((send) => send.fromUser);
+    const text = userSends
       .map((send) => send.text.trim())
-      .filter((text) => text.length > 0);
+      .filter((part) => part.length > 0)
+      .join("\n\n");
+    const attachments = userSends.flatMap((send) => send.attachments.map((attachment) => attachment.path));
     this.heldSends = [];
     if (this.heldSendFlushTimer) {
       clearTimeout(this.heldSendFlushTimer);
       this.heldSendFlushTimer = null;
     }
-    if (unsent.length > 0) {
-      this.emitEvent("prompt:unsent", { taskId: this.taskId, text: unsent.join("\n\n"), reason });
+    if (text || attachments.length > 0) {
+      this.emitEvent("prompt:unsent", { taskId: this.taskId, text, attachments, reason });
     }
   }
 
@@ -2383,6 +2385,9 @@ export class TerminalHost extends EventEmitter {
       kind,
       chars: trimmed.length,
       attachments: attachments.length,
+      // The user's own `/…` line — Sonata knows it wrote it; nothing is claimed
+      // about what the CLI did with it (a built-in fires no UserPromptSubmit).
+      slashCommand: kind === "slash" && !options.control ? trimmed : null,
     });
     return {
       taskId: this.taskId,

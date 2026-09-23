@@ -175,6 +175,19 @@ export function reduceRuntimeEvent(
     return [viewChangedDirective(state, view, taskId)];
   }
 
+  // Sonata wrote a `/…` command (X2 fix round 2). Claude fires no
+  // UserPromptSubmit for its built-in local commands (/config, /model, /clear),
+  // so no run will ever begin for them; the pointer is raised from Sonata's OWN
+  // write — a fact of its action, not a read of the CLI — and retires on the
+  // next run:started, like the run-completion arm above.
+  if (event.type === "prompt:submitted") {
+    if (!event.payload.slashCommand) {
+      return [{ kind: "none" }];
+    }
+    view.slashAttention = { runId: null, command: event.payload.slashCommand };
+    return [viewChangedDirective(state, view, taskId)];
+  }
+
   if (event.type === "approval:detected") {
     view.pendingApproval = event.payload;
     view.status = "Waiting for approval";

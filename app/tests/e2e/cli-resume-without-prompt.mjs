@@ -36,9 +36,6 @@ fs.writeFileSync(
 );
 fs.writeFileSync(imagePath, redPngBytes());
 installFakeCli(fakeBin, "claude", {
-  // The CLI's UserPromptSubmit is what begins a run (X2 fix round); this fake
-  // fires it for each submitted paste (COMPOSED, helpers/fake-cli.mjs).
-  promptHooks: true,
   readyOutput: "Fake Claude ready\n❯ opus xhigh ~\n",
   records: ["spawn-count", "spawn-argv", "stdin"],
 });
@@ -98,23 +95,20 @@ try {
   // only the system /compact operation, and never touch the user draft.
   await cli.locator("#terminal-empty-action", { hasText: "Resume task" }).click();
   await waitFor(() => spawnCount(taskId) === 2, "summary resume spawn");
-  await waitFor(
-    () => readReport(taskId).runs.some((run) => run.prompt === "/compact"),
-    "summary /compact run",
-  );
-  // Run persistence precedes the PTY write by design. Wait on the second side
-  // of the invariant before freezing evidence, then keep the exact-one assert
-  // below so a duplicate delivery still fails rather than satisfying the wait.
+  // The write happens first; a run begins only on the CLI's own
+  // UserPromptSubmit (X2), which this test composes itself (`completeTurn`), in
+  // the CLI's real order. Keep the exact-one asserts below so a duplicate
+  // delivery still fails rather than satisfying the wait.
   await waitFor(
     () => occurrences(readStdin(taskId), "/compact") >= 1,
     "summary /compact stdin delivery",
   );
+  await completeTurn(taskId, "summary-no-prompt", "/compact");
   await new Promise((resolve) => setTimeout(resolve, 100));
   const summaryReport = readReport(taskId);
   const summaryStdin = readStdin(taskId);
   const summaryOwnership = await readOwnership(main);
   const summaryAttachmentBlobCount = attachmentBlobCount(taskId);
-  await completeTurn(taskId, "summary-no-prompt", "/compact");
 
   // Return dormant, switch to policy=ask, and prove stale/double intents cannot
   // bypass the choice or open more than one generation.
@@ -228,10 +222,7 @@ try {
   await main.locator("#prompt-input").fill(trueEdit);
   await main.locator("#resume-full").click();
   await waitFor(() => spawnCount(taskId) === 4, "full resume-and-send spawn");
-  await waitFor(
-    () => readReport(taskId).runs.some((run) => run.prompt.includes(trueEdit)),
-    "full resume user run",
-  );
+  await waitFor(() => readStdin(taskId).includes(trueEdit), "full resume user write");
   await completeTurn(taskId, "full-send", trueEdit);
   const fullSendReport = readReport(taskId);
   const fullSendStdin = readStdin(taskId);
@@ -249,8 +240,8 @@ try {
   await main.locator("#send-prompt:not(:disabled)").click();
   await waitFor(() => spawnCount(taskId) === 5, "summary resume-and-send spawn");
   await waitFor(
-    () => readReport(taskId).runs.length === beforeSummarySend + 1,
-    "summary resume system run",
+    () => occurrences(readStdin(taskId), "/compact") === 2 && readStdin(taskId).includes(summarySendDraft),
+    "summary resume writes (/compact, then the held message)",
   );
   await completeTurn(taskId, "summary-compact", "/compact");
   await completeTurn(taskId, "summary-send", summarySendDraft);

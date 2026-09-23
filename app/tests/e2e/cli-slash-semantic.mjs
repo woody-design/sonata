@@ -65,11 +65,10 @@ try {
   await input.fill("");
   await page.locator(".slash-picker").waitFor({ state: "hidden" });
 
-  // A verbatim slash submit begins a Sonata run (kind "slash") — the send button
-  // is Stop (■) while it is active, so each step must wait for the run to
-  // settle before the next submit. The settle itself is load-bearing: it is
-  // the quiescence completion that replaced armModalPanel's close-the-slash-run
-  // side effect (S3, decision A).
+  // A run begins only on the CLI's own UserPromptSubmit (X2). A skill fires one;
+  // a built-in local command (/config) fires none, so it begins no run at all.
+  // Each step still waits for the send button to read "↑" (no run owns it)
+  // before the next submit.
   const composerIdle = () =>
     waitFor(async () => (await page.locator("#send-prompt").textContent()) === "↑", 60000);
 
@@ -107,12 +106,12 @@ try {
       }, 5000);
     }
   }
-  // The slash run settles once the panel is gone (the idle prompt is its
-  // honest completion — the S3 replacement for the modal-arm side effect).
+  // Nothing owns the composer once the panel is gone (a built-in began no run).
   checks.panelRunSettles = await composerIdle();
 
-  // S5: the settled slash run raises its passive attention banner — anything
-  // the command opened lives in the terminal; Reading gets the pointer.
+  // S5: the passive attention banner — anything the command opened lives in the
+  // terminal; Reading gets the pointer. Since X2 fix round 2 it is raised from
+  // Sonata's own write of the `/…` line, not from a run (a built-in has none).
   checks.slashBannerShown = await waitFor(async () => {
     const banner = page.locator('.attention-banner[data-kind="slash-sent"]');
     if ((await banner.count()) === 0) {

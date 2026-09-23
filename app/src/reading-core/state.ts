@@ -278,7 +278,9 @@ export interface TaskViewState {
    *  slash command settled (its panel, if any, lives in the terminal); an
    *  approval card expired to the native panel. Display-only state: set/cleared
    *  from runtime events, never drives delivery or runs. */
-  slashAttention: { runId: string; command: string } | null;
+  /** "`/cmd` ran in the CLI" pointer. `runId` is null when raised by Sonata's
+   *  own write of the command (no run: a built-in fires no UserPromptSubmit). */
+  slashAttention: { runId: string | null; command: string } | null;
   /** The broker hold expired — the request now waits in the CLI. The drawer
    *  keeps showing it (expired variant); cleared by a decision (incl.
    *  answered-natively) or a fresh detected ask. */

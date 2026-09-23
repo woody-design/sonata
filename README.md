@@ -122,19 +122,21 @@ terminal, with the CLI's own commands: `/model`, `/effort` and
 Shift+Tab in Claude Code, `/model` and `/permissions` in Codex.
 
 - **Sending is typing.** Send writes your message into the CLI at once,
-exactly as typed; Sonata keeps no queue and never presses Enter for
-you. The one wait: a message sent while the CLI is still starting is
-written once it reaches its prompt. A run appears only when the CLI
-starts one. A prompt the CLI holds for review (its "invisible
-characters" notice) is visible in the CLI pane and needs the CLI's own
-Enter, exactly as at a terminal; Sonata shows no run until the CLI
-starts one.
+exactly as typed, and presses Enter once, as you would. The one extra
+key: a bare Codex `$skill` mention gets a second Enter, because Codex's
+mention picker takes the first one. Sonata keeps no queue and never
+retries. The one wait: a message sent while the CLI is still starting
+is written once it reaches its prompt. A prompt the CLI holds for
+review (its "invisible characters" notice) is visible in the CLI pane
+and needs the CLI's own Enter, exactly as at a terminal; Sonata shows
+no run until the CLI starts one.
 
-- **Where the screen is still read.** Three narrow places. The
-working strip mirrors the CLI's own status line; one fallback marks a
-failed Codex turn as done (Codex has no "turn failed" event); and the
-boot latch reads the screen once, for "has this CLI reached its
-prompt yet".
+- **Where the screen is still read.** Three narrow places:
+  1. the working strip, which mirrors the CLI's own status line;
+  2. one fallback that marks a failed Codex turn as done (Codex has no
+     "turn failed" event);
+  3. the boot check, which re-reads the screen until the CLI first
+     shows its prompt, and then stops.
 
 The rule behind all of it: observe, never replace.
 

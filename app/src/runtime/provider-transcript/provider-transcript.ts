@@ -22,6 +22,10 @@ const EMIT_CHUNK_SIZE = 250;
 // other, while sibling wakeups repeat the identical text minutes apart —
 // 30s pairs the true twin and excludes every sibling.
 const SYSTEM_ANCHOR_TEXT_WINDOW_MS = 30_000;
+// A codex turn whose anchor matched no run is logged only if it is STILL
+// unattributed this long after — past the lazily-started first-turn hook (~1.7s
+// measured at 0.156.1) and any follow-up block re-resolving it (X2 fix round 2).
+const UNATTRIBUTED_TURN_DIAGNOSTIC_DELAY_MS = 15_000;
 
 export interface ResolveRunIdInput {
   text: string;
@@ -745,6 +749,12 @@ export class ProviderTranscript {
       // husk instead of a text/time fallback (the identity-outranks-text guard
       // skips id-mismatched runs by design — unchanged here). Surface it once
       // per turn so a future violation is visible in logs, not a mystery card.
+      //
+      // Deferred, not immediate (X2 fix round 2): since runs begin only on the
+      // CLI's UserPromptSubmit, codex's FIRST turn routinely writes its rollout
+      // user_message before its lazily-started hook begins the run (~1.7s,
+      // measured at 0.156.1), and the turn's later blocks re-resolve it. Only a
+      // turn STILL unattributed after that window is the unexpected case.
       if (
         runId === null &&
         block.provider === "codex" &&
@@ -752,9 +762,15 @@ export class ProviderTranscript {
         !this.diagnosedUnattributed.has(turnId)
       ) {
         this.diagnosedUnattributed.add(turnId);
-        console.debug(
-          `[signal] codex turn ${turnId} anchor promptId ${retryAnchor.promptId} matched no run — check the turn_id bridge`,
-        );
+        const promptIdForLog = retryAnchor.promptId;
+        const check = setTimeout(() => {
+          if (!this.disposed && (this.turnRunIds.get(turnId) ?? null) === null) {
+            console.debug(
+              `[signal] codex turn ${turnId} anchor promptId ${promptIdForLog} matched no run — check the turn_id bridge`,
+            );
+          }
+        }, UNATTRIBUTED_TURN_DIAGNOSTIC_DELAY_MS);
+        check.unref?.();
       }
     }
     return runId ? { ...block, runId } : block;
