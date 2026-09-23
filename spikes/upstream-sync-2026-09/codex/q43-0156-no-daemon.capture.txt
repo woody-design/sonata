@@ -1,0 +1,226 @@
+{
+  "probe": "q43-no-daemon",
+  "version": "codex-cli 0.156.1",
+  "arms": {
+    "A": {
+      "arm": "A-hooked-production",
+      "args": [
+        "-p",
+        "sonata",
+        "--dangerously-bypass-hook-trust",
+        "--no-alt-screen",
+        "--no-daemon",
+        "-m",
+        "gpt-6-astra",
+        "-c",
+        "model_reasoning_effort=\"high\"",
+        "-C",
+        "/private/tmp/sonata-codex-0156-no-daemon/A/cwd",
+        "-s",
+        "workspace-write",
+        "-a",
+        "on-request",
+        "-c",
+        "approvals_reviewer=\"user\""
+      ],
+      "hasNoDaemon": true,
+      "readyAtMs": 330,
+      "ready": true,
+      "ptyExited": false,
+      "exitInfo": null,
+      "grid": [
+        "╭────────────────────────────────────────────────╮",
+        "│ >_ OpenAI Codex (v0.156.1)                     │",
+        "│                                                │",
+        "│ model:     GPT-6-Astra high   /model to change │",
+        "│ directory: /private/tmp/…/A/cwd                │",
+        "╰────────────────────────────────────────────────╯",
+        "  Tip: This is GPT-6, a new generation of intelligence. Astra is state-of-the-art in coding, computer use, science, and",
+        "  professional work. Give it a hard problem, a half-formed idea, or anything you've been meaning to build. See where it",
+        "  takes you.",
+        "› Ask Codex to do anything",
+        "  GPT-6-Astra high · /private/tmp/sonata-codex-0156-no-daemon/A/cwd                            ⚠ 1 warning · f2 to view"
+      ],
+      "footer": "  GPT-6-Astra high · /private/tmp/sonata-codex-0156-no-daemon/A/cwd                            ⚠ 1 warning · f2 to view",
+      "warningTail": "⚠ 1 warning · f2 to view",
+      "errorLinesGrid": [],
+      "errorLinesStream": [],
+      "embeddedWarning": false,
+      "events": [
+        {
+          "atMs": 1,
+          "type": "file:watching",
+          "payload": {}
+        },
+        {
+          "atMs": 27,
+          "type": "task:started",
+          "payload": {}
+        },
+        {
+          "atMs": 27,
+          "type": "session:state",
+          "payload": {}
+        },
+        {
+          "atMs": 1061,
+          "type": "session:state",
+          "payload": {}
+        }
+      ]
+    },
+    "B": {
+      "arm": "B-hookless",
+      "args": [
+        "--no-alt-screen",
+        "--no-daemon",
+        "-m",
+        "gpt-6-astra",
+        "-c",
+        "model_reasoning_effort=\"high\"",
+        "-C",
+        "/private/tmp/sonata-codex-0156-no-daemon/B/cwd",
+        "-s",
+        "workspace-write",
+        "-a",
+        "on-request",
+        "-c",
+        "approvals_reviewer=\"user\""
+      ],
+      "hasNoDaemon": true,
+      "hasProfile": false,
+      "readyAtMs": 311,
+      "ready": true,
+      "ptyExited": false,
+      "exitInfo": null,
+      "grid": [
+        "╭────────────────────────────────────────────────╮",
+        "│ >_ OpenAI Codex (v0.156.1)                     │",
+        "│                                                │",
+        "│ model:     GPT-6-Astra high   /model to change │",
+        "│ directory: /private/tmp/…/B/cwd                │",
+        "╰────────────────────────────────────────────────╯",
+        "  Tip: This is GPT-6, a new generation of intelligence. Astra is state-of-the-art in coding, computer use, science, and",
+        "  professional work. Give it a hard problem, a half-formed idea, or anything you've been meaning to build. See where it",
+        "  takes you.",
+        "› Ask Codex to do anything",
+        "  GPT-6-Astra high · /private/tmp/sonata-codex-0156-no-daemon/B/cwd"
+      ],
+      "footer": "  GPT-6-Astra high · /private/tmp/sonata-codex-0156-no-daemon/B/cwd",
+      "warningTail": null,
+      "errorLinesGrid": [],
+      "errorLinesStream": [],
+      "embeddedWarning": false,
+      "events": [
+        {
+          "atMs": 1,
+          "type": "file:watching",
+          "payload": {}
+        },
+        {
+          "atMs": 4,
+          "type": "task:started",
+          "payload": {}
+        },
+        {
+          "atMs": 4,
+          "type": "session:state",
+          "payload": {}
+        },
+        {
+          "atMs": 1003,
+          "type": "session:state",
+          "payload": {}
+        }
+      ]
+    },
+    "C": {
+      "arm": "C-control-without-flag",
+      "args": [
+        "-p",
+        "sonata",
+        "--dangerously-bypass-hook-trust",
+        "--no-alt-screen",
+        "-m",
+        "gpt-6-astra",
+        "-c",
+        "model_reasoning_effort=\"high\"",
+        "-C",
+        "/private/tmp/sonata-codex-0156-no-daemon/A/cwd",
+        "-s",
+        "workspace-write",
+        "-a",
+        "on-request",
+        "-c",
+        "approvals_reviewer=\"user\""
+      ],
+      "hasNoDaemon": false,
+      "readyAtMs": 309,
+      "ready": true,
+      "ptyExited": false,
+      "exitInfo": null,
+      "grid": [
+        "╭────────────────────────────────────────────────╮",
+        "│ >_ OpenAI Codex (v0.156.1)                     │",
+        "│                                                │",
+        "│ model:     GPT-6-Astra high   /model to change │",
+        "│ directory: /private/tmp/…/A/cwd                │",
+        "╰────────────────────────────────────────────────╯",
+        "  Tip: This is GPT-6, a new generation of intelligence. Astra is state-of-the-art in coding, computer use, science, and",
+        "  professional work. Give it a hard problem, a half-formed idea, or anything you've been meaning to build. See where it",
+        "  takes you.",
+        "› Ask Codex to do anything",
+        "  GPT-6-Astra high · /private/tmp/sonata-codex-0156-no-daemon/A/cwd                            ⚠ 1 warning · f2 to view"
+      ],
+      "footer": "  GPT-6-Astra high · /private/tmp/sonata-codex-0156-no-daemon/A/cwd                            ⚠ 1 warning · f2 to view",
+      "warningTail": "⚠ 1 warning · f2 to view",
+      "errorLinesGrid": [],
+      "errorLinesStream": [],
+      "embeddedWarning": false,
+      "events": [
+        {
+          "atMs": 1,
+          "type": "file:watching",
+          "payload": {}
+        },
+        {
+          "atMs": 4,
+          "type": "task:started",
+          "payload": {}
+        },
+        {
+          "atMs": 4,
+          "type": "session:state",
+          "payload": {}
+        },
+        {
+          "atMs": 625,
+          "type": "session:state",
+          "payload": {}
+        }
+      ]
+    }
+  },
+  "daemonBefore": "Error: failed to connect to $HOME/.codex/app-server-control/app-server-control.sock",
+  "verdict": {
+    "A_accepts_flag": true,
+    "B_accepts_flag": true,
+    "errorLines": {
+      "A": 0,
+      "B": 0,
+      "C": 0
+    },
+    "footerShape": {
+      "A": "GPT-6-Astra high · <cwd> ⚠ 1 warning · f2 to view",
+      "B": "GPT-6-Astra high · <cwd>",
+      "C": "GPT-6-Astra high · <cwd> ⚠ 1 warning · f2 to view"
+    },
+    "footerA_equals_control": true,
+    "embeddedWarning": {
+      "A": false,
+      "B": false,
+      "C": false
+    }
+  },
+  "endVersion": "codex-cli 0.156.1"
+}

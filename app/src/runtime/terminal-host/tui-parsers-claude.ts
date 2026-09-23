@@ -521,28 +521,3 @@ export const CLAUDE_MODE_LINE_ON_SCREEN_RE = new RegExp(
   ).join("|")})`,
   "i",
 );
-
-// ── Claude model identity (statusline `model.id` ↔ launch alias) ────────────
-
-/**
- * The alias ↔ display ↔ canonical-id table, MEASURED (F16 ids and display names
- * at 2.1.258, re-confirmed at 2.1.259). `alias` is what Sonata passes as
- * `--model`; `display` and `id` are what the CLI writes back into the statusline
- * payload (`model.display_name`, `model.id`) — a FILE contract, so this table is
- * how a current-model reading maps back onto a launch row without parsing the
- * screen.
- */
-export interface ClaudeModelAliasRow {
-  alias: string;
-  /** The statusline `model.display_name`. */
-  display: string;
-  /** The canonical API id (statusline `model.id`). */
-  id: string;
-}
-export const CLAUDE_MODEL_ALIASES: readonly ClaudeModelAliasRow[] = [
-  { alias: "fable", display: "Fable 5.1", id: "claude-fable-5-1" },
-  { alias: "opus[1m]", display: "Opus 5 (1M context)", id: "claude-opus-5[1m]" },
-  { alias: "opus", display: "Opus 5", id: "claude-opus-5" },
-  { alias: "sonnet", display: "Sonnet 5", id: "claude-sonnet-5" },
-  { alias: "haiku", display: "Haiku 4.5", id: "claude-haiku-4-5-20251001" },
-];

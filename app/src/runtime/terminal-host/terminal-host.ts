@@ -4675,6 +4675,17 @@ export function codexArgs(options: {
     // Gated on `profile` so a bare-TerminalHost test spawn (no hooks) stays clean.
     ...(options.profile ? ["--dangerously-bypass-hook-trust"] : []),
     "--no-alt-screen",
+    // `--no-daemon` (codex 0.156.1 `--help`: "Run without the shared background
+    // server, even if it is already running"; `codex resume --help` lists it
+    // too). Sonata's session is one embedded process — its pty, its hooks, its
+    // rollout — and this flag is the documented contract that says so. Without
+    // it, embedded mode rests on codex's internal daemon-exclusion list (a
+    // source read in the 0.156.1 triage, U2: `--profile`, `-c` overrides and
+    // `--dangerously-bypass-hook-trust` each force embedded mode), which every
+    // spawn shape here happens to trip today — the hooked one on all three, the
+    // degraded hookless one only on its `-c approvals_reviewer` — and which
+    // upstream may reword at any release. UNCONDITIONAL, unlike the profile pair.
+    "--no-daemon",
     ...(options.model?.trim() ? ["-m", options.model.trim()] : []),
     ...configOverrides,
     "-C",

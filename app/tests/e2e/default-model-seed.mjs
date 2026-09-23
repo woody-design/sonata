@@ -9,11 +9,12 @@ import { chooseDraftProvider } from "./helpers/session.mjs";
 // the three settings files in the fixture dir, boot the app, and assert the New
 // Chat chips wear the PERSISTED defaults — not merely that the JSON was written.
 //
-// The codex fixture pairs gpt-5.5 with the gated `ultra` tier (a hand-editable
-// but invalid combination): copy-at-entry seeding must clamp it through
+// The codex fixture pairs gpt-6-luna with the gated `ultra` tier (a
+// hand-editable but invalid combination — Luna offers Max but not Ultra, codex
+// 0.156.1 q39b): copy-at-entry seeding must clamp it through
 // reasoningOptionsForModel, so the chip reads "Extra High", never "Ultra".
-// (Was gpt-5.4 until 2026-09-10; that row left the catalog at codex 0.154.0 and
-// the fixture follows the picker — gpt-5.5 is the surviving no-Max/no-Ultra row.)
+// (Was gpt-5.4 until 2026-09-10, then gpt-5.5 until 2026-09-23; each left
+// Sonata's picker in turn, and the fixture follows the picker.)
 //
 // The sonata fixture is deliberately the RETIRED `defaultProvider` key — an
 // install upgraded past S3 — so this test doubles as the L4 migration's app-level
@@ -48,7 +49,7 @@ try {
   fs.writeFileSync(
     path.join(settingsRoot, "codex-settings.json"),
     `${JSON.stringify(
-      { defaultModel: "gpt-5.5", defaultReasoningEffort: "ultra" },
+      { defaultModel: "gpt-6-luna", defaultReasoningEffort: "ultra" },
       null,
       2,
     )}\n`,
@@ -74,12 +75,12 @@ try {
   // on Codex, unchanged by the upgrade.
   await page.locator("#provider-chip", { hasText: "Codex" }).waitFor({ state: "visible" });
 
-  // Codex model chip: gpt-5.5 → "5.5"; the gated `ultra` clamps to Extra High.
-  await page.locator("#model-chip", { hasText: "5.5 Extra High" }).waitFor({ state: "visible" });
+  // Codex model chip: gpt-6-luna → "6 Luna"; the gated `ultra` clamps to Extra High.
+  await page.locator("#model-chip", { hasText: "6 Luna Extra High" }).waitFor({ state: "visible" });
   const codexChip = await page.locator("#model-chip").textContent();
   assert.equal(
     codexChip,
-    "5.5 Extra High",
+    "6 Luna Extra High",
     "the gated Ultra tier never survives seeding onto a model that can't accept it",
   );
 

@@ -32,8 +32,9 @@ check("fresh main surface defaults to Light", DEFAULT_READING_SETTINGS.mode === 
 check("initial last-used mirror is absent", initialState.lastUsedProvider === null);
 check("initial New Chat draft is Claude", initialState.taskDraft.provider === "claude");
 // gpt-6-astra since 2026-09-10 (codex 0.154.0 promoted it to the picker's
-// `(default)` row — MEASURED, spikes/codex-0.154-gpt-6-astra/q36). Effort stays
-// High deliberately: Astra's own default tier is Low.
+// `(default)` row — MEASURED, spikes/codex-0.154-gpt-6-astra/q36; still the
+// default at 0.156.1, q39). Effort stays High deliberately: Astra's own default
+// tier is not Sonata's to inherit (Low at 0.154.0, Medium at 0.156.1 — q39b).
 check("fresh Codex model is 6 Astra", DEFAULT_CODEX_SETTINGS.defaultModel === "gpt-6-astra");
 check("fresh Codex effort is High", DEFAULT_CODEX_SETTINGS.defaultReasoningEffort === "high");
 check(

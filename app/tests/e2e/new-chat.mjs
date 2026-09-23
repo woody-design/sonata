@@ -45,7 +45,7 @@ try {
   const sendEnabledWithText = !(await page.locator("#send-prompt").isDisabled());
   await page.locator("#prompt-input").fill("");
 
-  // Fresh-install launch seeds: Claude + Opus 5 + High. Provider is a SEED here,
+  // Fresh-install launch seeds: Claude + Opus 5.5 + High. Provider is a SEED here,
   // not a stored default (S3/L3) — with no last-used record it lands on the
   // Claude fallback, and on a cold launch it does so regardless of which CLIs
   // this machine has: the boot seed beats the readiness probe, so the
@@ -53,7 +53,7 @@ try {
   // below is what this run records, and the two assertions further down read it
   // back.
   await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
-  await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
+  await page.locator("#model-chip", { hasText: "Opus 5.5 High" }).waitFor({ state: "visible" });
 
   // The access chip is Claude-only and follows the Settings default triad:
   // fresh settings → "Manual"; a per-session pick relabels the chip.

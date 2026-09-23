@@ -390,22 +390,27 @@ const run = (status, extra = {}) => ({
 {
   assert.deepEqual(
     CFG.MODEL_OPTIONS.codex.map(({ label, value }) => ({ label, value })),
-    // MEASURED at codex 0.154.0 (2026-09-10, spikes/codex-0.154-gpt-6-astra/q36):
-    // the live picker serves exactly these five, in this order, astra marked
-    // `(default)`. gpt-5.4 / gpt-5.4-mini / gpt-5.3-codex-spark are absent from
-    // the catalog and therefore from this list.
+    // MEASURED at codex 0.156.1 (2026-09-23, spikes/upstream-sync-2026-09/codex/
+    // q39 + q39b): the live picker serves seven rows in this order, astra marked
+    // `(default)`, with GPT-5.5 last. Sonata offers the first six — gpt-5.5 is
+    // pruned (it retires 2026-10-14 and a `-m gpt-5.5` spawn boots the
+    // migration prompt, q41 arm M). gpt-5.4 / gpt-5.4-mini / gpt-5.3-codex-spark
+    // left the catalog at 0.154.0.
     [
       { label: "6 Astra", value: "gpt-6-astra" },
+      { label: "6 Sol", value: "gpt-6-sol" },
+      { label: "6 Luna", value: "gpt-6-luna" },
       { label: "5.6 Sol", value: "gpt-5.6-sol" },
       { label: "5.6 Terra", value: "gpt-5.6-terra" },
       { label: "5.6 Luna", value: "gpt-5.6-luna" },
-      { label: "5.5", value: "gpt-5.5" },
       { label: "Native Default", value: null },
     ],
     "codex model list follows the current native order and slugs",
   );
-  // Re-walked against the live `/model` picker at claude 2.1.258 (upstream sync
-  // 2026-09-01, SL-4 — probes q12/q13). The LABELS are the load-bearing half:
+  // MEASURED at claude 2.1.280 (2026-09-23, probe q38: each alias spawned with
+  // `--model`, display name read off the boot banner AND the statusline payload;
+  // the two Opus aliases moved from "Opus 5…" at 2.1.258 to "Opus 5.5…"). The
+  // LABELS are the load-bearing half:
   // the session chip shows `modelValueLabel(alias)` until the first statusline
   // tick and the CLI's own `model.display_name` after it, so a label that is not
   // the CLI's display name makes the chip change its mind mid-session. Each
@@ -414,8 +419,8 @@ const run = (status, extra = {}) => ({
     CFG.MODEL_OPTIONS.claude.map(({ label, value }) => ({ label, value })),
     [
       { label: "Fable 5.1", value: "fable" },
-      { label: "Opus 5 (1M context)", value: "opus[1m]" },
-      { label: "Opus 5", value: "opus" },
+      { label: "Opus 5.5 (1M context)", value: "opus[1m]" },
+      { label: "Opus 5.5", value: "opus" },
       { label: "Sonnet 5", value: "sonnet" },
       { label: "Haiku 4.5", value: "haiku" },
       { label: "Native Default", value: null },
@@ -423,12 +428,12 @@ const run = (status, extra = {}) => ({
     "claude model list follows the current native order while retaining stable aliases",
   );
   // The label ↔ statusline display-name agreement, pinned on the MEASURED
-  // display names (q13: each is what the statusline payload carried for that
-  // alias), tested as a round trip rather than as a list.
+  // display names (q38: each is what the statusline payload carried for that
+  // alias at 2.1.280), tested as a round trip rather than as a list.
   for (const [displayName, alias] of [
     ["Fable 5.1", "fable"],
-    ["Opus 5 (1M context)", "opus[1m]"],
-    ["Opus 5", "opus"],
+    ["Opus 5.5 (1M context)", "opus[1m]"],
+    ["Opus 5.5", "opus"],
     ["Sonnet 5", "sonnet"],
     ["Haiku 4.5", "haiku"],
   ]) {
@@ -460,14 +465,18 @@ const run = (status, extra = {}) => ({
     ],
     "Sol exposes both Max and Ultra and the Codex-app Light label",
   );
-  // Complete Max/Ultra per-model gate matrix (codex 0.144.4 /model picker,
-  // spikes/codex-effort-max-ultra/; astra row MEASURED at 0.154.0, q36 — its
-  // `Advanced Reasoning` submenu lists Max AND Ultra). Every codex model +
-  // Native Default (null) is pinned, so dropping a model from an allowlist OR
-  // leaking a gated tier onto a model that lacks it fails here. Ungated tiers
-  // stay present for all.
+  // Complete Max/Ultra per-model gate matrix, RE-DERIVED at codex 0.156.1
+  // (q39b: every row's level 2 opened, and its `More reasoning…` submenu where
+  // offered — Max on all six served rows, Ultra on all but the two Lunas).
+  // Every codex model + Native Default (null) + a PRUNED slug is pinned, so
+  // dropping a model from an allowlist OR leaking a gated tier onto a model
+  // that lacks it fails here. A slug outside the catalog (gpt-5.5, which
+  // offered neither at 0.156.1) gets the conservative menu, like null.
+  // Ungated tiers stay present for all.
   const CODEX_EFFORT_GATE = [
     { model: "gpt-6-astra", max: true, ultra: true },
+    { model: "gpt-6-sol", max: true, ultra: true },
+    { model: "gpt-6-luna", max: true, ultra: false },
     { model: "gpt-5.6-sol", max: true, ultra: true },
     { model: "gpt-5.6-terra", max: true, ultra: true },
     { model: "gpt-5.6-luna", max: true, ultra: false },
@@ -511,7 +520,7 @@ const run = (status, extra = {}) => ({
       `Claude ${model ?? "Native Default"} offers only Standard`,
     );
   }
-  for (const model of ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.5", null]) {
+  for (const model of ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-luna", null]) {
     assert.deepEqual(
       speedValues("codex", model),
       ["default", "fast"],
@@ -531,17 +540,17 @@ const run = (status, extra = {}) => ({
   });
   assert.equal(
     C.draftModelSummaryLabel(draft()),
-    "Opus 5 High",
+    "Opus 5.5 High",
     "Claude standard-speed draft: no Fast suffix",
   );
   assert.equal(
     C.draftModelSummaryLabel(draft({ speedMode: { claude: "fast", codex: "default" } })),
-    "Opus 5 High Fast",
+    "Opus 5.5 High Fast",
     "Claude fast draft appends Fast",
   );
   assert.equal(
     C.draftModelSummaryLabel(draft({ speedMode: { claude: "default", codex: "fast" } })),
-    "Opus 5 High",
+    "Opus 5.5 High",
     "the inactive provider's fast selection does not leak onto the Claude chip",
   );
   assert.equal(
@@ -561,19 +570,26 @@ const run = (status, extra = {}) => ({
   );
   assert.equal(
     C.sessionModelSummaryLabel(view({ task: task({ model: "opus", reasoningEffort: "xhigh" }) })),
-    "Opus 5 Extra High",
+    "Opus 5.5 Extra High",
     "spawn settings via the A2 label tables",
   );
   // A task persisted on a model the catalog has since PRUNED (gpt-5.4-mini left
-  // the picker at 0.154.0) must still render — `modelValueLabel` falls back to
-  // the bare slug rather than to nothing, so the card keeps saying what the
-  // session actually ran on.
+  // the picker at 0.154.0; Sonata pruned gpt-5.5 at 0.156.1) must still render
+  // — `modelValueLabel` falls back to the bare slug rather than to nothing, so
+  // the card keeps saying what the session actually ran on.
   assert.equal(
     C.sessionModelSummaryLabel(
       view({ task: task({ provider: "codex", model: "gpt-5.4-mini", reasoningEffort: "max" }) }),
     ),
     "gpt-5.4-mini Max",
     "a persisted value outside the current picker renders as its slug, never blank",
+  );
+  assert.equal(
+    C.sessionModelSummaryLabel(
+      view({ task: task({ provider: "codex", model: "gpt-5.5", reasoningEffort: "high" }) }),
+    ),
+    "gpt-5.5 High",
+    "the row pruned at 0.156.1 renders as its bare slug too",
   );
   assert.equal(
     C.sessionModelSummaryLabel(
@@ -589,25 +605,25 @@ const run = (status, extra = {}) => ({
     "5.6 Sol Ultra",
     "new Codex model and Ultra labels",
   );
-  // The display name here is MEASURED (claude 2.1.258 — the statusline payload
-  // for `claude-opus-5[1m]`), not invented. The fixture used to read "Fable 5",
-  // a name the CLI has never emitted, which is part of why the label drift this
-  // slice fixed went unseen for a whole release train.
+  // The display name here is MEASURED (claude 2.1.280, q38 — the statusline
+  // payload for `claude-opus-5-5[1m]`), not invented. The fixture once read
+  // "Fable 5", a name the CLI has never emitted, which is part of why an
+  // earlier label drift went unseen for a whole release train.
   assert.equal(
     C.sessionModelSummaryLabel(
       view({
         task: task({ model: "opus", reasoningEffort: "low" }),
-        usageSnapshot: { modelDisplayName: "Opus 5 (1M context)", reasoningEffort: "high" },
+        usageSnapshot: { modelDisplayName: "Opus 5.5 (1M context)", reasoningEffort: "high" },
       }),
     ),
-    "Opus 5 (1M context) High",
+    "Opus 5.5 (1M context) High",
     "live statusline outranks spawn settings",
   );
   assert.equal(
     C.sessionModelSummaryLabel(
       view({ task: task({ model: "opus" }), usageSnapshot: { reasoningEffort: "high" } }),
     ),
-    "Opus 5 High",
+    "Opus 5.5 High",
     "partial snapshot: live effort + fallback model",
   );
 }

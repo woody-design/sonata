@@ -65,9 +65,11 @@ export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
   defaultPermissionMode: "ask-for-approval",
   // The fresh-install launch default, mirrored by state.ts createInitialState.
   // Moved gpt-5.6-sol → gpt-6-astra on 2026-09-10 (codex 0.154.0 promoted
-  // Astra to the picker's `(default)` row — MEASURED, q36). Effort stays High:
-  // Astra's own default is Low, and Sonata's standing choice is to inject the
-  // effort it means rather than inherit the model's.
+  // Astra to the picker's `(default)` row — MEASURED, q36; still `(default)`
+  // at 0.156.1, q39). Effort stays High: Astra's own default tier is per-row
+  // and has moved (Low at 0.154.0, Medium at 0.156.1 — q39b), and Sonata's
+  // standing choice is to inject the effort it means rather than inherit the
+  // model's.
   defaultModel: "gpt-6-astra",
   defaultReasoningEffort: "high",
   // On: a stale Codex is the failure mode, and the boot prompt Sonata replaces

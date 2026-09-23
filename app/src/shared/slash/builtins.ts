@@ -8,8 +8,14 @@ import type { SlashCommandEntry } from "../types/slash";
  * no CLI flag, config, or app-server method — `claude --help` lists only
  * process flags; `codex --help`/`codex completion` cover binary subcommands,
  * not the interactive `/` picker), so these are version-pinned snapshots:
- * **Claude Code 2.1.258, Codex CLI 0.152.1**, both walked live on 2026-09-02
- * (spikes/upstream-sync-2026-09/{claude/s1,s2,s4, codex/s3}).
+ * **Claude Code 2.1.258**, walked live on 2026-09-02, and **Codex CLI 0.156.1**
+ * — walked in full at 0.152.1 on 2026-09-02 (spikes/upstream-sync-2026-09/
+ * {claude/s1,s2,s4, codex/s3}), then carried to 0.156.1 by a DELTA walk on
+ * 2026-09-23: a full-name probe of the one entry the 0.156.1 changelog triage
+ * flagged as dead (codex/q41 arm P) answered `Unrecognized command
+ * '/personality'`, so it is removed. A delta walk asserts only what it probed:
+ * the triage's ADDITION candidates were not probed, and the rest of the pool is
+ * carried from 0.152.1 unverified at 0.156.1.
  *
  * STALENESS IS NO LONGER SYMMETRIC. Submit still never consults this registry
  * at all (S3, 2026-07-27: verbatim, always), so a MISSING command only means it
@@ -386,7 +392,6 @@ const CODEX_BUILTINS: BuiltinSpec[] = [
   { name: "memories", description: "Configure memory use and generation" },
   { name: "mention", description: "Mention a file" },
   { name: "new", description: "Start a new session during a conversation" },
-  { name: "personality", description: "Choose a communication style for Codex" },
   { name: "pets", description: "Choose or hide the terminal pet" },
   { name: "plan", description: "Switch to Plan mode" },
   { name: "plugins", description: "Browse plugins" },

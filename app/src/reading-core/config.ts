@@ -28,62 +28,70 @@ export const MODEL_OPTIONS: Record<
   Array<{ label: string; value: string | null }>
 > = {
   // Codex's list mirrors the CLI's own `/model` picker — the rows THIS account
-  // is served, in the picker's order. RE-WALKED at codex 0.154.0 (2026-09-10,
-  // spikes/codex-0.154-gpt-6-astra/q36, a live `/model` open through the
-  // production TerminalHost): FIVE rows — gpt-6-astra `(default)` / gpt-5.6-sol
-  // `(current)` / gpt-5.6-terra / gpt-5.6-luna / gpt-5.5. The three "legacy"
-  // rows 0.152.1 served (gpt-5.4, gpt-5.4-mini) and the earlier
-  // gpt-5.3-codex-spark are GONE from the catalog (`models_cache.json` does not
-  // even list them hidden), so they are pruned here. NOTE the launch itself
-  // tolerates a pruned slug: MEASURED (q36 arm
-  // C) `-m gpt-5.4` boots to a ready composer whose footer reads `gpt-5.4 high`,
-  // and the picker subtitle still advertises `codex -m` for legacy access — so
-  // a persisted task on a pruned model still reopens; `modelValueLabel` renders
-  // its bare slug. The catalog is SERVER-mutable; re-walk every sync.
+  // is served, in the picker's order. RE-WALKED at codex 0.156.1 (2026-09-23,
+  // spikes/upstream-sync-2026-09/codex/q39 + q39b, a live `/model` open through
+  // the production TerminalHost): SEVEN rows — GPT-6-Astra `(default)` /
+  // GPT-6-Sol / GPT-6-Luna / GPT-5.6-Sol / GPT-5.6-Terra / GPT-5.6-Luna /
+  // GPT-5.5 (the picker now paints display names; the slugs here are the ones
+  // each row's receipt `Model changed to <slug> …` reported). Sonata offers six:
+  // `gpt-5.5` is PRUNED on measurement, not on age — its catalog entry carries
+  // an `upgrade` to gpt-5.6-sol with `retirement_at 2026-10-14`, and a
+  // `-m gpt-5.5` spawn at 0.156.1 boots the migration prompt instead of the
+  // model (q41 arm M), where an Esc CONFIRMS `Try new model` and the session
+  // comes up on `GPT-5.6-Sol low` — neither the model nor the effort asked for.
+  // The rows 0.152.1 served (gpt-5.4, gpt-5.4-mini) and gpt-5.3-codex-spark
+  // left the catalog at 0.154.0. NOTE a persisted task on a pruned slug still
+  // renders: `modelValueLabel` falls back to the bare slug, so the card keeps
+  // naming what the session actually ran on (reopening it passes that slug to
+  // `-m`, and the CLI answers as it would at a terminal). The catalog is
+  // SERVER-mutable — it moved twice in 13 days; re-walk every sync.
   //
   // Labels are cosmetic on this side: the launch passes the SLUG (`-m`), and the
   // session chip reads the rollout's `turn_context` slug back through
   // `modelValueLabel`.
   codex: [
     { label: "6 Astra", value: "gpt-6-astra" },
+    { label: "6 Sol", value: "gpt-6-sol" },
+    { label: "6 Luna", value: "gpt-6-luna" },
     { label: "5.6 Sol", value: "gpt-5.6-sol" },
     { label: "5.6 Terra", value: "gpt-5.6-terra" },
     { label: "5.6 Luna", value: "gpt-5.6-luna" },
-    { label: "5.5", value: "gpt-5.5" },
     { label: "Native Default", value: null },
   ],
-  // Claude's list is re-walked against the CLI's own `/model` picker each sync
-  // (upstream sync 2026-09-01, SL-4 — probes q12/q13 at claude 2.1.258,
-  // spikes/upstream-sync-2026-09/claude/findings.md F15/F16). The LABELS are
+  // Claude's list is re-walked against the CLI each sync. The LABELS are
   // user-facing rather than cosmetic: `modelValueLabel()` renders a stored alias
-  // anywhere a chip shows a model (the session chip before its first statusline
-  // tick, which then shows the CLI's own `model.display_name`).
+  // anywhere a chip shows a model (the New Chat chip, and the session chip
+  // before its first statusline tick, which then shows the CLI's own
+  // `model.display_name` verbatim) — so a label that is not the CLI's display
+  // name makes the chip change its mind mid-session.
   //
-  // MEASURED alias → display name at 2.1.258 (q13, each verified by the receipt
-  // AND the statusline payload the switch produced):
-  //    opus[1m] → "Opus 5 (1M context)"   id claude-opus-5[1m]
-  //    opus     → "Opus 5"                id claude-opus-5
-  //    fable    → "Fable 5.1"             id claude-fable-5-1
-  //    sonnet   → "Sonnet 5"              id claude-sonnet-5
-  //    haiku    → "Haiku 4.5"             id claude-haiku-4-5-20251001
+  // MEASURED alias → display name at 2.1.280 (2026-09-23, probe q38 —
+  // spikes/upstream-sync-2026-09/claude/; each alias spawned with `--model`
+  // through the production TerminalHost and read on TWO channels, the boot
+  // banner and the statusline payload the CLI wrote):
+  //    fable    → "Fable 5.1"               id claude-fable-5-1
+  //    opus[1m] → "Opus 5.5 (1M context)"   id claude-opus-5-5[1m]
+  //    opus     → "Opus 5.5"                id claude-opus-5-5
+  //    sonnet   → "Sonnet 5"                id claude-sonnet-5
+  //    haiku    → "Haiku 4.5"               id claude-haiku-4-5-20251001
   //
-  // `opus[1m]` is NEW here and `Fable 5` was WRONG (the CLI says "Fable 5.1").
-  // The live picker's only Opus row IS `Opus (1M context)`, so a Sonata that
-  // lacked it could not name the model most of these accounts actually run —
-  // and, because "Opus 5 (1M context)" matched no label, the session menu marked
-  // no current model at all while the session was on it. Plain `opus` STAYS
-  // even though the picker no longer lists it: it is Sonata's seeded default
-  // (`DEFAULT_CLAUDE_SETTINGS`, `createInitialState`), it is a genuinely
-  // different model id with a 200K window, and `/model opus` resolves at 2.1.258.
+  // The Opus aliases FLOAT with the server: at 2.1.258 the same two aliases
+  // resolved to "Opus 5 (1M context)" / "Opus 5" (`claude-opus-5[1m]` /
+  // `claude-opus-5`, q13). A user who picked an Opus row was already running
+  // Opus 5.5; only this table still named the old model. Plain `opus` STAYS
+  // although the picker offers it as a row only while the session is already
+  // on it (q38 arm h): it is Sonata's seeded default (`DEFAULT_CLAUDE_SETTINGS`,
+  // `createInitialState`), a genuinely different model id with a 200K window,
+  // and `--model opus` resolves.
   //
   // NOT ADDED: the picker's `Default (recommended)` row — that is Sonata's own
   // `Native Default` (null), and choosing it in the CLI CLEARS the user's pinned
-  // default (measured: `settings.json` `model` key removed). Mythos is
-  // trusted-access-only and does not appear on this account.
+  // default (measured at 2.1.258: `settings.json` `model` key removed). Mythos
+  // is trusted-access-only and does not appear on this account.
   claude: [
     { label: "Fable 5.1", value: "fable" },
-    { label: "Opus 5 (1M context)", value: "opus[1m]" },
-    { label: "Opus 5", value: "opus" },
+    { label: "Opus 5.5 (1M context)", value: "opus[1m]" },
+    { label: "Opus 5.5", value: "opus" },
     { label: "Sonnet 5", value: "sonnet" },
     { label: "Haiku 4.5", value: "haiku" },
     { label: "Native Default", value: null },
@@ -140,20 +148,34 @@ export const SPEED_OPTIONS: Array<{ label: string; value: LaunchSpeedMode }> = [
 ];
 
 // Codex gates its top reasoning tiers per model, surfaced in the CLI's own
-// `/model` picker (first verified against codex 0.144.4,
-// spikes/codex-effort-max-ultra/): Sol/Terra offer both Max and Ultra; Luna
-// offers Max but NOT Ultra; 5.5 offers neither. The CLI does not validate `-c
-// model_reasoning_effort` at launch (it echoes any string), so this menu — not
-// the launch — is where an unsupported combination must be kept off the table.
+// `/model` picker: a row offers Max and/or Ultra only through its level-2
+// `More reasoning…` submenu. The CLI does not validate `-c model_reasoning_effort`
+// at launch (it echoes any string), so this menu — not the launch — is where an
+// unsupported combination must be kept off the table.
 //
-// gpt-6-astra joined BOTH sets on MEASUREMENT (codex 0.154.0, q36 arm A step 4):
-// its level-2 row 5 reads `More reasoning…  Max and Ultra consume usage limits
-// faster`, and entering it opens the `Advanced Reasoning` submenu with `1. Max`
-// and `2. Ultra` — the same shape Sol has. Its own default tier is Low
-// (`1. Low (default)`), which is why Sonata's seeded default effort (High) is
-// injected explicitly rather than left to the model.
-const CODEX_MAX_MODELS = new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
-const CODEX_ULTRA_MODELS = new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra"]);
+// RE-DERIVED at codex 0.156.1 (2026-09-23, q39b — every row's level 2 opened,
+// and the `More reasoning…` submenu wherever it was offered):
+//    gpt-6-astra    Max + Ultra   (own default tier Medium — was Low at 0.154.0)
+//    gpt-6-sol      Max + Ultra   (Medium)
+//    gpt-6-luna     Max only      (Medium; `Max consumes…`, no Ultra row)
+//    gpt-5.6-sol    Max + Ultra   (Low)
+//    gpt-5.6-terra  Max + Ultra   (Medium)
+//    gpt-5.6-luna   Max only      (Medium)
+// Every served row offers Max, so `CODEX_MAX_MODELS` is the whole list; the
+// Sets stay explicit anyway, because a slug OUTSIDE them (Native Default, a
+// persisted pruned model such as gpt-5.5, which offered neither) must see
+// neither gated tier. Sonata's seeded default effort (High) is injected
+// explicitly rather than left to the model's own default tier, which is
+// per-row and has already moved once for astra.
+const CODEX_MAX_MODELS = new Set([
+  "gpt-6-astra",
+  "gpt-6-sol",
+  "gpt-6-luna",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+]);
+const CODEX_ULTRA_MODELS = new Set(["gpt-6-astra", "gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-terra"]);
 
 // Claude fast mode (native since 2.1.205) is Opus-only per Anthropic's release
 // notes; we therefore gate Fast to Opus and never inject fastMode onto another
@@ -175,7 +197,9 @@ const CODEX_ULTRA_MODELS = new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra
 // positive readable. This also retires the old comment's admission that the
 // non-Opus behaviour was unverified: it is measured now, and it is a silent
 // no-op, so the gate protects a promise (the UI offering Fast) rather than
-// preventing an error.
+// preventing an error. Re-measured at 2.1.280 (q38), after both Opus aliases
+// moved to Opus 5.5: `opus` + fastMode and `opus[1m]` + fastMode still print the
+// same line, so the gate is unchanged.
 const CLAUDE_FAST_MODELS = new Set(["opus", "opus[1m]"]);
 
 /**

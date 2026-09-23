@@ -76,7 +76,7 @@ assert.deepEqual(
 );
 
 // --- the 2026-09-02 walk, pinned where the measurement CHANGED --------------
-// Presence pins are cheap and would rot into noise if applied to all 182
+// Presence pins are cheap and would rot into noise if applied to all 181
 // entries; these are the ones whose status the walk actually moved, which is
 // also the set a future refresh most needs protected.
 {
@@ -115,6 +115,15 @@ assert.deepEqual(
   // row in Sonata's own picker.
   assert.equal(codex.has("agent"), false, "codex /agent was renamed to /agents at 0.152");
   assert.equal(claude.has("ultraplan"), false, "claude /ultraplan does not exist (measured: Unknown command)");
+
+  // The 0.156.1 delta walk (2026-09-23, codex/q41 arm P): `/personality` +
+  // Enter answers `• Unrecognized command '/personality'`. A dead name in the
+  // snapshot is a dead row in Sonata's picker, so the removal is pinned.
+  assert.equal(
+    codex.has("personality"),
+    false,
+    "codex /personality is gone at 0.156.1 (measured: Unrecognized command)",
+  );
 }
 
 // --- the unlisted tail is alphabetical (the file's maintenance contract) ----

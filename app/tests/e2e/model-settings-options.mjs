@@ -25,15 +25,14 @@ try {
     state: "visible",
   });
 
-  await page.locator("#model-chip", { hasText: "Opus 5 High" }).click();
-  // Re-walked against the live `/model` picker at claude 2.1.258 (upstream sync
-  // 2026-09-01, SL-4). Two rows moved: `Fable 5` was the WRONG label (the CLI
-  // calls it Fable 5.1) and `Opus 5 (1M context)` was missing entirely — it is
-  // the picker's only Opus row.
+  await page.locator("#model-chip", { hasText: "Opus 5.5 High" }).click();
+  // The labels are the CLI's own display names, MEASURED at claude 2.1.280
+  // (probe q38: boot banner + statusline `model.display_name` per alias). Both
+  // Opus aliases float with the server — "Opus 5…" at 2.1.258, "Opus 5.5…" now.
   assert.deepEqual(await settingOptionLabels(page, "Model"), [
     "Fable 5.1",
-    "Opus 5 (1M context)",
-    "Opus 5",
+    "Opus 5.5 (1M context)",
+    "Opus 5.5",
     "Sonnet 5",
     "Haiku 4.5",
     "Native Default",
@@ -46,13 +45,14 @@ try {
     ["Standard", "Fast"],
     "Claude Opus offers the Speed section with Fast",
   );
-  // …and the 1M variant is Opus too (SL-4 probe q15 measured it accepting the
-  // same fastMode injection). `/^Opus 5 \(1M context\)$/` rather than a substring:
-  // two rows now start with "Opus 5", so an unanchored locator is ambiguous.
+  // …and the 1M variant is Opus too (probe q15 at 2.1.258, re-measured by q38 at
+  // 2.1.280: it accepts the same fastMode injection). `/^Opus 5\.5 \(1M context\)$/`
+  // rather than a substring: two rows start with "Opus 5.5", so an unanchored
+  // locator is ambiguous.
   await settingSection(page, "Model")
-    .locator("button", { hasText: /^Opus 5 \(1M context\)$/ })
+    .locator("button", { hasText: /^Opus 5\.5 \(1M context\)$/ })
     .click();
-  await page.locator("#model-chip", { hasText: "Opus 5 (1M context) High" }).waitFor({
+  await page.locator("#model-chip", { hasText: "Opus 5.5 (1M context) High" }).waitFor({
     state: "visible",
   });
   assert.deepEqual(
@@ -60,14 +60,14 @@ try {
     ["Standard", "Fast"],
     "Claude Opus (1M context) offers the Speed section with Fast too",
   );
-  await settingSection(page, "Model").locator("button", { hasText: /^Opus 5$/ }).click();
-  await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
+  await settingSection(page, "Model").locator("button", { hasText: /^Opus 5\.5$/ }).click();
+  await page.locator("#model-chip", { hasText: "Opus 5.5 High" }).waitFor({ state: "visible" });
   // Select Fast, then verify the model-switch unwind: switching Opus→Sonnet must
   // drop the now-unsupported `fast` back to Standard AND remove the section
   // entirely (a lone "Standard" is no real choice). The chip must NOT carry
   // "Fast" after the switch — that is the passes-while-broken hole S1 warned of.
   await settingSection(page, "Speed").locator("button", { hasText: "Fast" }).click();
-  await page.locator("#model-chip", { hasText: "Opus 5 High Fast" }).waitFor({ state: "visible" });
+  await page.locator("#model-chip", { hasText: "Opus 5.5 High Fast" }).waitFor({ state: "visible" });
   await settingSection(page, "Model").locator("button", { hasText: "Sonnet 5" }).click();
   await page.locator("#model-chip", { hasText: "Sonnet 5 High" }).waitFor({ state: "visible" });
   assert.equal(
@@ -81,8 +81,8 @@ try {
     "non-Opus Claude hides the Speed section entirely",
   );
   // Switching back to Opus re-offers the section, now at the unwound Standard.
-  await settingSection(page, "Model").locator("button", { hasText: /^Opus 5$/ }).click();
-  await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
+  await settingSection(page, "Model").locator("button", { hasText: /^Opus 5\.5$/ }).click();
+  await page.locator("#model-chip", { hasText: "Opus 5.5 High" }).waitFor({ state: "visible" });
   const reofferedSpeed = await settingOptionLabels(page, "Speed");
   assert.deepEqual(reofferedSpeed, ["Standard", "Fast"], "Opus re-offers the Speed section");
   const selectedSpeed = await settingSection(page, "Speed")
@@ -96,17 +96,18 @@ try {
 
   await chooseDraftProvider(page, "codex");
   await page.locator("#model-chip", { hasText: "6 Astra High" }).click();
-  // The live picker's five rows at codex 0.154.0 (spikes/codex-0.154-gpt-6-astra/q36).
+  // The live picker's rows at codex 0.156.1 (q39/q39b), minus the pruned GPT-5.5.
   assert.deepEqual(await settingOptionLabels(page, "Model"), [
     "6 Astra",
+    "6 Sol",
+    "6 Luna",
     "5.6 Sol",
     "5.6 Terra",
     "5.6 Luna",
-    "5.5",
     "Native Default",
   ]);
   // Astra offers both gated top tiers (Max between Extra High and Ultra) —
-  // codex 0.154.0 `Advanced Reasoning` submenu, q36 arm A step 4.
+  // its `More reasoning…` submenu, re-measured at codex 0.156.1 (q39b).
   assert.deepEqual(await settingOptionLabels(page, "Reasoning"), [
     "Light",
     "Medium",
@@ -140,28 +141,31 @@ try {
   );
 
   // Max-fallback path (distinct from the Ultra-fallback above): pick Max on
-  // Luna, then switch to a model that offers NEITHER gated tier. If the
+  // Luna, then switch to a choice that offers NEITHER gated tier. If the
   // model-change fallback in renderer/main.ts only unwound `ultra`, Max would
-  // survive here as an unsupported launch combination.
+  // survive here as an unsupported launch combination. Since codex 0.156.1 every
+  // served row offers Max (q39b; gpt-5.5, the last row without it, is pruned),
+  // so Native Default is the one choice left that offers neither — Sonata cannot
+  // know which model it resolves to, so it promises no gated tier.
   await settingSection(page, "Reasoning").locator("button", { hasText: "Max" }).click();
   await page.locator("#model-chip", { hasText: "5.6 Luna Max" }).waitFor({ state: "visible" });
-  await settingSection(page, "Model").locator("button", { hasText: /^5\.5$/ }).click();
-  await page.locator("#model-chip", { hasText: "5.5 Extra High" }).waitFor({ state: "visible" });
-  const fiveFiveReasoning = await settingOptionLabels(page, "Reasoning");
+  await settingSection(page, "Model").locator("button", { hasText: "Native Default" }).click();
+  await page.locator("#model-chip", { hasText: "Default Extra High" }).waitFor({ state: "visible" });
+  const nativeDefaultReasoning = await settingOptionLabels(page, "Reasoning");
   assert.equal(
-    fiveFiveReasoning.includes("Max"),
+    nativeDefaultReasoning.includes("Max"),
     false,
-    "switching to 5.5 removes Max and falls back to Extra High",
+    "switching to Native Default removes Max and falls back to Extra High",
   );
-  assert.equal(fiveFiveReasoning.includes("Ultra"), false, "5.5 offers no Ultra either");
+  assert.equal(nativeDefaultReasoning.includes("Ultra"), false, "Native Default offers no Ultra either");
 
   console.log(
     JSON.stringify(
       {
-        claudeModels: ["Fable 5.1", "Opus 5 (1M context)", "Opus 5", "Sonnet 5", "Haiku 4.5"],
-        codexModels: ["6 Astra", "5.6 Sol", "5.6 Terra", "5.6 Luna", "5.5"],
+        claudeModels: ["Fable 5.1", "Opus 5.5 (1M context)", "Opus 5.5", "Sonnet 5", "Haiku 4.5"],
+        codexModels: ["6 Astra", "6 Sol", "6 Luna", "5.6 Sol", "5.6 Terra", "5.6 Luna"],
         ultraFallback: "5.6 Luna Extra High",
-        maxFallback: "5.5 Extra High",
+        maxFallback: "Default Extra High",
         success: true,
       },
       null,
