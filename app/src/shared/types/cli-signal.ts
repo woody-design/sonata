@@ -267,7 +267,7 @@ export interface HookPayload {
    * the question a future consumer starts from.
    *
    * BOTH providers now stamp `model` on every event (claude: the display id,
-   * e.g. `claude-opus-5[1m]`; codex: `gpt-5.6-sol`). Claude additionally stamps
+   * e.g. `claude-opus-5-5[1m]`; codex: `gpt-5.6-sol`). Claude additionally stamps
    * `scratchpad_dir` everywhere, `source` on `SessionStart` ("startup"), `effort`
    * (`{level}`) on the tool and `Stop` events, and `background_tasks` +
    * `session_crons` on `Stop`/`SubagentStop`. The last two are no longer
