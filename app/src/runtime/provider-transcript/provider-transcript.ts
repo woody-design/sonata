@@ -699,6 +699,68 @@ export class ProviderTranscript {
     }
   }
 
+  /**
+   * Pair on RUN arrival as well as on turn arrival (X5 a). Since X2 a run begins
+   * only on the CLI's own UserPromptSubmit, and codex fires it lazily on a
+   * session's first submission (~1.7s, MEASURED at 0.156.1) — so a fast reply
+   * can land EVERY block of its turn before the run exists. Turn-side pairing
+   * then never re-runs (no later block arrives), the turn stays run-less, and
+   * the run renders as a second card beside it. The controller calls this when
+   * a run has started (after the run-index recorded it): every still-unattributed
+   * turn retries its anchor through the SAME resolver and rules as turn-side
+   * pairing (`resolveRunForTurn`: promptId identity first, then normalized text
+   * inside the anchor's window — 15 min for a user turn), and a turn that now
+   * resolves has its blocks re-emitted carrying the run id.
+   */
+  attributeLateRuns(): void {
+    if (this.disposed) {
+      return;
+    }
+    const resolved = new Map<string, RunId>();
+    for (const [turnId, anchor] of this.turnAnchors) {
+      if ((this.turnRunIds.get(turnId) ?? null) !== null) {
+        continue;
+      }
+      const runId = this.options.resolveRunId({ ...anchor, assigned: this.assignedRunIds });
+      if (!runId) {
+        continue;
+      }
+      this.assignedRunIds.add(runId);
+      this.turnRunIds.set(turnId, runId);
+      resolved.set(turnId, runId);
+    }
+    if (resolved.size === 0) {
+      return;
+    }
+    const upsertsBySource = new Map<string, TranscriptBlock[]>();
+    for (const id of this.blockOrder) {
+      const block = this.blockStore.get(id);
+      const runId = block ? resolved.get(`${block.sourceId}:${block.turnKey}`) : undefined;
+      if (!block || !runId || block.runId === runId) {
+        continue;
+      }
+      const attributed = { ...block, runId };
+      this.blockStore.set(id, attributed);
+      const list = upsertsBySource.get(block.sourceId) ?? [];
+      list.push(attributed);
+      upsertsBySource.set(block.sourceId, list);
+    }
+    for (const [sourceId, upserts] of upsertsBySource) {
+      for (let index = 0; index < upserts.length; index += EMIT_CHUNK_SIZE) {
+        this.emitEvent({
+          type: "transcript:blocks",
+          payload: {
+            taskId: this.options.taskId,
+            sourceId,
+            upserts: upserts.slice(index, index + EMIT_CHUNK_SIZE),
+            reset: false,
+          },
+          ts: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
   private attributeRun(block: TranscriptBlock): TranscriptBlock {
     const turnId = `${block.sourceId}:${block.turnKey}`;
 

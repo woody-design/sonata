@@ -530,6 +530,9 @@ export interface RendererState {
    * siblings' stores.
    */
   cliSessionStartBlocked: Record<string, CliSessionStartBlockReason>;
+  /** A codex spawn is waiting out an in-flight codex auto-update (X5 b,
+   *  `codex-update:waiting`). While set, the composer line says so. */
+  codexUpdateWaiting: boolean;
   /** The Settings "Default model" launch defaults (per-provider model/effort),
    *  mirrored at boot. Unlike the permission-mode mirrors above (which the draft
    *  FOLLOWS live via its null slots), these seed the draft by COPY at boot and
@@ -780,6 +783,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     cliReadiness: UNKNOWN_CLI_READINESS_FACTS,
     cliSetupRun: null,
     cliSessionStartBlocked: {},
+    codexUpdateWaiting: false,
     defaultModel: {
       codex: "gpt-6-astra",
       claude: "opus",

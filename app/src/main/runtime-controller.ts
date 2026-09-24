@@ -109,7 +109,7 @@ import type {
   CodexSettingsStore,
   SonataSettingsStore,
 } from "./settings-store";
-import type { CodexSpawnGate } from "./cli-updater/cli-updater";
+import { WHEN_IDLE_TIMEOUT_MS, type CodexSpawnGate } from "./cli-updater/cli-updater";
 import type { CliReadinessSource } from "./cli-readiness/session-start-diagnosis";
 import { cliSessionStartBlockReason } from "../shared/types/cli-readiness";
 import type { ClaudeSettings } from "../shared/types/claude-settings";
@@ -205,6 +205,9 @@ interface RuntimeControllerOptions {
    * `INERT_CODEX_SPAWN_GATE` and says so.
    */
   cliUpdater: CodexSpawnGate;
+  /** Test seam: the codex spawn's update-wait bound. Production uses
+   *  WHEN_IDLE_TIMEOUT_MS (10 min). */
+  codexUpdateWaitMs?: number;
   /**
    * The readiness facts, for diagnosing a session start that never reached a
    * prompt (S4). REQUIRED for the same reason `cliUpdater` is: the whole feature
@@ -277,6 +280,8 @@ export class RuntimeController {
   private readonly codexSettingsStore: CodexSettingsStore;
   private readonly sonataSettingsStore: SonataSettingsStore;
   private readonly cliUpdater: CodexSpawnGate;
+  /** How long a codex spawn waits out an in-flight update before failing. */
+  private readonly codexUpdateWaitMs: number;
   private readonly cliReadiness: CliReadinessSource;
   /** See {@link RuntimeControllerOptions.claudeProjectsDirectory}. Null-safe by
    *  construction: an unwired controller answers null, which is the locator's
@@ -357,6 +362,7 @@ export class RuntimeController {
     this.codexSettingsStore = options.codexSettingsStore;
     this.sonataSettingsStore = options.sonataSettingsStore;
     this.cliUpdater = options.cliUpdater;
+    this.codexUpdateWaitMs = options.codexUpdateWaitMs ?? WHEN_IDLE_TIMEOUT_MS;
     this.cliReadiness = options.cliReadiness;
     this.claudeProjectsDirectory = options.claudeProjectsDirectory ?? (() => null);
     if (options.onFlushMetrics) {
@@ -794,19 +800,42 @@ export class RuntimeController {
    * a window a real person hits, and it is the one case where the damage is
    * invisible rather than loud.
    *
-   * Bounded, and it degrades open: `whenIdle` resolves either way, so the worst
-   * case is a spawn that proceeds during an update (a visible, retryable boot
-   * failure) rather than a New Chat that silently never happens. Claude spawns
-   * never wait — Claude self-updates and Sonata does nothing there.
+   * Waits for the WHOLE update (bound: WHEN_IDLE_TIMEOUT_MS, 10 min) and says so
+   * (`codex-update:waiting`); if the bound expires the spawn FAILS with an error
+   * instead of proceeding (X5 b). The old 15 s fall-through spawned into a binary
+   * brew was still relinking — measured (q44) as a lost first message, not the
+   * "visible, retryable boot failure" it was assumed to be. Claude spawns never
+   * wait — Claude self-updates and Sonata does nothing there.
    */
   private async awaitCodexUpdateIdle(provider: RuntimeProvider): Promise<void> {
     if (provider !== "codex") {
       return;
     }
-    const outcome = await this.cliUpdater.whenIdle();
+    const pending = this.cliUpdater.whenIdle(this.codexUpdateWaitMs);
+    // Say so only when there IS a wait: `whenIdle` resolves within a microtask
+    // when no update is running, so still pending after a macrotask means an
+    // update is in flight and the user deserves to know why nothing happens yet.
+    const waiting = await Promise.race([
+      pending.then(() => false),
+      new Promise<boolean>((resolve) => setImmediate(() => resolve(true))),
+    ]);
+    if (waiting) {
+      this.sendEvent({ type: "codex-update:waiting", payload: { waiting: true }, ts: new Date().toISOString() });
+    }
+    let outcome: Awaited<typeof pending>;
+    try {
+      outcome = await pending;
+    } finally {
+      if (waiting) {
+        this.sendEvent({ type: "codex-update:waiting", payload: { waiting: false }, ts: new Date().toISOString() });
+      }
+    }
     if (outcome === "timeout") {
-      console.warn(
-        "[cli-updater] a codex update is still running; spawning anyway (bounded wait elapsed).",
+      // Never spawn into a half-installed binary (X5 b, measured q44): fail the
+      // spawn loudly. Nothing has been created yet, so the caller's draft is
+      // intact and the error reaches the composer.
+      throw new Error(
+        "Codex is still updating, so the session was not started. Try again once the update finishes.",
       );
     }
   }
@@ -1849,7 +1878,7 @@ export class RuntimeController {
       }
       return;
     }
-    if (event.type === "sessions:updated") {
+    if (event.type === "sessions:updated" || event.type === "codex-update:waiting") {
       this.sendEvent(event);
       return;
     }
@@ -2046,6 +2075,12 @@ export class RuntimeController {
     }
 
     const summary = runIndex.consume(event);
+    // A run that arrives AFTER its transcript turn (codex's lazily-started first
+    // hook against a fast reply) attaches to that turn now, rather than
+    // rendering as a second card (X5 a). After consume, so the resolver sees it.
+    if (event.type === "run:started" && eventRuntime?.runIndex === runIndex) {
+      eventRuntime.providerTranscript.attributeLateRuns();
+    }
     if (!summary) {
       return;
     }

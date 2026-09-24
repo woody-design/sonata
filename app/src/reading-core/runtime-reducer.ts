@@ -112,6 +112,11 @@ export function reduceRuntimeEvent(
     return [{ kind: "session-index-debounced" }];
   }
 
+  // Not task-scoped; the shell handles it before the reducer (renderer/main.ts).
+  if (event.type === "codex-update:waiting") {
+    return [{ kind: "none" }];
+  }
+
   const view = taskViewForId(state, event.payload.taskId);
   if (!view) {
     return [];

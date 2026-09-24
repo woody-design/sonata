@@ -2119,6 +2119,13 @@ window.sonataRuntime.onRuntimeEvent((event) => {
     renderAttentionBanners();
     return;
   }
+  // A codex spawn is waiting out an in-flight codex auto-update (X5 b). Not a
+  // task event: the spawn may have no task yet. The composer line says so.
+  if (event.type === "codex-update:waiting") {
+    state.codexUpdateWaiting = event.payload.waiting;
+    render();
+    return;
+  }
   if (event.type === "prompt:unsent") {
     restoreUnsentPrompt(
       event.payload.taskId,

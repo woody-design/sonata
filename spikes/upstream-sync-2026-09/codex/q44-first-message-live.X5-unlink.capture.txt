@@ -1,0 +1,38 @@
+{
+  "probe": "q44",
+  "tree": "8b81070",
+  "codex": "codex-cli 0.156.1",
+  "results": [
+    {
+      "i": 1,
+      "t0": 1790211185389,
+      "projectKind": "git",
+      "text": "Reply with exactly: q44-1-muetin7d",
+      "sendDisabled": false,
+      "bannerFirstAtMs": null,
+      "bannerFirstText": null,
+      "sentAtMs": 997,
+      "rolloutAtMs": null,
+      "cliAtMs": null,
+      "cardAtMs": null,
+      "capturedFiles": [],
+      "sidebarSessions": 1,
+      "taskStatus": null,
+      "placeholder": "Message Codex — resumes this session",
+      "promptInputValue": "Reply with exactly: q44-1-muetin7d",
+      "bannerText": "\n            \n              Unknown\n            \n            Approve this action?\n            \n            \n            \n            \n              Deny\n              Allow Session\n              Approve\n            \n            \n            \n              Timed out — this request is now waiting in the CLI\n              Answer in CLI →\n            \n          ",
+      "statusText": "",
+      "cliTail": [
+        "CLI",
+        "project",
+        "›",
+        "0923-New task",
+        "Resume task",
+        "Resume this task without sending the Composer draft."
+      ],
+      "cliTrustDialog": false,
+      "cliMigration": false,
+      "ok": false
+    }
+  ]
+}

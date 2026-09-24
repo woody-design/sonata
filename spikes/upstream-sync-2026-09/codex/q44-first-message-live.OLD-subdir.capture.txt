@@ -1,0 +1,47 @@
+{
+  "probe": "q44",
+  "tree": "dbbdfdf",
+  "codex": "codex-cli 0.156.1",
+  "results": [
+    {
+      "i": 1,
+      "t0": 1790210173328,
+      "projectKind": "subdir",
+      "text": "Reply with exactly: q44-1-mueswyak",
+      "seededCodexSettings": {
+        "defaultPermissionMode": "full-access",
+        "autoTrustProjectFolders": true
+      },
+      "sendDisabled": false,
+      "bannerFirstAtMs": null,
+      "bannerFirstText": null,
+      "sentAtMs": 1015,
+      "rolloutAtMs": 2095,
+      "cliAtMs": 1287,
+      "cardAtMs": 1288,
+      "capturedFiles": [
+        "answering-enabled",
+        "hook-muesx0jb-zb9lik2gd-15935.json",
+        "hook-muesx0l7-zb9mn7qm6-15936.json",
+        "hook-muesx255-zbajy7hkx-15937.json"
+      ],
+      "placeholder": "Continue, correct, or redirect this Task",
+      "promptInputValue": "",
+      "bannerText": "\n            \n              Unknown\n            \n            Approve this action?\n            \n            \n            \n            \n              Deny\n              Allow Session\n              Approve\n            \n            \n            \n              Timed out — this request is now waiting in the CLI\n              Answer in CLI →\n            \n          ",
+      "statusText": "",
+      "cliTail": [
+        "  in coding, computer use, science, and professional work. Give it a hard problem,",
+        "  a half-formed idea, or anything you've been meaning to build. See where it takes",
+        "  you.",
+        "› Reply with exactly: q44-1-mueswyak                                              ",
+        "• q44-1-mueswyak",
+        "  8:36 PM",
+        "› Ask Codex to do anything                                                        ",
+        "  GPT-6-Astra high · /private/tmp/sonata-q44-old-subdi…  ⚠ 1 warning · f2 to view"
+      ],
+      "cliTrustDialog": false,
+      "cliMigration": false,
+      "ok": true
+    }
+  ]
+}

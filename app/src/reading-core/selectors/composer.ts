@@ -276,6 +276,11 @@ export function sendPromptTitle(
  *  future hint belongs here. Lifecycle narration ("Starting Claude", "Ready",
  *  "Selected proj", …) never renders: liveness already lives in the status
  *  strip, outcomes on the turn cards. Returns "" for suppressed messages. */
+/** The composer line while a codex spawn waits out an in-flight codex update
+ *  (X5 b). House style: no em dash. */
+export const CODEX_UPDATING_NOTICE =
+  "Codex is updating… The session starts when the update finishes.";
+
 export function composerNotice(status: string): string {
   const narration: RegExp[] = [
     /^(Idle|Ready|Running|Stopping|Stopped|Failed)$/,

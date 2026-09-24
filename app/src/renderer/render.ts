@@ -28,7 +28,7 @@ import {
 } from "./view/approvals";
 import { renderAttentionBanners } from "./view/banners";
 import { renderCliReadinessCard } from "./view/cli-readiness-card";
-import { composerNotice } from "../reading-core/selectors/composer";
+import { CODEX_UPDATING_NOTICE, composerNotice } from "../reading-core/selectors/composer";
 import {
   renderReadingPopover,
   renderRemoteControl,
@@ -178,7 +178,11 @@ export function render(): void {
   // The greeting + composer ride as one centered group on the empty surface;
   // the class flips the run column out of scroll layout (styles.css).
   elements.runColumn.classList.toggle("run-column-new-chat", !view);
-  const notice = composerNotice(view?.status ?? state.status);
+  // A codex spawn waiting out an in-flight update outranks every other line: it
+  // is the one reason nothing is happening yet (X5 b).
+  const notice = state.codexUpdateWaiting
+    ? CODEX_UPDATING_NOTICE
+    : composerNotice(view?.status ?? state.status);
   elements.runtimeStatus.textContent = notice;
   elements.runtimeStatus.classList.toggle("hidden", notice === "");
   elements.openPreviewWindow.disabled = !view?.task || state.busy;

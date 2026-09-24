@@ -1,0 +1,39 @@
+{
+  "probe": "q44",
+  "tree": "8b81070",
+  "codex": "codex-cli 0.156.1",
+  "results": [
+    {
+      "i": 1,
+      "t0": 1790209693975,
+      "text": "Reply with exactly: q44-1-muesmof6",
+      "sendDisabled": false,
+      "bannerFirstAtMs": null,
+      "bannerFirstText": null,
+      "sentAtMs": 4780,
+      "rolloutAtMs": 2505,
+      "cliAtMs": 1288,
+      "cardAtMs": 2506,
+      "capturedFiles": [
+        "answering-enabled",
+        "hook-muesmtt4-z579ap0vv-12236.json",
+        "hook-muesmwjg-z58vu8psu-12239.json"
+      ],
+      "placeholder": "Continue, correct, or redirect this Task",
+      "promptInputValue": "",
+      "bannerText": "\n            \n              Unknown\n            \n            Approve this action?\n            \n            \n            \n            \n              Deny\n              Allow Session\n              Approve\n            \n            \n            \n              Timed out — this request is now waiting in the CLI\n              Answer in CLI →\n            \n          ",
+      "statusText": "",
+      "cliTail": [
+        "  in coding, computer use, science, and professional work. Give it a hard problem,",
+        "  a half-formed idea, or anything you've been meaning to build. See where it takes",
+        "  you.",
+        "› Reply with exactly: q44-1-muesmof6                                              ",
+        "• q44-1-muesmof6",
+        "  8:28 PM",
+        "› Ask Codex to do anything                                                        ",
+        "  GPT-6-Astra high · /private/tmp/sonata-q44-first-mes…  ⚠ 1 warning · f2 to view"
+      ],
+      "ok": true
+    }
+  ]
+}

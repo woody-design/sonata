@@ -80,13 +80,19 @@ export const INERT_CODEX_SPAWN_GATE: CodexSpawnGate = {
 };
 
 /**
- * How long a codex spawn will wait for a running update before going ahead
- * anyway (D5). Bounded with fall-through on purpose: an unbounded await would
- * let one hung `brew upgrade` block every codex session the user tries to start,
- * and the worst case of falling through is a visible, retryable boot failure —
- * a far better failure than a silently dead New Chat button.
+ * How long a codex spawn waits for a running update (D5, re-decided in X5).
+ *
+ * It used to be 15 s with FALL-THROUGH: "the worst case of falling through is a
+ * visible, retryable boot failure". MEASURED otherwise (q44, 2026-09-23): a real
+ * `brew upgrade` of codex ran 13:17:39 → 13:20:21, far past 15 s; the spawn went
+ * ahead into the half-relinked binary, the pty died before its prompt, and in the
+ * build of the day the New Chat's first message vanished with no card, no CLI
+ * text and no rollout — not visible, not retryable. So the bound is now long
+ * enough to cover a real update (10 min), and the spawn path treats "timeout" as
+ * a FAILURE (see RuntimeController.awaitCodexUpdateIdle), never as permission to
+ * spawn into a binary that is being replaced.
  */
-export const WHEN_IDLE_TIMEOUT_MS = 15_000;
+export const WHEN_IDLE_TIMEOUT_MS = 10 * 60_000;
 
 /** Liveness poll cadence while waiting out a running update. */
 export const ATTEMPT_POLL_INTERVAL_MS = 250;
@@ -272,14 +278,14 @@ export class CliUpdater {
    * Wait out a running update — the mutex a codex spawn takes (D5). Resolves
    * `"idle"` the moment no update is running (immediately, in the overwhelmingly
    * common case) and `"timeout"` when the bound expires with one still running.
-   * The caller proceeds either way; the outcome is returned so it can say so.
+   * What a timeout MEANS is the caller's call, and the one caller (the codex
+   * spawn) fails the spawn loudly rather than booting into a binary that is
+   * being replaced (X5; see WHEN_IDLE_TIMEOUT_MS for the measurement).
    *
-   * Sits on the codex spawn path, so — symmetrically with `spawnDecision` — it
-   * DEGRADES OPEN: every failure mode (bound expired, controller disposed, a
-   * store or probe that threw) resolves and lets the spawn proceed. A session
-   * the user asked for must never be lost to the updater's bookkeeping; the
-   * worst case of proceeding is a visible, retryable boot failure, and the worst
-   * case of not proceeding is a New Chat button that silently does nothing.
+   * Only the BOOKKEEPING failures still degrade open (controller disposed, a
+   * store or probe that threw → `"idle"`): those say nothing about whether an
+   * update is running, and a session the user asked for must not be lost to the
+   * updater's own faults.
    */
   async whenIdle(timeoutMs: number = WHEN_IDLE_TIMEOUT_MS): Promise<IdleOutcome> {
     // Wall-clock, deliberately not the injected `now`: this bound exists to cap

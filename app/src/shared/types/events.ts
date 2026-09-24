@@ -738,6 +738,14 @@ export type CodexTurnContextObservedEvent = BaseRuntimeEvent<
  * deleted, or a project overlay edit). Carries no data — listeners re-read
  * the index via session:index:read.
  */
+/**
+ * A codex spawn is waiting out an in-flight codex auto-update (X5 b). `true`
+ * when the wait begins (only when an update is actually running), `false` when
+ * it ends — the update finished, or the spawn gave up on a hung one and failed.
+ * Not task-scoped: the spawn has no task yet (New Chat) or has not started it.
+ */
+export type CodexUpdateWaitingEvent = BaseRuntimeEvent<"codex-update:waiting", { waiting: boolean }>;
+
 export type SessionsUpdatedEvent = BaseRuntimeEvent<
   "sessions:updated",
   {
@@ -789,6 +797,7 @@ export type ProductRuntimeEvent =
   | ClaudeFullscreenOfferClearedEvent
   | CodexSessionResumableExitEvent
   | CliSessionStartBlockedEvent
+  | CodexUpdateWaitingEvent
   | SessionsUpdatedEvent;
 
 export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
@@ -817,6 +826,7 @@ export type RunIndexEvent = Exclude<
   | ClaudeFullscreenOfferClearedEvent
   | CodexSessionResumableExitEvent
   | CliSessionStartBlockedEvent
+  | CodexUpdateWaitingEvent
   | SessionStateEvent
   | PromptUnsentEvent
   | TaskUpdatedEvent
