@@ -443,6 +443,29 @@ export interface SidebarState {
   disclosure: SidebarDisclosureState;
 }
 
+/** The composer-owner key of the New Chat draft (no task yet). */
+export const NEW_CHAT_OWNER_KEY = "new-chat";
+
+/** Which composer a view's draft belongs to: its task, or the New Chat slot. */
+export function composerOwnerKey(view: { task: { id: string } | null } | null): string {
+  return view?.task?.id ?? NEW_CHAT_OWNER_KEY;
+}
+
+/** Whether a composer's draft is a codex spawn waiting out an in-flight codex
+ *  update (X5 fix round). The New Chat slot counts only while its draft still
+ *  targets Codex: a draft switched to Claude mid-wait is no longer the one
+ *  waiting, and its composer must not say so. */
+export function awaitingCodexUpdate(
+  state: Pick<RendererState, "codexUpdateWaits" | "taskDraft">,
+  view: { task: { id: string } | null } | null,
+): boolean {
+  const key = composerOwnerKey(view);
+  if (!state.codexUpdateWaits[key]) {
+    return false;
+  }
+  return key !== NEW_CHAT_OWNER_KEY || state.taskDraft.provider === "codex";
+}
+
 export interface RendererState {
   taskViews: TaskViewState[];
   activeTaskId: string | null;
@@ -530,9 +553,11 @@ export interface RendererState {
    * siblings' stores.
    */
   cliSessionStartBlocked: Record<string, CliSessionStartBlockReason>;
-  /** A codex spawn is waiting out an in-flight codex auto-update (X5 b,
-   *  `codex-update:waiting`). While set, the composer line says so. */
-  codexUpdateWaiting: boolean;
+  /** Drafts whose codex spawn is waiting out an in-flight codex auto-update,
+   *  keyed by composer owner: a task id (dormant resume) or
+   *  {@link NEW_CHAT_OWNER_KEY}. Only THAT owner's composer line says so (X5
+   *  fix round, F2); concurrent waits are independent entries. */
+  codexUpdateWaits: Record<string, true>;
   /** The Settings "Default model" launch defaults (per-provider model/effort),
    *  mirrored at boot. Unlike the permission-mode mirrors above (which the draft
    *  FOLLOWS live via its null slots), these seed the draft by COPY at boot and
@@ -783,7 +808,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     cliReadiness: UNKNOWN_CLI_READINESS_FACTS,
     cliSetupRun: null,
     cliSessionStartBlocked: {},
-    codexUpdateWaiting: false,
+    codexUpdateWaits: {},
     defaultModel: {
       codex: "gpt-6-astra",
       claude: "opus",

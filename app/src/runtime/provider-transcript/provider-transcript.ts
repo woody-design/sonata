@@ -49,6 +49,9 @@ export interface ProviderTranscriptOptions {
   providerCwd: string;
   eventSink: (event: RuntimeEvent) => void;
   resolveRunId: (input: ResolveRunIdInput) => RunId | null;
+  /** Test seam: how long an unattributed codex turn waits before its
+   *  `[signal] … matched no run` diagnostic (default 15 s). */
+  unattributedTurnDiagnosticMs?: number;
   externallyClaimedPaths?: () => ReadonlySet<string>;
   /** The session id this Task owns — discovery matches it by identity. */
   expectedSessionId?: string | null;
@@ -831,7 +834,7 @@ export class ProviderTranscript {
               `[signal] codex turn ${turnId} anchor promptId ${promptIdForLog} matched no run — check the turn_id bridge`,
             );
           }
-        }, UNATTRIBUTED_TURN_DIAGNOSTIC_DELAY_MS);
+        }, this.options.unattributedTurnDiagnosticMs ?? UNATTRIBUTED_TURN_DIAGNOSTIC_DELAY_MS);
         check.unref?.();
       }
     }

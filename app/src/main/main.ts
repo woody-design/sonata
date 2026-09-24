@@ -64,7 +64,7 @@ import { createRuntimeEventRecorder } from "./runtime-event-recorder";
 import { createPerfLog } from "./perf-log";
 import { RuntimeController } from "./runtime-controller";
 import { UpdaterController } from "./updater/updater-controller";
-import { CliUpdater } from "./cli-updater/cli-updater";
+import { CliUpdater, WHEN_IDLE_TIMEOUT_MS, type CodexSpawnGate } from "./cli-updater/cli-updater";
 import { CliReadiness } from "./cli-readiness/cli-readiness";
 import { CliSetupRunController } from "./cli-readiness/setup-run";
 import { buildUpdaterDialog } from "./updater/updater-interactive";
@@ -124,6 +124,33 @@ let runtimeController: RuntimeController | null = null;
 let notificationController: NotificationController | null = null;
 let updaterController: UpdaterController | null = null;
 let cliUpdater: CliUpdater | null = null;
+
+/**
+ * The codex spawn gate the controller holds. E2E seam (X5 fix round), inert
+ * unless the app is LAUNCHED with SONATA_TEST_CODEX_UPDATE_SEAM=1: then, while
+ * the main process's env carries SONATA_TEST_CODEX_UPDATE_RUNNING=1 (a test
+ * toggles it at runtime), codex spawns see an update in flight — the real
+ * updater cannot be made to run one on demand.
+ */
+function codexSpawnGateFor(updater: CliUpdater): CodexSpawnGate {
+  if (process.env.SONATA_TEST_CODEX_UPDATE_SEAM !== "1") {
+    return updater;
+  }
+  return {
+    spawnDecision: () => updater.spawnDecision(),
+    runCycle: (reason) => updater.runCycle(reason),
+    async whenIdle(timeoutMs = WHEN_IDLE_TIMEOUT_MS) {
+      const deadline = Date.now() + timeoutMs;
+      while (process.env.SONATA_TEST_CODEX_UPDATE_RUNNING === "1") {
+        if (Date.now() >= deadline) {
+          return "timeout";
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return updater.whenIdle(Math.max(0, deadline - Date.now()));
+    },
+  };
+}
 let cliReadiness: CliReadiness | null = null;
 let cliSetupRun: CliSetupRunController | null = null;
 let readingSettingsStore: ReadingSettingsStore | null = null;
@@ -1448,7 +1475,7 @@ app.whenReady().then(() => {
     claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
     codexSettingsStore,
     sonataSettingsStore: new SonataSettingsStore(sonataSettingsPath()),
-    cliUpdater,
+    cliUpdater: codexSpawnGateFor(cliUpdater),
     // The S4 diagnosis port: re-probe, then read. Passed as the narrow
     // `CliReadinessSource` surface — the controller never schedules, gates, or
     // broadcasts facts.

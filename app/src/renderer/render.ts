@@ -10,6 +10,7 @@
 
 import {
   activeTaskView as activeTaskViewOf,
+  awaitingCodexUpdate,
   isSessionLifecycleActive,
   taskViewForId,
   type RendererState,
@@ -180,7 +181,7 @@ export function render(): void {
   elements.runColumn.classList.toggle("run-column-new-chat", !view);
   // A codex spawn waiting out an in-flight update outranks every other line: it
   // is the one reason nothing is happening yet (X5 b).
-  const notice = state.codexUpdateWaiting
+  const notice = awaitingCodexUpdate(state, view)
     ? CODEX_UPDATING_NOTICE
     : composerNotice(view?.status ?? state.status);
   elements.runtimeStatus.textContent = notice;

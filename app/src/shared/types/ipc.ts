@@ -59,6 +59,7 @@ export const IPC_CHANNELS = {
   projectArchive: "project:archive",
   projectReveal: "project:reveal",
   promptSubmit: "prompt:submit",
+  codexUpdateWait: "codex-update:wait",
   attachmentCreate: "attachment:create",
   attachmentCreateReference: "attachment:create-reference",
   attachmentPick: "attachment:pick",
@@ -805,6 +806,9 @@ export interface FolderPickResponse {
 
 export interface SonataRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
+  /** Resolves once no codex auto-update is running; rejects if one outlasts the
+   *  bound (X5). Awaited BEFORE a codex spawn's session-lifecycle claim. */
+  waitForCodexUpdate(): Promise<void>;
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
   closeTask(request: CloseTaskRequest): Promise<void>;
   listTasks(): Promise<ListTasksResponse>;

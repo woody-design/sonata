@@ -34,6 +34,20 @@ const T = require("../../dist/reading-core/selectors/turns");
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-late-run-"));
 const failures = [];
+// The `[signal] … matched no run` diagnostic (X5 fix round, F5): captured so the
+// smoke can pin that a late-attributed turn never logs it, while a turn still
+// unattributed after the (shortened) window does.
+const DIAGNOSTIC_MS = 200;
+const signals = [];
+const realDebug = console.debug;
+console.debug = (...args) => {
+  const line = args.map(String).join(" ");
+  if (line.includes("matched no run")) {
+    signals.push(line);
+    return;
+  }
+  realDebug(...args);
+};
 
 const taskId = "task-late-run";
 const sessionId = "019f0000-aaaa-7000-8000-000000000001";
@@ -109,6 +123,7 @@ function setup(label) {
     providerCwd: "/tmp/ws",
     eventSink: (event) => events.push(event),
     resolveRunId: (input) => resolveRunForTurn(runIndex, input),
+    unattributedTurnDiagnosticMs: DIAGNOSTIC_MS,
   });
   transcript.attachExistingSource({
     sourceId: `codex:${sessionId}`,
@@ -132,7 +147,7 @@ async function check(name, fn) {
   }
 }
 
-await check("turn first, run second → ONE card, carrying the run", () => {
+await check("turn first, run second → ONE card, carrying the run", async () => {
   const { transcript, runIndex, events, now } = setup("late");
   try {
     assert.ok(
@@ -158,18 +173,29 @@ await check("turn first, run second → ONE card, carrying the run", () => {
     const before = events.length;
     transcript.attributeLateRuns();
     assert.equal(events.length, before, "an attributed turn is left alone");
+
+    // F5: the turn was unattributed when its anchor landed, but a late run fixed
+    // it — so the bridge-failure diagnostic must stay silent past its window.
+    const signalsBefore = signals.length;
+    await new Promise((resolve) => setTimeout(resolve, DIAGNOSTIC_MS + 150));
+    assert.equal(signals.length, signalsBefore, "no [signal] for a turn a late run attributed");
   } finally {
     transcript.dispose();
   }
 });
 
-await check("identity outranks text: a run with a DIFFERENT prompt id does not attach", () => {
+await check("identity outranks text: a run with a DIFFERENT prompt id does not attach", async () => {
   const { transcript, runIndex, events, now } = setup("mismatch");
   try {
     runIndex.consume(runStarted("run-other", new Date(now + 1700).toISOString(), "019f0000-cccc-7000-8000-000000000009"));
     transcript.attributeLateRuns();
     assert.ok(transcript.blocks().every((block) => !block.runId), "same text, different turn_id → no pairing");
     assert.equal(cardsFor(events, runIndex).length, 2, "the two stay apart");
+    // …and a turn STILL unattributed after the window is the case the
+    // diagnostic exists for: it logs once.
+    const signalsBefore = signals.length;
+    await new Promise((resolve) => setTimeout(resolve, DIAGNOSTIC_MS + 150));
+    assert.equal(signals.length - signalsBefore, 1, "the still-unattributed turn logs its [signal] once");
   } finally {
     transcript.dispose();
   }

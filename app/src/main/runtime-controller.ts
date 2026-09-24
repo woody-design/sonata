@@ -282,6 +282,8 @@ export class RuntimeController {
   private readonly cliUpdater: CodexSpawnGate;
   /** How long a codex spawn waits out an in-flight update before failing. */
   private readonly codexUpdateWaitMs: number;
+  /** Pairs the two `codex-update:waiting` edges of one wait (F2). */
+  private codexUpdateWaitSeq = 0;
   private readonly cliReadiness: CliReadinessSource;
   /** See {@link RuntimeControllerOptions.claudeProjectsDirectory}. Null-safe by
    *  construction: an unwired controller answers null, which is the locator's
@@ -790,6 +792,19 @@ export class RuntimeController {
   }
 
   /**
+   * The Reading window's pre-spawn wait (X5 fix round, F1): resolve once no codex
+   * update is running, reject (the same loud error) if one outlasts the bound.
+   * The renderer awaits this BEFORE it claims its session-lifecycle lock, so an
+   * update of up to 10 minutes never freezes the app — the user can switch
+   * sessions and send elsewhere meanwhile. createTask/openTask still take the
+   * same wait themselves (the local API, and the narrow race of an update that
+   * starts between this call and the spawn).
+   */
+  async waitForCodexUpdate(): Promise<void> {
+    await this.awaitCodexUpdateIdle("codex");
+  }
+
+  /**
    * Hold a Codex spawn while `codex update` is actually running (D5).
    *
    * Codex re-execs itself through arg0 symlinks to `current_exe()`, so booting a
@@ -819,15 +834,16 @@ export class RuntimeController {
       pending.then(() => false),
       new Promise<boolean>((resolve) => setImmediate(() => resolve(true))),
     ]);
+    const waitId = waiting ? ++this.codexUpdateWaitSeq : 0;
     if (waiting) {
-      this.sendEvent({ type: "codex-update:waiting", payload: { waiting: true }, ts: new Date().toISOString() });
+      this.sendEvent({ type: "codex-update:waiting", payload: { waitId, waiting: true }, ts: new Date().toISOString() });
     }
     let outcome: Awaited<typeof pending>;
     try {
       outcome = await pending;
     } finally {
       if (waiting) {
-        this.sendEvent({ type: "codex-update:waiting", payload: { waiting: false }, ts: new Date().toISOString() });
+        this.sendEvent({ type: "codex-update:waiting", payload: { waitId, waiting: false }, ts: new Date().toISOString() });
       }
     }
     if (outcome === "timeout") {

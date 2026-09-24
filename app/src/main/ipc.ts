@@ -142,6 +142,9 @@ export function registerIpcHandlers(
     event.returnValue = (process.env.SONATA_INSTANCE_LABEL ?? "").trim();
   });
 
+  ipcMain.handle(IPC_CHANNELS.codexUpdateWait, async () => {
+    await runtimeController.waitForCodexUpdate();
+  });
   ipcMain.handle(IPC_CHANNELS.taskCreate, async (_event, request) => {
     await passIpcTestGate("TASK_CREATE");
     return runtimeController.createTask(request);

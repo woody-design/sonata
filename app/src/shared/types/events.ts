@@ -743,8 +743,14 @@ export type CodexTurnContextObservedEvent = BaseRuntimeEvent<
  * when the wait begins (only when an update is actually running), `false` when
  * it ends — the update finished, or the spawn gave up on a hung one and failed.
  * Not task-scoped: the spawn has no task yet (New Chat) or has not started it.
+ * `waitId` pairs the two edges of ONE wait, so concurrent waits never clear
+ * each other (X5 fix round, F2). Informational for companions; the Reading
+ * window scopes its own notice to the draft that is waiting.
  */
-export type CodexUpdateWaitingEvent = BaseRuntimeEvent<"codex-update:waiting", { waiting: boolean }>;
+export type CodexUpdateWaitingEvent = BaseRuntimeEvent<
+  "codex-update:waiting",
+  { waitId: number; waiting: boolean }
+>;
 
 export type SessionsUpdatedEvent = BaseRuntimeEvent<
   "sessions:updated",

@@ -15,7 +15,8 @@
 //      spawned or persisted (the caller's draft is untouched), and the waiting
 //      state is retracted;
 //   4. no update running → no wait, no event;
-//   5. claude never waits (the gate is not asked).
+//   5. claude never waits (the gate is not asked);
+//   6. concurrent waits carry distinct waitIds, each closing its own edge.
 //
 // Fixture provenance: the gate is COMPOSED to the `CodexSpawnGate` contract
 // (whenIdle(timeoutMs) → "idle" | "timeout"); the "update" is a timer. The
@@ -183,6 +184,36 @@ const projectRecords = () => {
     assert.equal(gate.calls.whenIdle.length, 0, "the gate is not asked");
     assert.deepEqual(waitingTrail(), [], "and nothing is said");
     results.claude = "never waits";
+  } finally {
+    controller.dispose();
+  }
+}
+
+// 6) Concurrent waits are independent (X5 fix round, F2): the renderer's
+//    pre-spawn wait and a createTask wait on the same update each get their own
+//    waitId, and each "done" edge closes only its own "waiting" edge.
+{
+  const gate = fakeGate(300);
+  const { controller, events } = makeController(gate, "concurrent", 5_000);
+  try {
+    const [, response] = await Promise.all([
+      controller.waitForCodexUpdate(),
+      controller.createTask({ provider: "codex", cwd: workspace }),
+    ]);
+    assert.ok(response.runtime.pid > 0, "spawned after the update");
+    const edges = events
+      .filter((event) => event.type === "codex-update:waiting")
+      .map((event) => [event.payload.waitId, event.payload.waiting]);
+    const ids = [...new Set(edges.map(([waitId]) => waitId))];
+    assert.equal(ids.length, 2, "two waits, two ids");
+    for (const id of ids) {
+      assert.deepEqual(
+        edges.filter(([waitId]) => waitId === id).map(([, waiting]) => waiting),
+        [true, false],
+        `wait ${id} opens and closes on its own`,
+      );
+    }
+    results.concurrent = edges;
   } finally {
     controller.dispose();
   }

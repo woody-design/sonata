@@ -30,8 +30,11 @@ import { activeRunKey, dormantArmed, stoppedRunRefillDraft } from "../../reading
 import { findSessionSummary } from "../../reading-core/selectors/sidebar";
 import {
   activeTaskView as activeTaskViewOf,
+  awaitingCodexUpdate,
+  composerOwnerKey,
   createTaskView,
   isSessionLifecycleActive,
+  NEW_CHAT_OWNER_KEY,
   taskViewForId,
   upsertTaskView,
   type RendererState,
@@ -349,7 +352,14 @@ export function startNewChat(folder?: string | null): void {
     restoreComposerDraft();
   }
   state.usagePopover = null;
-  sessionTransitions.resetTaskDraftForNewChat(state, folder);
+  // A New Chat draft waiting out a codex update is mid-send: New Chat returns to
+  // it as sent rather than re-seeding it (the provider seed would turn a Codex
+  // draft into a Claude one under the pending send). It gets exactly what the
+  // lifecycle lock used to give it; only the rest of the app is released (X5 fix
+  // round, F1).
+  if (!awaitingCodexUpdate(state, null)) {
+    sessionTransitions.resetTaskDraftForNewChat(state, folder);
+  }
   render();
   elements.promptInput.focus();
 }
@@ -542,6 +552,80 @@ async function createTask(
   }
 }
 
+/** How long a codex pre-spawn wait may take before the composer says why: long
+ *  enough that a no-update check (resolves at once) never flashes the line. */
+const CODEX_UPDATE_NOTICE_DELAY_MS = 150;
+
+/**
+ * Wait out an in-flight codex auto-update BEFORE a codex spawn claims the session
+ * lifecycle (X5 fix round, F1). The claim is the app-wide lock (switching
+ * sessions, New Chat and every Send go quiet under it), and an update can take
+ * minutes, so the wait happens outside it: nothing has spawned, so there is
+ * nothing to protect. Only the waiting draft's composer says so (F2), and a
+ * second Send of that draft while it waits is a no-op.
+ *
+ * Returns "proceed" (no update: go on), "retry" (an update finished while the
+ * user was still on this draft: re-run the action, which re-reads the draft), or
+ * "stop" (a duplicate Send; the update outlasted its bound, whose error is shown;
+ * or the user moved elsewhere meanwhile, who is told to try again — the draft
+ * stays in its slot either way, and nothing is spawned behind the user's back).
+ */
+async function waitOutCodexUpdate(ownerKey: string): Promise<"proceed" | "retry" | "stop"> {
+  if (state.codexUpdateWaits[ownerKey]) {
+    render();
+    return "stop";
+  }
+  const settled = window.sonataRuntime.waitForCodexUpdate().then(
+    () => null,
+    (error: unknown) => error,
+  );
+  const quick = await Promise.race([
+    settled.then(() => true),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), CODEX_UPDATE_NOTICE_DELAY_MS)),
+  ]);
+  if (!quick) {
+    state.codexUpdateWaits[ownerKey] = true;
+    render();
+  }
+  const error = await settled;
+  delete state.codexUpdateWaits[ownerKey];
+  if (error) {
+    setOwnerStatus(ownerKey, errorMessage(error), "error");
+    render();
+    return "stop";
+  }
+  if (quick) {
+    return "proceed";
+  }
+  // The New Chat draft was switched off Codex meanwhile: the user moved on, and
+  // there is nothing to report.
+  if (ownerKey === NEW_CHAT_OWNER_KEY && state.taskDraft.provider !== "codex") {
+    render();
+    return "stop";
+  }
+  if (composerOwnerKey(activeTaskView()) !== ownerKey || isSessionLifecycleActive(state)) {
+    setOwnerStatus(ownerKey, "Codex finished updating. Try again to start the session.", "info");
+    render();
+    return "stop";
+  }
+  render();
+  return "retry";
+}
+
+/** Say a waited spawn's outcome where its draft lives: the New Chat entry
+ *  message (as createTask's own failure does), or the dormant session's line. */
+function setOwnerStatus(ownerKey: string, message: string, tone: "info" | "error"): void {
+  if (ownerKey === NEW_CHAT_OWNER_KEY) {
+    state.status = message;
+    state.taskDraft.message = { tone, text: message };
+    return;
+  }
+  const view = taskViewForId(state, ownerKey);
+  if (view) {
+    view.status = message;
+  }
+}
+
 export async function submitPrompt(): Promise<void> {
   const view = activeTaskView();
   const text = elements.promptInput.value.trim();
@@ -583,6 +667,26 @@ export async function submitPrompt(): Promise<void> {
     view.status = "Type a message before sending";
     render();
     return;
+  }
+
+  // A codex spawn (New Chat on Codex, or a dormant Codex session) first waits
+  // out any in-flight codex update OUTSIDE the lifecycle lock (X5 fix round).
+  const codexSpawnOwner = !view
+    ? state.taskDraft.provider === "codex"
+      ? NEW_CHAT_OWNER_KEY
+      : null
+    : !view.live && view.task?.provider === "codex"
+      ? view.task.id
+      : null;
+  if (codexSpawnOwner) {
+    const outcome = await waitOutCodexUpdate(codexSpawnOwner);
+    if (outcome === "stop") {
+      return;
+    }
+    if (outcome === "retry") {
+      await submitPrompt();
+      return;
+    }
   }
 
   const ownerToken = claimSessionLifecycle(state, (token) => {
@@ -722,6 +826,16 @@ export async function startCliWithoutPrompt(): Promise<void> {
   ) {
     return;
   }
+  if (state.taskDraft.provider === "codex") {
+    const outcome = await waitOutCodexUpdate(NEW_CHAT_OWNER_KEY);
+    if (outcome === "stop") {
+      return;
+    }
+    if (outcome === "retry") {
+      await startCliWithoutPrompt();
+      return;
+    }
+  }
   const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "starting",
     ownerToken: token,
@@ -770,6 +884,16 @@ export async function resumeTaskWithoutPrompt(expectedTaskId: string): Promise<v
     isSessionLifecycleActive(state)
   ) {
     return;
+  }
+  if (view.task.provider === "codex") {
+    const outcome = await waitOutCodexUpdate(expectedTaskId);
+    if (outcome === "stop") {
+      return;
+    }
+    if (outcome === "retry") {
+      await resumeTaskWithoutPrompt(expectedTaskId);
+      return;
+    }
   }
   const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "preparing-resume",

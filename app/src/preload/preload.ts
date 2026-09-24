@@ -149,6 +149,7 @@ if (isReadingThemedDocument()) {
 
 const sonataRuntime: SonataRuntimeBridge = {
   createTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskCreate, request),
+  waitForCodexUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.codexUpdateWait),
   openTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskOpen, request),
   closeTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskClose, request),
   listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.taskList),

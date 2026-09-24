@@ -22,6 +22,11 @@
  *     once, or — before the CLI first reaches its prompt — held and written when
  *     it does. A run appears only when the CLI starts one (`run:started` from
  *     its own UserPromptSubmit), never at the write.
+ * Additive since (X5, 2026-09-23, no bump): `codex-update:waiting {waitId,
+ * waiting}` — a codex spawn is waiting out an in-flight codex auto-update (not
+ * task-scoped; `waitId` pairs the true/false edges of one wait). A spawn whose
+ * update outlasts the 10-minute bound now FAILS (openTask/createTask error)
+ * instead of starting into a half-installed binary.
  * The companions' frozen contract (contracts-v2.md) predates this and needs the
  * same note.
  */
