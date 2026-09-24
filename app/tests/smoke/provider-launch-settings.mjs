@@ -131,15 +131,10 @@ const success =
   // no profile → NO bypass flag (gating: bare spawn stays clean)
   !codexFast.includes("--dangerously-bypass-hook-trust") &&
   !codexDefaultSpeed.includes("--dangerously-bypass-hook-trust") &&
-  // `--no-daemon` on EVERY shape, exactly once, beside `--no-alt-screen` —
-  // unconditional, unlike the profile pair: embedded mode is stated on the
-  // flag contract (codex 0.156.1 `--help`), so the hookless spawn that carries
-  // no `-p` is pinned too.
-  [codexFast, codexDefaultSpeed, codexWithProfile].every(
-    (argv) =>
-      argv.filter((token) => token === "--no-daemon").length === 1 &&
-      includesSequence(argv, ["--no-alt-screen", "--no-daemon"]),
-  ) &&
+  // `--no-daemon` on NO shape (removed 2026-09-24: an older codex fails to
+  // spawn on the unknown argument; embedded mode already follows from the
+  // profile / `-c` flags every shape carries).
+  [codexFast, codexDefaultSpeed, codexWithProfile].every((argv) => !argv.includes("--no-daemon")) &&
   includesSequence(claude, ["--permission-mode", "default"]) &&
   includesSequence(claude, ["--model", "opus"]) &&
   includesSequence(claude, ["--effort", "xhigh"]) &&

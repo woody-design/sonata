@@ -12,7 +12,8 @@ import { chooseDraftProvider } from "./helpers/session.mjs";
 // The codex fixture pairs gpt-6-luna with the gated `ultra` tier (a
 // hand-editable but invalid combination — Luna offers Max but not Ultra, codex
 // 0.156.1 q39b): copy-at-entry seeding must clamp it through
-// reasoningOptionsForModel, so the chip reads "Extra High", never "Ultra".
+// reasoningEffortForModel to the model's own top tier, so the chip reads "Max"
+// (Woody 2026-09-24), never "Ultra" and not a skipped-down "Extra High".
 // (Was gpt-5.4 until 2026-09-10, then gpt-5.5 until 2026-09-23; each left
 // Sonata's picker in turn, and the fixture follows the picker.)
 //
@@ -75,12 +76,12 @@ try {
   // on Codex, unchanged by the upgrade.
   await page.locator("#provider-chip", { hasText: "Codex" }).waitFor({ state: "visible" });
 
-  // Codex model chip: gpt-6-luna → "6 Luna"; the gated `ultra` clamps to Extra High.
-  await page.locator("#model-chip", { hasText: "6 Luna Extra High" }).waitFor({ state: "visible" });
+  // Codex model chip: gpt-6-luna → "6 Luna"; the gated `ultra` clamps to Max (Luna's top).
+  await page.locator("#model-chip", { hasText: "6 Luna Max" }).waitFor({ state: "visible" });
   const codexChip = await page.locator("#model-chip").textContent();
   assert.equal(
     codexChip,
-    "6 Luna Extra High",
+    "6 Luna Max",
     "the gated Ultra tier never survives seeding onto a model that can't accept it",
   );
 

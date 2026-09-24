@@ -253,18 +253,27 @@ export function reasoningOptionsForModel(
  * enforcement rule shared by the New Chat model-switch unwind (renderer/main.ts
  * setDraftModel), the Settings default-model menu, and default-seeding at boot /
  * new-chat reset: a now-gated tier (codex Max/Ultra on a model that lost them)
- * falls back to Extra High — the nearest universally supported level, preserving
- * the user's intent. A supported effort passes through unchanged.
+ * falls back to the HIGHEST tier the model still offers below it (Woody,
+ * 2026-09-24: "the user asked for the top; give them that model's top", so
+ * `ultra` on a Max-capable Luna lands on Max, not Extra High). A supported
+ * effort passes through unchanged. Tier order is the menu order (ascending).
  */
 export function reasoningEffortForModel(
   provider: RuntimeProvider,
   model: string | null,
   effort: ReasoningEffort,
 ): ReasoningEffort {
-  const supported = reasoningOptionsForModel(provider, model).some(
-    (option) => option.value === effort,
-  );
-  return supported ? effort : "xhigh";
+  const supported = reasoningOptionsForModel(provider, model);
+  if (supported.some((option) => option.value === effort)) {
+    return effort;
+  }
+  const order = REASONING_OPTIONS[provider].map((option) => option.value);
+  const requestedRank = order.indexOf(effort);
+  const below = supported
+    .map((option) => option.value)
+    .filter((value): value is ReasoningEffort => typeof value === "string" && order.indexOf(value) < requestedRank)
+    .sort((a, b) => order.indexOf(b) - order.indexOf(a));
+  return below[0] ?? "xhigh";
 }
 
 export function modelValueLabel(provider: RuntimeProvider, value: string | null): string | null {

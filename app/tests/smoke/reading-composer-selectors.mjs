@@ -1056,4 +1056,14 @@ const run = (status, extra = {}) => ({
   );
 }
 
-console.log("reading-composer-selectors: 13 fixture groups pass");
+// 14. Effort clamp lands on the model's own top tier (Woody 2026-09-24): a gated
+// tier falls to the highest supported tier BELOW it, not to Extra High by fiat.
+{
+  assert.equal(CFG.reasoningEffortForModel("codex", "gpt-6-luna", "ultra"), "max", "ultra on a Max-only Luna → Max");
+  assert.equal(CFG.reasoningEffortForModel("codex", "gpt-6-astra", "ultra"), "ultra", "ultra stays where Ultra is served");
+  assert.equal(CFG.reasoningEffortForModel("codex", "gpt-6-luna", "max"), "max", "a supported tier passes through");
+  assert.equal(CFG.reasoningEffortForModel("codex", "gpt-6-luna", "high"), "high", "a low tier is never raised");
+  assert.equal(CFG.reasoningEffortForModel("codex", null, "ultra"), CFG.reasoningEffortForModel("codex", null, "ultra"), "Native Default is deterministic");
+}
+
+console.log("reading-composer-selectors: 14 fixture groups pass");
