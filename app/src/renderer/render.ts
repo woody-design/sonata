@@ -10,7 +10,7 @@
 
 import {
   activeTaskView as activeTaskViewOf,
-  awaitingCodexUpdate,
+  codexUpdateWaitFor,
   isSessionLifecycleActive,
   taskViewForId,
   type RendererState,
@@ -29,7 +29,7 @@ import {
 } from "./view/approvals";
 import { renderAttentionBanners } from "./view/banners";
 import { renderCliReadinessCard } from "./view/cli-readiness-card";
-import { CODEX_UPDATING_NOTICE, composerNotice } from "../reading-core/selectors/composer";
+import { codexUpdateNotice, composerNotice } from "../reading-core/selectors/composer";
 import {
   renderReadingPopover,
   renderRemoteControl,
@@ -181,9 +181,8 @@ export function render(): void {
   elements.runColumn.classList.toggle("run-column-new-chat", !view);
   // A codex spawn waiting out an in-flight update outranks every other line: it
   // is the one reason nothing is happening yet (X5 b).
-  const notice = awaitingCodexUpdate(state, view)
-    ? CODEX_UPDATING_NOTICE
-    : composerNotice(view?.status ?? state.status);
+  const notice =
+    codexUpdateNotice(codexUpdateWaitFor(state, view)) ?? composerNotice(view?.status ?? state.status);
   elements.runtimeStatus.textContent = notice;
   elements.runtimeStatus.classList.toggle("hidden", notice === "");
   elements.openPreviewWindow.disabled = !view?.task || state.busy;

@@ -11,6 +11,7 @@ import type { ReasoningEffort, RuntimeProvider, SlashCommandEntry } from "../../
 import type { OptionPromptDetectedEvent } from "../../shared/types/events";
 import type { OptionPromptAnswers, OptionPromptSelection } from "../../shared/types/option-prompt";
 import type {
+  CodexUpdateWait,
   OptionPromptDraft,
   OptionPromptReceiptLine,
   RendererState,
@@ -267,6 +268,24 @@ export function sendPromptTitle(
   return `Send to ${providerName}`;
 }
 
+/** The composer line while a codex spawn waits out an in-flight codex update
+ *  (X5 b). House style: no em dash. */
+export const CODEX_UPDATING_NOTICE =
+  "Codex is updating… The session starts when the update finishes.";
+
+/** The same line once a New Chat for another folder came in mid-wait: the
+ *  waiting draft keeps its own folder, and says so (X5 fix round, R2). */
+export const CODEX_UPDATING_FOLDER_KEPT_NOTICE =
+  "Codex is updating… This draft keeps its folder and starts when the update finishes.";
+
+/** The composer line for a codex update wait, or null when there is none to show. */
+export function codexUpdateNotice(wait: CodexUpdateWait | null): string | null {
+  if (!wait?.visible) {
+    return null;
+  }
+  return wait.folderKept ? CODEX_UPDATING_FOLDER_KEPT_NOTICE : CODEX_UPDATING_NOTICE;
+}
+
 /** The composer line's editorial policy (2026-07-04 ruling): it speaks ONLY
  *  when the user's own action needs a response — a failure report ("Attached
  *  3 of 4 — …", "Couldn't restore …", free-form errors) or an actionable
@@ -276,11 +295,6 @@ export function sendPromptTitle(
  *  future hint belongs here. Lifecycle narration ("Starting Claude", "Ready",
  *  "Selected proj", …) never renders: liveness already lives in the status
  *  strip, outcomes on the turn cards. Returns "" for suppressed messages. */
-/** The composer line while a codex spawn waits out an in-flight codex update
- *  (X5 b). House style: no em dash. */
-export const CODEX_UPDATING_NOTICE =
-  "Codex is updating… The session starts when the update finishes.";
-
 export function composerNotice(status: string): string {
   const narration: RegExp[] = [
     /^(Idle|Ready|Running|Stopping|Stopped|Failed)$/,

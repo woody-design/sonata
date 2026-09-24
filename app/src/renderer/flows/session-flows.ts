@@ -30,13 +30,14 @@ import { activeRunKey, dormantArmed, stoppedRunRefillDraft } from "../../reading
 import { findSessionSummary } from "../../reading-core/selectors/sidebar";
 import {
   activeTaskView as activeTaskViewOf,
-  awaitingCodexUpdate,
+  codexUpdateWaitFor,
   composerOwnerKey,
   createTaskView,
   isSessionLifecycleActive,
   NEW_CHAT_OWNER_KEY,
   taskViewForId,
   upsertTaskView,
+  type CodexUpdateWait,
   type RendererState,
   type TaskViewState,
 } from "../../reading-core/state";
@@ -356,9 +357,13 @@ export function startNewChat(folder?: string | null): void {
   // it as sent rather than re-seeding it (the provider seed would turn a Codex
   // draft into a Claude one under the pending send). It gets exactly what the
   // lifecycle lock used to give it; only the rest of the app is released (X5 fix
-  // round, F1).
-  if (!awaitingCodexUpdate(state, null)) {
+  // round, F1). A New Chat for another folder is not applied, and the waiting
+  // draft's line says so (R2).
+  const codexWait = codexUpdateWaitFor(state, null);
+  if (!codexWait) {
     sessionTransitions.resetTaskDraftForNewChat(state, folder);
+  } else if (folder && folder !== state.taskDraft.cwd) {
+    codexWait.folderKept = true;
   }
   render();
   elements.promptInput.focus();
@@ -575,6 +580,10 @@ async function waitOutCodexUpdate(ownerKey: string): Promise<"proceed" | "retry"
     render();
     return "stop";
   }
+  // In flight at once (a duplicate action is a no-op from the first moment);
+  // the line shows only if the wait outlasts the notice delay.
+  const wait: CodexUpdateWait = { visible: false, folderKept: false };
+  state.codexUpdateWaits[ownerKey] = wait;
   const settled = window.sonataRuntime.waitForCodexUpdate().then(
     () => null,
     (error: unknown) => error,
@@ -584,7 +593,7 @@ async function waitOutCodexUpdate(ownerKey: string): Promise<"proceed" | "retry"
     new Promise<boolean>((resolve) => setTimeout(() => resolve(false), CODEX_UPDATE_NOTICE_DELAY_MS)),
   ]);
   if (!quick) {
-    state.codexUpdateWaits[ownerKey] = true;
+    wait.visible = true;
     render();
   }
   const error = await settled;
@@ -1036,6 +1045,10 @@ export async function resolveResumeChoice(mode: "full" | "summary"): Promise<voi
   if (!view?.task || !view.resumeChoice) {
     return;
   }
+  // No codex update wait here (X5 fix round): the chooser is Claude-only
+  // (main's `prepareResume` never asks for a non-Claude session), and Claude
+  // spawns never wait. Should Codex ever get the chooser, this door must wait
+  // out the update BEFORE the claim below, like the other codex doors.
   const taskId = view.task.id;
   const sendAfterResume = view.resumeChoice.sendAfterResume;
   // WYSIWYG: for a composer-initiated (sendAfterResume) choice the prompt is

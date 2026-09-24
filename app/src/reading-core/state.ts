@@ -451,19 +451,31 @@ export function composerOwnerKey(view: { task: { id: string } | null } | null): 
   return view?.task?.id ?? NEW_CHAT_OWNER_KEY;
 }
 
-/** Whether a composer's draft is a codex spawn waiting out an in-flight codex
- *  update (X5 fix round). The New Chat slot counts only while its draft still
- *  targets Codex: a draft switched to Claude mid-wait is no longer the one
- *  waiting, and its composer must not say so. */
-export function awaitingCodexUpdate(
+/** One codex spawn's pre-spawn wait for an in-flight codex update (X5 fix
+ *  round), held per composer owner in {@link RendererState.codexUpdateWaits}. */
+export interface CodexUpdateWait {
+  /** The wait outlasted the notice delay, so the composer line says so. Before
+   *  that it is already in flight (a duplicate action is a no-op), just silent:
+   *  a no-update check never flashes the line. */
+  visible: boolean;
+  /** New Chat only: a New Chat for another folder came in mid-wait and was not
+   *  applied (the waiting draft is mid-send and keeps its folder). */
+  folderKept: boolean;
+}
+
+/** The codex update wait a composer's draft is in, if any. The New Chat slot
+ *  counts only while its draft still targets Codex: a draft switched to Claude
+ *  mid-wait is no longer the one waiting. */
+export function codexUpdateWaitFor(
   state: Pick<RendererState, "codexUpdateWaits" | "taskDraft">,
   view: { task: { id: string } | null } | null,
-): boolean {
+): CodexUpdateWait | null {
   const key = composerOwnerKey(view);
-  if (!state.codexUpdateWaits[key]) {
-    return false;
+  const wait = state.codexUpdateWaits[key] ?? null;
+  if (!wait || (key === NEW_CHAT_OWNER_KEY && state.taskDraft.provider !== "codex")) {
+    return null;
   }
-  return key !== NEW_CHAT_OWNER_KEY || state.taskDraft.provider === "codex";
+  return wait;
 }
 
 export interface RendererState {
@@ -554,10 +566,10 @@ export interface RendererState {
    */
   cliSessionStartBlocked: Record<string, CliSessionStartBlockReason>;
   /** Drafts whose codex spawn is waiting out an in-flight codex auto-update,
-   *  keyed by composer owner: a task id (dormant resume) or
+   *  keyed by composer owner: a task id (dormant session) or
    *  {@link NEW_CHAT_OWNER_KEY}. Only THAT owner's composer line says so (X5
    *  fix round, F2); concurrent waits are independent entries. */
-  codexUpdateWaits: Record<string, true>;
+  codexUpdateWaits: Record<string, CodexUpdateWait>;
   /** The Settings "Default model" launch defaults (per-provider model/effort),
    *  mirrored at boot. Unlike the permission-mode mirrors above (which the draft
    *  FOLLOWS live via its null slots), these seed the draft by COPY at boot and

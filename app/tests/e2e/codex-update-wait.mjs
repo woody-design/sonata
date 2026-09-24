@@ -4,7 +4,9 @@
 // main.ts `codexSpawnGateFor`) standing in for a running `brew upgrade`:
 //
 //   1. a New Chat on Codex, sent while the update runs, spawns NOTHING; its own
-//      composer line says "Codex is updating…"; a second Send is a no-op;
+//      composer line says "Codex is updating…"; a second Send is a no-op; a
+//      "New task in <other project>" does not move the waiting draft, and its
+//      line says the draft keeps its folder;
 //   2. meanwhile the user switches to an existing Claude session and SENDS there
 //      — it reaches the CLI (the session-lifecycle lock is not held by the wait),
 //      and that composer does not carry the codex line (the notice is per draft);
@@ -22,6 +24,7 @@ import { activeSessionTaskId, chooseDraftProvider, selectSidebarSession } from "
 import { installFakeCli } from "./helpers/fake-cli.mjs";
 
 const UPDATING = "Codex is updating… The session starts when the update finishes.";
+const FOLDER_KEPT = "Codex is updating… This draft keeps its folder and starts when the update finishes.";
 const CODEX_TEXT = "codex draft sent during the update";
 const CLAUDE_TEXT = "claude send during the update";
 
@@ -30,7 +33,8 @@ const dataRoot = path.join(root, "data-root");
 const settingsDir = path.join(root, "settings");
 const fakeBin = path.join(root, "bin");
 const project = path.join(root, "project");
-for (const dir of [settingsDir, fakeBin, project]) {
+const otherProject = path.join(root, "other-project");
+for (const dir of [settingsDir, fakeBin, project, otherProject]) {
   fs.mkdirSync(dir, { recursive: true });
 }
 fs.writeFileSync(
@@ -54,7 +58,7 @@ try {
       SONATA_DATA_DIR: dataRoot,
       SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
       SONATA_SETTINGS_DIR: settingsDir,
-      SONATA_TEST_PICK_FOLDER: project,
+      SONATA_TEST_PICK_FOLDER: otherProject,
       SONATA_NOTIFICATIONS: "0",
       SONATA_TEST_CODEX_UPDATE_SEAM: "1",
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
@@ -63,9 +67,8 @@ try {
   const main = await app.firstWindow();
   main.setDefaultTimeout(20_000);
   await main.locator(".task-entry-panel").waitFor({ state: "visible" });
-  await chooseProject(main);
-
-  // An existing Claude session to work in while codex updates.
+  // An existing Claude session, in ANOTHER project, to work in while codex updates.
+  await chooseProject(main, otherProject);
   await chooseDraftProvider(main, "claude");
   await main.locator("#prompt-input").fill("claude first message");
   await main.keyboard.press("Enter");
@@ -76,6 +79,8 @@ try {
   await setMainProcessEnv(app, "SONATA_TEST_CODEX_UPDATE_RUNNING", "1");
   await main.locator("#sidebar-new-chat").click();
   await main.locator(".task-entry-panel").waitFor({ state: "visible" });
+  await setMainProcessEnv(app, "SONATA_TEST_PICK_FOLDER", project);
+  await chooseProject(main, project);
   await chooseDraftProvider(main, "codex");
   await main.locator("#prompt-input").fill(CODEX_TEXT);
   await main.locator("#send-prompt").click();
@@ -87,6 +92,17 @@ try {
   checks.nothingSpawnedWhileUpdating = codexSpawnCount() === 0;
   checks.draftKept = (await main.locator("#prompt-input").inputValue()) === CODEX_TEXT;
 
+  // "New task in <other project>" mid-wait: the waiting draft keeps its folder
+  // and its line says so (R2).
+  const otherHeader = main.locator(".sidebar-project-header").filter({
+    has: main.locator(".sidebar-project-name", { hasText: path.basename(otherProject) }),
+  });
+  await otherHeader.hover();
+  await otherHeader.locator(`button[aria-label="New task in ${path.basename(otherProject)}"]`).click();
+  checks.folderKeptLine = await waitFor(async () => (await notice(main)) === FOLDER_KEPT, "the folder-kept line", false);
+  checks.folderKept = ((await main.locator("#project-chip").textContent()) ?? "").includes(path.basename(project)) &&
+    !((await main.locator("#project-chip").textContent()) ?? "").includes(path.basename(otherProject));
+
   // Meanwhile: another session works. The lifecycle lock is free.
   await selectSidebarSession(main, claudeTaskId);
   checks.switchedDuringUpdate = await waitFor(
@@ -94,7 +110,7 @@ try {
     "switching to the claude session",
     false,
   );
-  checks.otherComposerHasNoCodexLine = (await notice(main)) !== UPDATING;
+  checks.otherComposerHasNoCodexLine = !(await notice(main)).startsWith("Codex is updating");
   await main.locator("#prompt-input").fill(CLAUDE_TEXT);
   await main.keyboard.press("Enter");
   checks.otherSessionSendWorks = await waitFor(
@@ -107,7 +123,7 @@ try {
   // Back to the waiting draft; the update ends; the held send goes through once.
   await main.locator("#sidebar-new-chat").click();
   await main.locator(".task-entry-panel").waitFor({ state: "visible" });
-  checks.draftStillSaysUpdating = (await notice(main)) === UPDATING;
+  checks.draftStillSaysUpdating = (await notice(main)) === FOLDER_KEPT;
   // New Chat returns to the waiting draft as sent: no provider re-seed under it.
   checks.draftStillOnCodex =
     ((await main.locator("#provider-chip").textContent()) ?? "").includes("Codex") &&
@@ -192,10 +208,10 @@ async function setMainProcessEnv(electronApp, key, value) {
   }, { key, value });
 }
 
-async function chooseProject(page) {
+async function chooseProject(page, folder) {
   await page.locator("#project-chip").click();
   await page.locator("#entry-choose-folder").click();
-  await page.locator("#project-chip", { hasText: path.basename(project) }).waitFor({ state: "visible" });
+  await page.locator("#project-chip", { hasText: path.basename(folder) }).waitFor({ state: "visible" });
 }
 
 async function waitForActiveTask(page) {
