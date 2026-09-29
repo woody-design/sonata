@@ -43,11 +43,13 @@ export interface ClaudeSettings {
 }
 
 export const DEFAULT_CLAUDE_SETTINGS: ClaudeSettings = {
-  defaultPermissionMode: "default",
+  // Fresh-install defaults, reset 2026-09-29 to the standing daily-driver
+  // configuration: Auto approvals and the 1M-context Opus at High. Mirrored by
+  // state.ts createInitialState; the store falls back per key, so an existing
+  // install whose file lacks a key adopts these too.
+  defaultPermissionMode: "auto",
   defaultRemoteControl: false,
-  // Today's hardcoded launch defaults (state.ts createInitialState) — zero
-  // behavior drift for an install that never touches the new setting.
-  defaultModel: "opus",
+  defaultModel: "opus[1m]",
   defaultReasoningEffort: "high",
 };
 
@@ -64,9 +66,15 @@ export function normalizeClaudeSettings(value: unknown): ClaudeSettings {
     return { ...DEFAULT_CLAUDE_SETTINGS };
   }
   return {
+    // Absent expresses no intent → the fresh-install default (Auto). A value
+    // that IS there but is not an offered mode (a gated CI mode, a hand-edited
+    // typo) expresses an intent Sonata cannot honor, and the fail-safe for a
+    // permission is to ask: "default" (Manual), never the wider Auto.
     defaultPermissionMode: isClaudeDefaultPermissionMode(value.defaultPermissionMode)
       ? value.defaultPermissionMode
-      : DEFAULT_CLAUDE_SETTINGS.defaultPermissionMode,
+      : "defaultPermissionMode" in value
+        ? "default"
+        : DEFAULT_CLAUDE_SETTINGS.defaultPermissionMode,
     defaultRemoteControl:
       typeof value.defaultRemoteControl === "boolean"
         ? value.defaultRemoteControl

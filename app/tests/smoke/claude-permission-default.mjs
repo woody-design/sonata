@@ -1,7 +1,7 @@
 // Layer-1 smoke — the default-permission-mode plumbing:
 //   1. ClaudeSettingsStore round-trip + normalize (positive enum, default
-//      "default"; gated modes like bypassPermissions rejected from the
-//      standing default).
+//      "auto" when absent; gated modes like bypassPermissions and unknown
+//      values fail safe to "default" = Manual, never to the wider Auto).
 //   2. claudeArgs maps each mode (incl. auto) to --permission-mode <mode>.
 
 import fs from "node:fs";
@@ -19,7 +19,7 @@ const assert = (cond, label) => { if (!cond) failures.push(label); };
 
 // --- store ------------------------------------------------------------------
 const store = new ClaudeSettingsStore(path.join(workspace, "claude-settings.json"));
-assert(store.read().defaultPermissionMode === "default", "default is 'default'");
+assert(store.read().defaultPermissionMode === "auto", "default is 'auto'");
 assert(store.write({ defaultPermissionMode: "auto" }).defaultPermissionMode === "auto", "write auto");
 assert(store.read().defaultPermissionMode === "auto", "auto round-trips");
 assert(
@@ -37,11 +37,11 @@ assert(
 );
 assert(
   store.write({ defaultPermissionMode: "garbage" }).defaultPermissionMode === "default",
-  "garbage normalizes to default",
+  "garbage fails safe to default (Manual)",
 );
 assert(
-  new ClaudeSettingsStore(path.join(workspace, "missing.json")).read().defaultPermissionMode === "default",
-  "missing file reads as default",
+  new ClaudeSettingsStore(path.join(workspace, "missing.json")).read().defaultPermissionMode === "auto",
+  "missing file reads as auto",
 );
 
 // --- claudeArgs maps the flag ----------------------------------------------

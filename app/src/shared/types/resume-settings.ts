@@ -35,7 +35,8 @@ export interface ResumeSettings {
 }
 
 export const DEFAULT_RESUME_SETTINGS: ResumeSettings = {
-  policy: "ask",
+  // Fresh-install default, reset 2026-09-29: resume the full session.
+  policy: "full",
 };
 
 export function normalizeResumeSettings(value: unknown): ResumeSettings {
@@ -44,7 +45,13 @@ export function normalizeResumeSettings(value: unknown): ResumeSettings {
   }
   const provenance = normalizeResumeProvenance(value.provenance);
   return {
-    policy: isResumePolicyId(value.policy) ? value.policy : DEFAULT_RESUME_SETTINGS.policy,
+    // Absent → the fresh-install default; a present but unknown policy falls
+    // back to asking rather than to the silent full resume.
+    policy: isResumePolicyId(value.policy)
+      ? value.policy
+      : "policy" in value
+        ? "ask"
+        : DEFAULT_RESUME_SETTINGS.policy,
     ...(provenance ? { provenance } : {}),
   };
 }

@@ -9,6 +9,11 @@ const {
   DEFAULT_SONATA_SETTINGS,
   normalizeSonataSettings,
 } = require("../../dist/shared/types/sonata-settings");
+const {
+  DEFAULT_CLAUDE_SETTINGS,
+  normalizeClaudeSettings,
+} = require("../../dist/shared/types/claude-settings");
+const { DEFAULT_RESUME_SETTINGS } = require("../../dist/shared/types/resume-settings");
 const { DEFAULT_READING_SETTINGS } = require("../../dist/shared/types/reading-settings");
 const { createInitialState } = require("../../dist/reading-core/state");
 
@@ -46,6 +51,33 @@ check(
   initialState.taskDraft.model.codex === "gpt-6-astra" &&
     initialState.taskDraft.reasoningEffort.codex === "high",
 );
+// Fresh-install Claude defaults (reset 2026-09-29 to the standing daily-driver
+// configuration): 1M-context Opus at High, Auto approvals; Codex Full Access;
+// large-session resume = full. Mirrored by createInitialState.
+const freshClaude = normalizeClaudeSettings(null);
+check("fresh Claude model is Opus 5.5 (1M context)", DEFAULT_CLAUDE_SETTINGS.defaultModel === "opus[1m]");
+check("fresh Claude effort is High", DEFAULT_CLAUDE_SETTINGS.defaultReasoningEffort === "high");
+check("fresh Claude approvals are Auto", DEFAULT_CLAUDE_SETTINGS.defaultPermissionMode === "auto");
+check("fresh Remote Control is off", DEFAULT_CLAUDE_SETTINGS.defaultRemoteControl === false);
+check(
+  "normalized Claude defaults stay 1M Opus High Auto",
+  freshClaude.defaultModel === "opus[1m]" &&
+    freshClaude.defaultReasoningEffort === "high" &&
+    freshClaude.defaultPermissionMode === "auto",
+);
+check(
+  "initial draft stays 1M Opus High",
+  initialState.taskDraft.model.claude === "opus[1m]" &&
+    initialState.taskDraft.reasoningEffort.claude === "high",
+);
+check(
+  "initial permission mirrors are Auto / Full Access",
+  initialState.claudeDefaultPermissionMode === "auto" &&
+    initialState.codexDefaultPermissionMode === "full-access",
+);
+check("fresh Codex approvals are Full Access", DEFAULT_CODEX_SETTINGS.defaultPermissionMode === "full-access");
+check("fresh Codex keeps itself up to date", DEFAULT_CODEX_SETTINGS.keepCodexUpToDate === true);
+check("fresh large-session resume is full", DEFAULT_RESUME_SETTINGS.policy === "full");
 check(
   "a stored Codex record still wins",
   normalizeSonataSettings({ lastUsedProvider: "codex" }).lastUsedProvider === "codex",

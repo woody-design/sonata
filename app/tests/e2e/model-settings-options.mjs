@@ -25,7 +25,7 @@ try {
     state: "visible",
   });
 
-  await page.locator("#model-chip", { hasText: "Opus 5.5 High" }).click();
+  await page.locator("#model-chip", { hasText: "Opus 5.5 (1M context) High" }).click();
   // The labels are the CLI's own display names, MEASURED at claude 2.1.280
   // (probe q38: boot banner + statusline `model.display_name` per alias). Both
   // Opus aliases float with the server — "Opus 5…" at 2.1.258, "Opus 5.5…" now.
@@ -39,29 +39,23 @@ try {
   ]);
 
   // Claude launch Speed (S3): native fast mode is Opus-only. The default draft
-  // model is Opus, so the Speed section is offered with both options.
+  // model is Opus (1M context) — the 1M variant accepts the same fastMode
+  // injection (probe q15 at 2.1.258, re-measured by q38 at 2.1.280) — so the
+  // Speed section is offered with both options.
   assert.deepEqual(
     await settingOptionLabels(page, "Speed"),
     ["Standard", "Fast"],
-    "Claude Opus offers the Speed section with Fast",
+    "Claude Opus (1M context) offers the Speed section with Fast",
   );
-  // …and the 1M variant is Opus too (probe q15 at 2.1.258, re-measured by q38 at
-  // 2.1.280: it accepts the same fastMode injection). `/^Opus 5\.5 \(1M context\)$/`
-  // rather than a substring: two rows start with "Opus 5.5", so an unanchored
-  // locator is ambiguous.
-  await settingSection(page, "Model")
-    .locator("button", { hasText: /^Opus 5\.5 \(1M context\)$/ })
-    .click();
-  await page.locator("#model-chip", { hasText: "Opus 5.5 (1M context) High" }).waitFor({
-    state: "visible",
-  });
-  assert.deepEqual(
-    await settingOptionLabels(page, "Speed"),
-    ["Standard", "Fast"],
-    "Claude Opus (1M context) offers the Speed section with Fast too",
-  );
+  // …and plain Opus offers it too. `/^Opus 5\.5$/` rather than a substring: two
+  // rows start with "Opus 5.5", so an unanchored locator is ambiguous.
   await settingSection(page, "Model").locator("button", { hasText: /^Opus 5\.5$/ }).click();
   await page.locator("#model-chip", { hasText: "Opus 5.5 High" }).waitFor({ state: "visible" });
+  assert.deepEqual(
+    await settingOptionLabels(page, "Speed"),
+    ["Standard", "Fast"],
+    "Claude Opus offers the Speed section with Fast too",
+  );
   // Select Fast, then verify the model-switch unwind: switching Opus→Sonnet must
   // drop the now-unsupported `fast` back to Standard AND remove the section
   // entirely (a lone "Standard" is no real choice). The chip must NOT carry

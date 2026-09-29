@@ -24,11 +24,11 @@ function assert(condition, label) {
 
 // --- 1. settings store ------------------------------------------------------
 const store = new ResumeSettingsStore(path.join(workspace, "resume-settings.json"));
-assert(store.read().policy === "ask", "default policy is ask");
+assert(store.read().policy === "full", "default policy is full");
 assert(store.write({ policy: "summary" }).policy === "summary", "write summary");
 assert(store.read().policy === "summary", "summary round-trips");
-assert(store.write({ policy: "bogus" }).policy === "ask", "bogus value normalizes to ask");
-assert(new ResumeSettingsStore(path.join(workspace, "missing.json")).read().policy === "ask",
+assert(store.write({ policy: "bogus" }).policy === "ask", "bogus value fails safe to ask");
+assert(new ResumeSettingsStore(path.join(workspace, "missing.json")).read().policy === "full",
   "missing file reads as default");
 
 // --- 2. transcript stats ----------------------------------------------------

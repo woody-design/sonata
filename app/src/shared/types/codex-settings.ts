@@ -61,8 +61,10 @@ export interface CodexSettings {
 }
 
 export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
-  // Codex's own default (workspace-write, ask on escalation).
-  defaultPermissionMode: "ask-for-approval",
+  // Fresh-install default, reset 2026-09-29 to the standing daily-driver
+  // configuration. The legacy `defaultApprovalMode` migration below still maps
+  // every old value onto ask/approve — an upgrading user never lands here.
+  defaultPermissionMode: "full-access",
   // The fresh-install launch default, mirrored by state.ts createInitialState.
   // Moved gpt-5.6-sol → gpt-6-astra on 2026-09-10 (codex 0.154.0 promoted
   // Astra to the picker's `(default)` row — MEASURED, q36; still `(default)`
@@ -159,8 +161,10 @@ export function normalizeCodexSettings(value: unknown): CodexSettings {
 
 /**
  * New key wins; a stored pre-vocabulary-swap file carries `defaultApprovalMode`
- * instead — migrate it (never escalating). An unrecognizable value falls back to
- * Codex's own default.
+ * instead — migrate it (never escalating). An ABSENT key expresses no intent
+ * and takes the fresh-install default; a key that is present but not an
+ * offered mode (`read-only`, a typo) expresses an intent Sonata cannot spawn
+ * into, and the fail-safe for a permission is to ask — never the wider default.
  */
 function normalizeCodexPermissionDefault(
   value: Record<string, unknown>,
@@ -170,6 +174,9 @@ function normalizeCodexPermissionDefault(
   }
   if ("defaultApprovalMode" in value) {
     return migrateLegacyApprovalDefault(value.defaultApprovalMode);
+  }
+  if ("defaultPermissionMode" in value) {
+    return "ask-for-approval";
   }
   return DEFAULT_CODEX_SETTINGS.defaultPermissionMode;
 }

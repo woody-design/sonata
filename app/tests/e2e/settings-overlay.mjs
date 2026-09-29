@@ -103,7 +103,7 @@ try {
     hasText: "Claude model & effort",
   });
   const claudeModelPopup = claudeModelRow.locator(".settings-popup");
-  await claudeModelPopup.filter({ hasText: "Opus 5.5 · High" }).waitFor({ state: "visible" });
+  await claudeModelPopup.filter({ hasText: "Opus 5.5 (1M context) · High" }).waitFor({ state: "visible" });
   await claudeModelPopup.click();
   const claudeMenu = claudeModelRow.locator(".settings-popup-menu");
   await claudeMenu.waitFor({ state: "visible" });
@@ -128,7 +128,8 @@ try {
 
   // Codex model & effort: the settings menu clamps a now-gated effort on a model
   // switch (Astra offers Ultra; Luna does not) — Ultra must never survive the
-  // switch to Luna (it lands on Extra High), the same rule as the launch menu.
+  // switch to Luna. It lands on the highest tier Luna serves below the request
+  // (Max, since ea2456f), the same rule as the launch menu.
   const codexModelRow = defaultModelGroup.locator(".settings-row", {
     hasText: "Codex model & effort",
   });
@@ -142,31 +143,31 @@ try {
   await codexMenu.locator(".settings-popup-option", { hasText: "5.6 Luna" }).click();
   await waitUntil(() => {
     const persisted = readPersistedCodexSettings();
-    return persisted?.defaultModel === "gpt-5.6-luna" && persisted?.defaultReasoningEffort === "xhigh";
+    return persisted?.defaultModel === "gpt-5.6-luna" && persisted?.defaultReasoningEffort === "max";
   }, 8000);
-  await codexModelPopup.filter({ hasText: "5.6 Luna · Extra High" }).waitFor({ state: "visible" });
+  await codexModelPopup.filter({ hasText: "5.6 Luna · Max" }).waitFor({ state: "visible" });
   // Outside-click close: a mousedown inside the dialog but outside any popup
   // wrap (the header title) closes the open menu without closing the overlay.
   await page.locator(".settings-title").click();
   await codexMenu.waitFor({ state: "hidden" });
 
   // Permissions group, Claude sessions row: the default permission mode for
-  // new Claude sessions. Defaults to "Manual" (the `default` mode's label since
-  // Claude 2.1.200); choosing Auto persists to the Sonata-owned
-  // claude-settings.json (never ~/.claude.json). The Permissions box holds two
-  // popups now (Claude + Codex), so scope by row title.
+  // new Claude sessions. A fresh install defaults to "Auto" (2026-09-29);
+  // choosing Manual (the `default` mode's label since Claude 2.1.200) persists
+  // to the Sonata-owned claude-settings.json (never ~/.claude.json). The
+  // Permissions box holds two popups now (Claude + Codex), so scope by row title.
   const claudeRow = page.locator('section[aria-label="Permissions"] .settings-row', {
     hasText: "Claude sessions",
   });
   const approvalsPopup = claudeRow.locator(".settings-popup");
-  await approvalsPopup.filter({ hasText: "Manual" }).waitFor({ state: "visible" });
+  await approvalsPopup.filter({ hasText: "Auto" }).waitFor({ state: "visible" });
   await approvalsPopup.click();
-  await claudeRow.locator(".settings-popup-option", { hasText: "Auto" }).click();
+  await claudeRow.locator(".settings-popup-option", { hasText: "Manual" }).click();
   await waitUntil(() => {
     const persisted = readPersistedClaudeSettings();
-    return persisted?.defaultPermissionMode === "auto";
+    return persisted?.defaultPermissionMode === "default";
   }, 8000);
-  await approvalsPopup.filter({ hasText: "Auto" }).waitFor({ state: "visible" });
+  await approvalsPopup.filter({ hasText: "Manual" }).waitFor({ state: "visible" });
 
   // Permissions group, Codex sessions row: the stored legacy `on-failure`
   // default migrated on read to "Ask for approval"; the menu offers EXACTLY

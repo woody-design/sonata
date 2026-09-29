@@ -782,7 +782,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       message: null,
       model: {
         codex: "gpt-6-astra",
-        claude: "opus",
+        claude: "opus[1m]",
       },
       reasoningEffort: {
         codex: "high",
@@ -809,8 +809,8 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     remoteControlPopoverAnchor: null,
     remoteControlNote: null,
     remoteControlDefault: false,
-    claudeDefaultPermissionMode: "default",
-    codexDefaultPermissionMode: "ask-for-approval",
+    claudeDefaultPermissionMode: "auto",
+    codexDefaultPermissionMode: "full-access",
     // The launch mirrors start at the same hardcoded values the taskDraft above
     // is seeded with; boot hydration overwrites them from the persisted settings
     // (and re-seeds the draft). `lastUsedProvider` starts ABSENT rather than at
@@ -823,7 +823,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     codexUpdateWaits: {},
     defaultModel: {
       codex: "gpt-6-astra",
-      claude: "opus",
+      claude: "opus[1m]",
     },
     defaultReasoningEffort: {
       codex: "high",

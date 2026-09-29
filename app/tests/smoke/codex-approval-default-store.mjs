@@ -2,7 +2,8 @@
 // permission preset new Codex sessions launch with). Mirrors the Claude
 // permission-default store fence: positive enum for the three offered modes,
 // legacy `-a` defaults migrate on read (never escalating), garbage/missing
-// normalize to the behaviour-neutral "ask-for-approval".
+// fail safe to "ask-for-approval"; an absent key/file takes the fresh-install
+// default "full-access".
 
 import fs from "node:fs";
 import os from "node:os";
@@ -20,8 +21,8 @@ const assert = (cond, label) => {
 
 const store = new CodexSettingsStore(path.join(workspace, "codex-settings.json"));
 
-// Default (nothing written yet) is Codex's own default → behaviour-neutral.
-assert(store.read().defaultPermissionMode === "ask-for-approval", "default is 'ask-for-approval'");
+// Default (nothing written yet) is the fresh-install default: Full Access.
+assert(store.read().defaultPermissionMode === "full-access", "default is 'full-access'");
 
 // All three offered permission modes round-trip.
 for (const mode of ["ask-for-approval", "approve-for-me", "full-access"]) {
@@ -53,18 +54,18 @@ for (const [legacy, expected] of Object.entries(legacyMigration)) {
 // Unknown values normalize to the default (fail-safe read).
 assert(
   store.write({ defaultPermissionMode: "garbage" }).defaultPermissionMode === "ask-for-approval",
-  "garbage normalizes to ask-for-approval",
+  "garbage fails safe to ask-for-approval",
 );
 assert(
-  store.write({}).defaultPermissionMode === "ask-for-approval",
-  "empty object normalizes to ask-for-approval",
+  store.write({}).defaultPermissionMode === "full-access",
+  "empty object normalizes to full-access",
 );
 
 // A missing file reads as the default rather than throwing.
 assert(
   new CodexSettingsStore(path.join(workspace, "missing.json")).read().defaultPermissionMode ===
-    "ask-for-approval",
-  "missing file reads as ask-for-approval",
+    "full-access",
+  "missing file reads as full-access",
 );
 
 fs.rmSync(workspace, { recursive: true, force: true, maxRetries: 5 });

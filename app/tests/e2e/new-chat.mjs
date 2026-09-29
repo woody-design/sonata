@@ -53,12 +53,12 @@ try {
   // below is what this run records, and the two assertions further down read it
   // back.
   await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
-  await page.locator("#model-chip", { hasText: "Opus 5.5 High" }).waitFor({ state: "visible" });
+  await page.locator("#model-chip", { hasText: "Opus 5.5 (1M context) High" }).waitFor({ state: "visible" });
 
   // The access chip is Claude-only and follows the Settings default triad:
-  // fresh settings → "Manual"; a per-session pick relabels the chip.
+  // fresh settings → "Auto"; a per-session pick relabels the chip.
   await chooseDraftProvider(page, "claude");
-  await page.locator("#permission-chip", { hasText: "Manual" }).waitFor({ state: "visible" });
+  await page.locator("#permission-chip", { hasText: "Auto" }).waitFor({ state: "visible" });
   await page.locator("#permission-chip").click();
   await page.locator("#access-option-acceptEdits").click();
   await page.locator("#permission-chip", { hasText: "Accept edits" }).waitFor({ state: "visible" });
@@ -78,12 +78,12 @@ try {
   // provider-launch-settings smoke; neither needs a real spawn.)
   await chooseDraftProvider(page, "codex");
   // Codex draft: the access chip stays, now speaking Codex's own vocabulary.
-  // Fresh settings → the boot-hydrated Codex default "Ask for approval". The
-  // menu offers the three presets; an explicit non-default pick relabels the
-  // chip AND travels on createTask (asserted against the manifest below). The
-  // untouched-draft → main-process-fill path is fenced by
-  // smoke:codex-approval-injection.
-  await page.locator("#permission-chip", { hasText: "Ask for approval" }).waitFor({
+  // Fresh settings → the boot-hydrated Codex default "Full Access" (the
+  // fresh-install default since 2026-09-29). The menu offers the three presets;
+  // an explicit non-default pick relabels the chip AND travels on createTask
+  // (asserted against the manifest below). The untouched-draft →
+  // main-process-fill path is fenced by smoke:codex-approval-injection.
+  await page.locator("#permission-chip", { hasText: "Full Access" }).waitFor({
     state: "visible",
   });
   await page.locator("#permission-chip").click();
@@ -122,8 +122,8 @@ try {
       codexMenuCopy[option.mode]?.label === option.label &&
       codexMenuCopy[option.mode]?.desc === option.desc,
   );
-  await page.locator("#codex-access-option-full-access").click();
-  await page.locator("#permission-chip", { hasText: "Full Access" }).waitFor({ state: "visible" });
+  await page.locator("#codex-access-option-approve-for-me").click();
+  await page.locator("#permission-chip", { hasText: "Approve for me" }).waitFor({ state: "visible" });
   await page.locator("#model-chip").click();
   await page.locator(".task-settings-popover", { hasText: "Reasoning" }).waitFor({ state: "visible" });
   await page
@@ -215,7 +215,7 @@ try {
     createdManifest.task.model === "gpt-6-astra" &&
     createdManifest.task.reasoningEffort === "high" &&
     createdManifest.task.speedMode === "fast" &&
-    createdManifest.task.codexPermissionMode === "full-access" &&
+    createdManifest.task.codexPermissionMode === "approve-for-me" &&
     createdManifest.task.providerCwd === selectedFolder &&
     createdManifest.task.title === `${localDatePrefix(createdManifest.task.createdAt)}${firstPrompt}` &&
     createdManifest.task.titleOrigin === "automatic" &&

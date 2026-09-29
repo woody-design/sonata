@@ -21,7 +21,7 @@ try {
   // yet (it governs the new chats after the probe lands). Claude here is the
   // fallback term, not an observation.
   let page = await launch();
-  await assertNewChatDefault(page, "Claude", "Opus 5.5 High");
+  await assertNewChatDefault(page, "Claude", "Opus 5.5 (1M context) High");
   await assertFreshAppearance(page);
   assert.equal(readJson(sonataSettingsPath), null, "a fresh launch records no provider");
 
@@ -62,7 +62,7 @@ try {
   await assertNewChatDefault(page, "Codex", "5.6 Luna Extra High");
   await assertFreshAppearance(page);
   await chooseDraftProvider(page, "claude");
-  await page.locator("#model-chip", { hasText: "Opus 5.5 High" }).waitFor({
+  await page.locator("#model-chip", { hasText: "Opus 5.5 (1M context) High" }).waitFor({
     state: "visible",
   });
 
@@ -76,7 +76,7 @@ try {
       {
         fresh: {
           provider: "claude",
-          model: "opus",
+          model: "opus[1m]",
           effort: "high",
           mainMode: "light",
           cliMode: "dark",
