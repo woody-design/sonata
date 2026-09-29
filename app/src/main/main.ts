@@ -276,6 +276,19 @@ function createMainWindow(firstLaunchBounds?: InitialWindowBounds): BrowserWindo
   window.loadFile(path.join(__dirname, "../renderer/index.html"));
   windowState?.track(window, "main");
   guardWindowClose(window);
+  // Registered AFTER the close guard so `defaultPrevented` reflects its verdict.
+  // Electron tears child windows down with the parent (CloseImmediately: no
+  // `close` event, only `closed`), which would take the CLI window — and every
+  // live CLI, via `window-all-closed` — with a main-window close that today
+  // leaves the CLI running. Detaching first keeps that behavior exactly.
+  window.on("close", (event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+    if (terminalWindow && !terminalWindow.isDestroyed() && terminalWindow.getParentWindow() === window) {
+      terminalWindow.setParentWindow(null);
+    }
+  });
 
   // The two window-scoped CLI readiness triggers (D4 — event-driven, no timers).
   //
@@ -370,6 +383,13 @@ function createTerminalWindow(firstLaunchBounds?: InitialWindowBounds): BrowserW
     minHeight: TERMINAL_WINDOW_DEFAULTS.minHeight,
     ...(decision?.fullScreen ? { fullscreen: true } : {}),
     title: "Sonata CLI",
+    // Experiment (2026-09-29): the CLI window is a *child* of the main window.
+    // On macOS a child window minimizes, moves between Spaces and hides with
+    // its parent, which is the symptom being tested — the two windows drifting
+    // apart (main minimized, CLI left behind; each on a different Space). The
+    // link is lifecycle-scoped: it is dropped before the main window closes
+    // (see createMainWindow) and re-attached when main is re-created.
+    ...(mainWindow && !mainWindow.isDestroyed() ? { parent: mainWindow } : {}),
     // Frameless like the main window: the renderer owns the whole surface and
     // the traffic lights float over the topbar's reserved left corner, so the
     // CLI reads as a peer of the main column (its "CLI" label sits
@@ -1589,6 +1609,9 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       mainWindow = createMainWindow();
+      if (terminalWindow && !terminalWindow.isDestroyed()) {
+        terminalWindow.setParentWindow(mainWindow);
+      }
     }
   });
 });
